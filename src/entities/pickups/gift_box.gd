@@ -43,7 +43,6 @@ var _remaining_hits: int = 1
 var _is_open: bool = false
 var _origin: Vector2 = Vector2.ZERO
 
-@onready var _sprite: Sprite2D = $Sprite
 @onready var _hit_zone: Area2D = $HitZone
 
 
@@ -58,6 +57,7 @@ func _ready() -> void:
 	_hit_zone.collision_layer = CollisionLayers.BREAKABLE
 	_hit_zone.collision_mask = CollisionLayers.PLAYER_PROJECTILE
 	_hit_zone.area_entered.connect(_on_hit_zone_entered)
+	queue_redraw()
 
 
 ## Injection depuis le niveau : le cadeau ne cherche jamais le joueur.
@@ -143,9 +143,63 @@ func _pick_power() -> PowerData:
 
 func _play_break_effect() -> void:
 	var tween: Tween = create_tween().set_parallel(true)
-	tween.tween_property(_sprite, "scale", Vector2(1.35, 0.6), 0.10)
-	tween.tween_property(_sprite, "modulate:a", 0.0, 0.16)
+	tween.tween_property(self, "scale", Vector2(1.35, 0.6), 0.10)
+	tween.tween_property(self, "modulate:a", 0.0, 0.16)
 	tween.chain().tween_callback(queue_free)
+
+
+# --- Dessin -----------------------------------------------------------------
+
+## Un vrai cadeau : caisse de bois cerclee, ruban croise et noeud sur le
+## dessus. Un enfant doit reconnaitre un CADEAU au premier regard, pas une
+## caisse quelconque — c'est ce qui donne envie d'aller le chercher.
+
+const BOX_SIZE: float = 60.0
+const WOOD: Color = Color(0.72, 0.50, 0.26)
+const WOOD_DARK: Color = Color(0.56, 0.37, 0.18)
+const WOOD_LIGHT: Color = Color(0.84, 0.62, 0.34)
+const OUTLINE: Color = Color(0.20, 0.12, 0.06)
+const RIBBON: Color = Color(0.92, 0.24, 0.32)
+const RIBBON_LIGHT: Color = Color(1.00, 0.46, 0.52)
+const RIBBON_WIDTH: float = 12.0
+const OUTLINE_WIDTH: float = 4.0
+
+
+func _draw() -> void:
+	var half: float = BOX_SIZE * 0.5
+	var body: Rect2 = Rect2(-half, -half, BOX_SIZE, BOX_SIZE)
+
+	# Corps, avec une face superieure plus claire : le volume se lit sans
+	# avoir a dessiner de perspective.
+	draw_rect(body, WOOD)
+	draw_rect(Rect2(-half, -half, BOX_SIZE, BOX_SIZE * 0.26), WOOD_LIGHT)
+	draw_rect(Rect2(-half, half - BOX_SIZE * 0.18, BOX_SIZE, BOX_SIZE * 0.18), WOOD_DARK)
+
+	# Ruban croise, vertical puis horizontal.
+	draw_rect(Rect2(-RIBBON_WIDTH * 0.5, -half, RIBBON_WIDTH, BOX_SIZE), RIBBON)
+	draw_rect(Rect2(-half, -RIBBON_WIDTH * 0.5, BOX_SIZE, RIBBON_WIDTH), RIBBON)
+	# Un liseré clair sur le ruban : il brille, donc il attire l'oeil.
+	draw_rect(Rect2(-RIBBON_WIDTH * 0.5, -half, RIBBON_WIDTH * 0.32, BOX_SIZE), RIBBON_LIGHT)
+
+	_draw_bow(-half)
+	draw_rect(body, OUTLINE, false, OUTLINE_WIDTH)
+
+
+## Noeud sur le dessus : deux boucles et un centre. C'est lui qui transforme
+## la caisse en cadeau.
+func _draw_bow(top: float) -> void:
+	var knot: Vector2 = Vector2(0.0, top - 2.0)
+	for side: float in [-1.0, 1.0]:
+		var loop: Vector2 = knot + Vector2(side * 13.0, -7.0)
+		draw_colored_polygon(PackedVector2Array([
+			knot,
+			loop + Vector2(side * 4.0, -7.0),
+			loop + Vector2(side * 10.0, 1.0),
+			knot + Vector2(side * 5.0, 5.0),
+		]), RIBBON)
+		draw_circle(loop + Vector2(side * 4.0, -2.0), 3.0, RIBBON_LIGHT)
+	draw_circle(knot, 6.0, RIBBON)
+	draw_circle(knot + Vector2(-1.5, -1.5), 2.6, RIBBON_LIGHT)
 
 
 func is_open() -> bool:

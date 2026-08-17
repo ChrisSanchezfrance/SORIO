@@ -48,8 +48,9 @@ var target: Node2D = null
 var _phase: Phase = Phase.POP
 var _velocity: Vector2 = POP_VELOCITY
 var _elapsed: float = 0.0
-var _sprite: Sprite2D = null
 var _bob_time: float = 0.0
+## Decalage vertical de l'oscillation, applique au dessin.
+var _bob: float = 0.0
 
 
 func _ready() -> void:
@@ -57,16 +58,13 @@ func _ready() -> void:
 	collision_mask = 0
 	monitoring = false
 	monitorable = false
-	_sprite = get_node_or_null(^"Sprite") as Sprite2D
-	if _sprite != null:
-		_sprite.modulate = tint
+	queue_redraw()
 
 
 ## Appele par le cadeau qui vient de s'ouvrir.
 func launch(from: Vector2, toward: Node2D, sideways: float = 0.0) -> void:
 	global_position = from
-	if _sprite != null:
-		_sprite.modulate = tint
+	queue_redraw()
 	target = toward
 	_velocity = POP_VELOCITY + Vector2(sideways, 0.0)
 	_phase = Phase.POP
@@ -80,8 +78,7 @@ func rest_at(where: Vector2, toward: Node2D) -> void:
 	global_position = where
 	target = toward
 	_phase = Phase.RESTING
-	if _sprite != null:
-		_sprite.modulate = tint
+	queue_redraw()
 
 
 func _physics_process(delta: float) -> void:
@@ -89,8 +86,8 @@ func _physics_process(delta: float) -> void:
 	_bob_time += delta
 
 	if _phase == Phase.RESTING:
-		if _sprite != null:
-			_sprite.position.y = sin(_bob_time * BOB_SPEED) * BOB_AMPLITUDE
+		_bob = sin(_bob_time * BOB_SPEED) * BOB_AMPLITUDE
+		queue_redraw()
 		if target != null and is_instance_valid(target) \
 				and global_position.distance_to(target.global_position + Vector2(0, -64)) \
 					<= REST_PICKUP_RADIUS:
@@ -109,8 +106,8 @@ func _physics_process(delta: float) -> void:
 			return
 
 	# Oscillation verticale : la grammaire des ramassables de A.7.
-	if _sprite != null:
-		_sprite.position.y = sin(_bob_time * BOB_SPEED) * BOB_AMPLITUDE
+	_bob = sin(_bob_time * BOB_SPEED) * BOB_AMPLITUDE
+	queue_redraw()
 
 	# Sans cible ou apres trop longtemps, on se ramasse tout seul plutot que
 	# de laisser un objet fantome vivre dans le niveau.
@@ -163,10 +160,57 @@ func _absorb() -> void:
 ## l'objet semble avoir disparu tout seul.
 func _play_absorb_effect() -> void:
 	set_physics_process(false)
-	if _sprite == null:
-		queue_free()
-		return
 	var tween: Tween = create_tween().set_parallel(true)
-	tween.tween_property(_sprite, "scale", Vector2(1.6, 1.6), 0.12)
-	tween.tween_property(_sprite, "modulate:a", 0.0, 0.12)
+	tween.tween_property(self, "scale", Vector2(1.6, 1.6), 0.12)
+	tween.tween_property(self, "modulate:a", 0.0, 0.12)
 	tween.chain().tween_callback(queue_free)
+
+
+# --- Dessin -----------------------------------------------------------------
+
+## Un cristal en losange, de la COULEUR DE SON POUVOIR. La forme dit "objet
+## precieux" et la couleur dit lequel : on sait ce qu'on va gagner avant
+## meme de l'avoir touche, sans lire une seule ligne.
+##
+## Le halo clair et l'oscillation verticale sont la grammaire des
+## ramassables de A.7 — tout ce qui se ramasse la porte, sans exception.
+
+const CRYSTAL_HEIGHT: float = 30.0
+const CRYSTAL_WIDTH: float = 19.0
+## Hauteur de l'arete du haut, qui donne la facette superieure.
+const CREST_RATIO: float = 0.34
+const OUTLINE: Color = Color(0.12, 0.10, 0.16)
+const OUTLINE_WIDTH: float = 2.5
+const HALO_ALPHA: float = 0.22
+
+
+func _draw() -> void:
+	var center: Vector2 = Vector2(0.0, _bob)
+	var top: Vector2 = center + Vector2(0.0, -CRYSTAL_HEIGHT)
+	var bottom: Vector2 = center + Vector2(0.0, CRYSTAL_HEIGHT)
+	var left: Vector2 = center + Vector2(-CRYSTAL_WIDTH, -CRYSTAL_HEIGHT * CREST_RATIO)
+	var right: Vector2 = center + Vector2(CRYSTAL_WIDTH, -CRYSTAL_HEIGHT * CREST_RATIO)
+
+	# Halo : on le voit de loin, meme sur un fond charge.
+	var halo: Color = tint
+	halo.a = HALO_ALPHA
+	draw_circle(center, CRYSTAL_HEIGHT * 1.15, halo)
+
+	# Le losange, en deux facettes : claire a gauche, sombre a droite. C'est
+	# ce contraste qui fait lire "cristal" plutot que "losange plat".
+	draw_colored_polygon(
+		PackedVector2Array([top, left, bottom]), tint.lightened(0.28)
+	)
+	draw_colored_polygon(
+		PackedVector2Array([top, right, bottom]), tint.darkened(0.22)
+	)
+	# Facette superieure, plus claire encore : le point de lumiere.
+	draw_colored_polygon(
+		PackedVector2Array([top, left, center, right]), tint.lightened(0.45)
+	)
+
+	draw_polyline(PackedVector2Array([
+		top, left, bottom, right, top,
+	]), OUTLINE, OUTLINE_WIDTH)
+	# Arete centrale : elle separe les deux facettes et acheve le volume.
+	draw_line(top, bottom, OUTLINE, OUTLINE_WIDTH * 0.7)

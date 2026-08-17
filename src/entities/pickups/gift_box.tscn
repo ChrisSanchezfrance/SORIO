@@ -1,7 +1,6 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://src/entities/pickups/gift_box.gd" id="1_gift"]
-[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/gift-box.png" id="2_tex"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
 size = Vector2(64, 64)
@@ -13,9 +12,6 @@ size = Vector2(76, 76)
 collision_layer = 1
 collision_mask = 0
 script = ExtResource("1_gift")
-
-[node name="Sprite" type="Sprite2D" parent="."]
-texture = ExtResource("2_tex")
 
 [node name="Collision" type="CollisionShape2D" parent="."]
 shape = SubResource("RectangleShape2D_body")
