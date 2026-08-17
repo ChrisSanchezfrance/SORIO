@@ -22,6 +22,20 @@ const SQUASH_SECONDS: float = 0.08
 ## En dessous de cette vitesse de chute, l'atterrissage ne merite pas d'effet.
 const LANDING_EFFECT_MIN_SPEED: float = 400.0
 
+## Coup porte au bouton B. Court et repetable : c'est l'attaque de base,
+## pas un pouvoir. La duree est celle pendant laquelle la boite fait mal.
+const ATTACK_ACTIVE_SECONDS: float = 0.16
+## Delai avant de pouvoir refrapper. Assez court pour marteler, assez long
+## pour que ce ne soit pas un bouclier permanent.
+const ATTACK_COOLDOWN_SECONDS: float = 0.30
+## Distance de la boite de coup devant SORIO.
+const ATTACK_REACH: float = 46.0
+
+## Accroupi : la capsule de collision se raccourcit, ce qui permettra de
+## passer sous les obstacles bas des mondes suivants.
+const STAND_CAPSULE_HEIGHT: float = 112.0
+const CROUCH_CAPSULE_HEIGHT: float = 64.0
+
 ## Couleur de l'echarpe selon les PV restants (A.3) : rouge, orange, blanche.
 const SCARF_COLORS: Array[Color] = [
 	Color(1.0, 1.0, 1.0),
@@ -37,6 +51,7 @@ const SCARF_COLORS: Array[Color] = [
 @onready var hurtbox: Area2D = $Hurtbox
 @onready var stomp_box: Area2D = $StompBox
 @onready var power_anchor: Node2D = $PowerAnchor
+@onready var attack_box: Area2D = $AttackBox
 @onready var state_machine: PlayerStateMachine = $StateMachine
 
 # --- Etat de la frame -------------------------------------------------------
@@ -45,6 +60,11 @@ const SCARF_COLORS: Array[Color] = [
 var input_axis: float = 0.0
 var jump_just_pressed: bool = false
 var jump_held: bool = false
+## Bas du stick : s'accroupir. Le stick NE SAUTE PAS — le saut est au
+## bouton A et nulle part ailleurs, pour qu'un enfant n'ait jamais deux
+## facons contradictoires de faire la meme chose.
+var input_down: bool = false
+var attack_just_pressed: bool = false
 
 ## Sens du regard, +1 a droite. Pilote l'orientation de l'echarpe.
 var facing: int = 1
@@ -53,6 +73,10 @@ var facing: int = 1
 var coyote_timer: float = 0.0
 var jump_buffer_timer: float = 0.0
 var invincibility_timer: float = 0.0
+## Temps restant pendant lequel le coup fait mal, puis avant de repouvoir
+## frapper.
+var attack_active_timer: float = 0.0
+var attack_cooldown_timer: float = 0.0
 
 ## Multiplicateur de friction du sol : 1.0 partout, 0.25 sur la glace (monde 4).
 var friction_factor: float = 1.0
@@ -77,6 +101,10 @@ func _ready() -> void:
 	# sans lui, courir sur une pente declenche des faux "en l'air".
 	floor_snap_length = 8.0
 	motion_mode = CharacterBody2D.MOTION_MODE_GROUNDED
+
+	attack_box.collision_layer = CollisionLayers.PLAYER_PROJECTILE
+	attack_box.collision_mask = CollisionLayers.ENEMY | CollisionLayers.BREAKABLE
+	attack_box.monitoring = false
 
 	state_machine.setup(self)
 	# L'animation suit l'etat : aucun etat n'appelle `play()` lui-meme, donc
@@ -113,6 +141,10 @@ func _read_input() -> void:
 	input_axis = Input.get_axis(&"move_left", &"move_right")
 	jump_just_pressed = Input.is_action_just_pressed(&"jump")
 	jump_held = Input.is_action_pressed(&"jump")
+	input_down = Input.is_action_pressed(&"move_down")
+	attack_just_pressed = Input.is_action_just_pressed(&"attack")
+	if attack_just_pressed:
+		try_attack()
 	if jump_just_pressed:
 		# Le saut est memorise meme si SORIO est encore en l'air : c'est le
 		# jump buffer. Il sera consomme des le contact avec le sol.
@@ -123,6 +155,11 @@ func _update_timers(delta: float) -> void:
 	coyote_timer = maxf(0.0, coyote_timer - delta)
 	jump_buffer_timer = maxf(0.0, jump_buffer_timer - delta)
 	invincibility_timer = maxf(0.0, invincibility_timer - delta)
+	attack_cooldown_timer = maxf(0.0, attack_cooldown_timer - delta)
+	if attack_active_timer > 0.0:
+		attack_active_timer = maxf(0.0, attack_active_timer - delta)
+		if attack_active_timer <= 0.0:
+			attack_box.monitoring = false
 
 
 ## Ouvre la fenetre de coyote au moment precis ou SORIO quitte le sol sans
@@ -144,6 +181,9 @@ func _update_facing() -> void:
 	# L'echarpe flotte derriere SORIO : elle suit le sens du regard.
 	if scarf != null:
 		scarf.scale.x = float(facing)
+	# Le coup part toujours devant, jamais dans le dos.
+	if attack_box != null:
+		attack_box.position.x = ATTACK_REACH * float(facing)
 
 
 # --- Aides de physique, utilisees par les etats ------------------------------
@@ -204,6 +244,44 @@ func bounce(strength: float = 0.0) -> void:
 	velocity.y = strength if strength < 0.0 else config.stomp_bounce
 	is_jump_cuttable = false
 	squash(STRETCH_SCALE)
+
+
+# --- Coup porte (bouton B) --------------------------------------------------
+
+func is_attacking() -> bool:
+	return attack_active_timer > 0.0
+
+
+func can_attack() -> bool:
+	return attack_cooldown_timer <= 0.0 and state_machine.current_name != &"dead"
+
+
+## Declenche un coup. Utilisable dans TOUS les etats — au sol, en l'air, en
+## chute : un enfant qui appuie sur B doit voir SORIO frapper, pas se faire
+## refuser l'action parce qu'il n'avait pas les pieds au sol.
+func try_attack() -> bool:
+	if not can_attack():
+		return false
+	attack_active_timer = ATTACK_ACTIVE_SECONDS
+	attack_cooldown_timer = ATTACK_COOLDOWN_SECONDS
+	attack_box.monitoring = true
+	sprite.play(&"cast")
+	Haptics.pulse(&"stomp")
+	return true
+
+
+# --- Accroupi (bas du stick) ------------------------------------------------
+
+## Raccourcit ou restaure la capsule de collision.
+func set_crouched(crouched: bool) -> void:
+	var shape: Shape2D = collision.shape
+	if not (shape is CapsuleShape2D):
+		return
+	var capsule: CapsuleShape2D = shape as CapsuleShape2D
+	var height: float = CROUCH_CAPSULE_HEIGHT if crouched else STAND_CAPSULE_HEIGHT
+	capsule.height = height
+	# Le repere de SORIO est a ses pieds : la capsule reste posee au sol.
+	collision.position.y = -height / 2.0
 
 
 # --- Degats et sante --------------------------------------------------------

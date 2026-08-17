@@ -38,6 +38,14 @@ func _button_b() -> TouchButton:
 	return _controls.get("_button_b") as TouchButton
 
 
+func _button_c() -> TouchButton:
+	return _controls.get("_button_c") as TouchButton
+
+
+func _buttons() -> Array[TouchButton]:
+	return [_button_a(), _button_b(), _button_c()]
+
+
 func _screen() -> Vector2:
 	return Vector2(_controls.get_viewport().get_visible_rect().size)
 
@@ -49,18 +57,32 @@ func test_stick_is_on_the_left_and_buttons_on_the_right() -> void:
 	var middle: float = screen.x * 0.5
 	assert_lt(_stick().position.x + _stick().size.x * 0.5, middle,
 		"le stick doit rester dans la moitie gauche")
-	assert_gt(_button_a().position.x, middle, "A doit etre a droite")
-	assert_gt(_button_b().position.x, middle, "B doit etre a droite")
+	for button: TouchButton in _buttons():
+		assert_gt(button.position.x, middle, "les boutons doivent etre a droite")
 
 
-func test_there_are_exactly_two_action_buttons() -> void:
-	# Le bouton poche revient en passe 4, avec les pouvoirs : tant qu'il n'y
-	# a rien a echanger, c'est une cible qui masque le jeu pour rien.
+func test_there_are_three_action_buttons() -> void:
+	# A sauter, B frapper, C pouvoir.
 	var buttons: int = 0
 	for child: Node in _controls.get_child(0).get_children():
 		if child is TouchButton:
 			buttons += 1
-	assert_eq(buttons, 2)
+	assert_eq(buttons, 3)
+
+
+func test_the_stick_never_jumps() -> void:
+	# Le saut n'existe QUE sur A. Deux facons de faire la meme chose, c'est
+	# une facon de trop a 8 ans — et un enfant qui saute sans le vouloir en
+	# poussant le stick vers le haut ne comprend plus ce qu'il controle.
+	assert_ne(String(_stick().get("action_up")), "jump",
+		"le haut du stick ne doit declencher aucun saut")
+	# L'action branchee en haut ne doit etre lue par personne : c'est ce qui
+	# garantit qu'elle ne fera jamais rien.
+	assert_eq(String(_stick().get("action_up")), "move_up")
+	assert_eq(String(_stick().get("action_down")), "move_down",
+		"le bas du stick sert a s'accroupir")
+	assert_eq(String(_stick().get("action_left")), "move_left")
+	assert_eq(String(_stick().get("action_right")), "move_right")
 
 
 func test_a_is_the_biggest_and_the_lowest() -> void:
@@ -78,7 +100,7 @@ func test_a_is_the_biggest_and_the_lowest() -> void:
 func test_buttons_respect_the_edge_margin() -> void:
 	var screen: Vector2 = _screen()
 	var margin: float = TouchButton.EDGE_MARGIN
-	for button: TouchButton in [_button_a(), _button_b()]:
+	for button: TouchButton in _buttons():
 		var rect: Rect2 = button.get_rect()
 		assert_gt(rect.position.x, margin - 1.0, "trop pres du bord gauche")
 		assert_gt(rect.position.y, margin - 1.0, "trop pres du bord haut")
@@ -88,11 +110,22 @@ func test_buttons_respect_the_edge_margin() -> void:
 			"deborde en bas")
 
 
-func test_buttons_keep_at_least_24px_between_them() -> void:
-	var gap: float = _button_a().position.x \
-		- (_button_b().position.x + _button_b().size.x)
-	assert_gt(gap, TouchButton.MIN_SPACING - 0.5,
-		"critere 4 de C.2 : au moins 24 px de vide")
+func test_no_two_buttons_are_too_close() -> void:
+	# Avec trois cibles voisines, un doigt d'enfant doit pouvoir se tromper
+	# de quelques millimetres sans declencher la mauvaise action.
+	var margin: float = TouchButton.MIN_SPACING * 0.5
+	var buttons: Array[TouchButton] = _buttons()
+	for i: int in range(buttons.size()):
+		for j: int in range(i + 1, buttons.size()):
+			assert_false(
+				buttons[i].get_rect().grow(margin).intersects(buttons[j].get_rect()),
+				"%s et %s sont trop proches" % [buttons[i].text, buttons[j].text]
+			)
+
+
+func test_buttons_are_spread_further_than_the_minimum() -> void:
+	# "Ecarte legerement les boutons" : l'ecart voulu depasse le minimum.
+	assert_gt(TouchControls.BUTTON_GAP, TouchButton.MIN_SPACING)
 
 
 func test_buttons_stay_above_the_c2_minimum() -> void:
@@ -100,7 +133,7 @@ func test_buttons_stay_above_the_c2_minimum() -> void:
 	# 64 px du critere 1 de C.2.
 	Settings.set_option(&"controls", &"button_scale", 0.85)
 	await tree.process_frame
-	for button: TouchButton in [_button_a(), _button_b()]:
+	for button: TouchButton in _buttons():
 		assert_gt(button.size.x, TouchButton.MIN_VISUAL_SIZE - 0.5)
 		assert_gt(button.size.y, TouchButton.MIN_VISUAL_SIZE - 0.5)
 
@@ -143,20 +176,21 @@ func test_left_handed_mirrors_the_whole_layout() -> void:
 	var middle: float = screen.x * 0.5
 	assert_gt(_stick().position.x + _stick().size.x * 0.5, middle,
 		"stick a droite en mode gaucher")
-	assert_lt(_button_a().position.x, middle, "A a gauche en mode gaucher")
-	assert_lt(_button_b().position.x, middle, "B a gauche en mode gaucher")
+	for button: TouchButton in _buttons():
+		assert_lt(button.position.x, middle, "boutons a gauche en mode gaucher")
 
 
 func test_left_handed_loses_no_button() -> void:
 	Settings.set_option(&"controls", &"left_handed", true)
 	await tree.process_frame
 	# C.9 : aucune fonctionnalite n'est perdue.
-	assert_true(_button_a().visible)
-	assert_true(_button_b().visible)
-	var gap: float = _button_b().position.x \
-		- (_button_a().position.x + _button_a().size.x)
-	assert_gt(gap, TouchButton.MIN_SPACING - 0.5,
-		"l'espacement doit tenir aussi en miroir")
+	for button: TouchButton in _buttons():
+		assert_true(button.visible, "aucun bouton ne disparait en mode gaucher")
+	var margin: float = TouchButton.MIN_SPACING * 0.5
+	assert_false(
+		_button_a().get_rect().grow(margin).intersects(_button_b().get_rect()),
+		"l'espacement doit tenir aussi en miroir"
+	)
 
 
 # --- Taille reglable --------------------------------------------------------
@@ -175,7 +209,7 @@ func test_largest_preset_still_fits_on_screen() -> void:
 	Settings.set_option(&"controls", &"button_scale", 1.5)
 	await tree.process_frame
 	var screen: Vector2 = _screen()
-	for button: TouchButton in [_button_a(), _button_b()]:
+	for button: TouchButton in _buttons():
 		assert_gt(button.position.x, 0.0, "bouton hors ecran a gauche")
 		assert_lt(button.position.y + button.size.y, screen.y + 1.0,
 			"bouton hors ecran en bas")

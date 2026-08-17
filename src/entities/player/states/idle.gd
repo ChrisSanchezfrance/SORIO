@@ -19,6 +19,8 @@ func physics_update(delta: float) -> StringName:
 		return &"jump"
 	if not player.is_on_floor():
 		return &"fall"
+	if player.input_down:
+		return &"crouch"
 	if absf(player.input_axis) > 0.1:
 		return &"run"
 	return &""

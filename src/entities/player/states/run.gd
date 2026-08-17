@@ -13,6 +13,8 @@ func physics_update(delta: float) -> StringName:
 		return &"jump"
 	if not player.is_on_floor():
 		return &"fall"
+	if player.input_down:
+		return &"crouch"
 	# On ne repasse a l'arret qu'une fois vraiment stoppe : sinon SORIO
 	# clignoterait entre les deux animations pendant la deceleration.
 	if absf(player.input_axis) <= 0.1 and absf(player.velocity.x) < IDLE_SPEED:

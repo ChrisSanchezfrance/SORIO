@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://src/entities/player/player.gd" id="1_player"]
 [ext_resource type="SpriteFrames" path="res://resources/player/sorio_frames.tres" id="2_frames"]
@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://src/entities/player/states/fall.gd" id="8_fall"]
 [ext_resource type="Script" path="res://src/entities/player/states/hurt.gd" id="9_hurt"]
 [ext_resource type="Script" path="res://src/entities/player/states/dead.gd" id="10_dead"]
+[ext_resource type="Script" path="res://src/entities/player/states/crouch.gd" id="11_crouch"]
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_body"]
 radius = 28.0
@@ -20,6 +21,9 @@ size = Vector2(52, 100)
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_stomp"]
 size = Vector2(56, 16)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_attack"]
+size = Vector2(64, 84)
 
 [node name="Player" type="CharacterBody2D"]
 collision_layer = 4
@@ -60,6 +64,16 @@ monitorable = false
 position = Vector2(0, -6)
 shape = SubResource("RectangleShape2D_stomp")
 
+[node name="AttackBox" type="Area2D" parent="."]
+position = Vector2(46, -60)
+collision_layer = 32
+collision_mask = 2064
+monitoring = false
+monitorable = false
+
+[node name="Shape" type="CollisionShape2D" parent="AttackBox"]
+shape = SubResource("RectangleShape2D_attack")
+
 [node name="PowerAnchor" type="Node2D" parent="."]
 position = Vector2(0, -64)
 
@@ -98,3 +112,6 @@ script = ExtResource("9_hurt")
 
 [node name="Dead" type="Node" parent="StateMachine"]
 script = ExtResource("10_dead")
+
+[node name="Crouch" type="Node" parent="StateMachine"]
+script = ExtResource("11_crouch")

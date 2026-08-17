@@ -93,7 +93,9 @@ func _fall_until_close_to_floor() -> void:
 
 
 func _release_all_input() -> void:
-	for action: StringName in [&"jump", &"move_left", &"move_right"]:
+	for action: StringName in [
+		&"jump", &"move_left", &"move_right", &"move_up", &"move_down", &"attack",
+	]:
 		if Input.is_action_pressed(action):
 			Input.action_release(action)
 
@@ -250,6 +252,96 @@ func test_released_jump_is_shorter_than_held_jump() -> void:
 		"relacher tot doit clairement ecourter le saut"
 	)
 	assert_gt(reached, 0.0, "le saut doit quand meme avoir lieu")
+
+
+# --- Le stick ne saute pas --------------------------------------------------
+
+func test_pushing_the_stick_up_never_jumps() -> void:
+	# Le haut du stick est branche sur `move_up`, que rien ne consomme. Le
+	# saut n'existe QUE sur le bouton A : deux facons de faire la meme chose
+	# est une facon de trop a 8 ans.
+	assert_true(_player.is_on_floor())
+	Input.action_press(&"move_up")
+	await _step(6)
+	assert_gt(_player.velocity.y, -1.0, "pousser le stick vers le haut ne doit rien declencher")
+	assert_true(_player.is_on_floor(), "SORIO doit rester au sol")
+	Input.action_release(&"move_up")
+
+
+# --- Coup porte (bouton B) --------------------------------------------------
+
+func test_attack_activates_the_hitbox_then_stops() -> void:
+	assert_false(_player.attack_box.monitoring, "la boite dort au repos")
+	assert_true(_player.try_attack())
+	assert_true(_player.is_attacking())
+	assert_true(_player.attack_box.monitoring, "la boite doit faire mal pendant le coup")
+	# Au-dela de la duree active, elle doit se rendormir toute seule.
+	await _step(int(ceil(Player.ATTACK_ACTIVE_SECONDS / PHYSICS_STEP)) + 2)
+	assert_false(_player.is_attacking())
+	assert_false(_player.attack_box.monitoring, "une boite restee active ferait mal a tort")
+
+
+func test_attack_respects_its_cooldown() -> void:
+	assert_true(_player.try_attack())
+	assert_false(_player.try_attack(), "on ne peut pas marteler sans limite")
+	await _step(int(ceil(Player.ATTACK_COOLDOWN_SECONDS / PHYSICS_STEP)) + 2)
+	assert_true(_player.try_attack(), "apres le delai, on peut refrapper")
+
+
+func test_attack_works_in_the_air() -> void:
+	# Un enfant qui appuie sur B doit voir SORIO frapper, meme en plein saut.
+	_player.global_position = Vector2(0.0, FLOOR_Y - 300.0)
+	await _wait_for_coyote_to_close()
+	assert_false(_player.is_on_floor())
+	assert_true(_player.try_attack(), "frapper doit marcher en l'air aussi")
+
+
+func test_attack_always_reaches_in_front() -> void:
+	# Le coup part devant, jamais dans le dos.
+	Input.action_press(&"move_right")
+	await _step(4)
+	assert_gt(_player.attack_box.position.x, 0.0)
+	Input.action_release(&"move_right")
+	Input.action_press(&"move_left")
+	await _step(6)
+	assert_lt(_player.attack_box.position.x, 0.0)
+	Input.action_release(&"move_left")
+
+
+# --- Accroupi (bas du stick) ------------------------------------------------
+
+func test_crouching_shortens_the_collision_shape() -> void:
+	var capsule: CapsuleShape2D = _player.collision.shape as CapsuleShape2D
+	var standing: float = capsule.height
+	Input.action_press(&"move_down")
+	await _step(3)
+	assert_eq(_player.state_machine.current_name, &"crouch")
+	assert_lt(capsule.height, standing, "la capsule doit se raccourcir")
+	Input.action_release(&"move_down")
+	await _step(3)
+	assert_almost_eq(capsule.height, standing, 0.1, "elle doit se redresser")
+
+
+func test_crouching_stops_horizontal_movement() -> void:
+	Input.action_press(&"move_right")
+	await _step(10)
+	assert_gt(_player.velocity.x, 50.0, "SORIO doit avoir pris de la vitesse")
+	Input.action_press(&"move_down")
+	await _step(20)
+	assert_lt(absf(_player.velocity.x), 30.0, "accroupi, on s'arrete")
+	Input.action_release(&"move_down")
+	Input.action_release(&"move_right")
+
+
+func test_jump_still_works_while_crouching() -> void:
+	# Le bouton A reste prioritaire : rester accroupi ne doit jamais pieger.
+	Input.action_press(&"move_down")
+	await _step(4)
+	assert_eq(_player.state_machine.current_name, &"crouch")
+	await _tap_jump()
+	await _step(2)
+	assert_lt(_player.velocity.y, 0.0, "on doit pouvoir sauter depuis l'accroupi")
+	Input.action_release(&"move_down")
 
 
 # --- Portee, utilisee par le lint des niveaux -------------------------------

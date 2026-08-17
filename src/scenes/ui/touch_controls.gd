@@ -31,11 +31,20 @@ const STICK_FADE_SECONDS: float = 0.08
 ## Marge de securite sous les controles : la zone de jeu reste degagee (C.1).
 const SAFE_MARGIN: float = 80.0
 
-## Deux boutons a droite. A reste le plus gros et le plus bas : c'est le
-## saut, donc celui que le pouce doit trouver sans regarder (C.1). Les deux
-## restent tres au-dessus du plancher de 64 px de C.2.
+## Trois boutons a droite :
+##   A - sauter   (le plus gros, dans le coin : le pouce le trouve seul)
+##   B - frapper  (a gauche de A)
+##   C - pouvoir  (au-dessus de A)
+## Le saut n'existe QUE sur A. Le stick ne saute pas : deux facons de faire
+## la meme chose, c'est une facon de trop a 8 ans.
 const BUTTON_A_SIZE: Vector2 = Vector2(120.0, 120.0)
 const BUTTON_B_SIZE: Vector2 = Vector2(96.0, 96.0)
+const BUTTON_C_SIZE: Vector2 = Vector2(96.0, 96.0)
+
+## Ecart entre boutons. Bien au-dela des 24 px minimum de C.2 : avec trois
+## cibles voisines, un doigt d'enfant doit pouvoir se tromper de quelques
+## millimetres sans declencher la mauvaise action.
+const BUTTON_GAP: float = 40.0
 
 ## A et B sont COTE A COTE, alignes par le bas. Deux autres dispositions ont
 ## ete essayees et ecartees a cette taille : empiles, B finissait au milieu
@@ -55,6 +64,7 @@ const LABEL_RATIO: float = 0.34
 var _stick: VirtualJoystick = null
 var _button_a: TouchButton = null
 var _button_b: TouchButton = null
+var _button_c: TouchButton = null
 var _root: Control = null
 var _stick_tween: Tween = null
 
@@ -78,7 +88,12 @@ func _build() -> void:
 	_stick = VirtualJoystick.new()
 	_stick.action_left = &"move_left"
 	_stick.action_right = &"move_right"
-	_stick.action_up = &"jump"
+	# Le stick ne fait QUE le deplacement lateral et l'accroupissement.
+	# `VirtualJoystick` exige une action pour chaque direction, donc le haut
+	# est branche sur `move_up` — une action que RIEN ne consomme. Le saut
+	# devient ainsi impossible depuis le stick par construction, et non par
+	# une simple promesse dans un commentaire.
+	_stick.action_up = &"move_up"
 	_stick.action_down = &"move_down"
 	_stick.joystick_size = STICK_SIZE
 	_stick.tip_size = STICK_TIP_SIZE
@@ -90,7 +105,8 @@ func _build() -> void:
 	_root.add_child(_stick)
 
 	_button_a = _make_button("A", BUTTON_A_SIZE, &"jump")
-	_button_b = _make_button("B", BUTTON_B_SIZE, &"power")
+	_button_b = _make_button("B", BUTTON_B_SIZE, &"attack")
+	_button_c = _make_button("C", BUTTON_C_SIZE, &"power")
 
 
 ## Un bouton tactile qui tient une action enfoncee tant que le doigt est pose.
@@ -121,7 +137,7 @@ func _apply_layout() -> void:
 	var left_handed: bool = Settings.get_bool(&"controls", &"left_handed")
 	var scale: float = Settings.get_float_option(&"controls", &"button_scale")
 	var edge: float = TouchButton.EDGE_MARGIN
-	var gap: float = TouchButton.MIN_SPACING
+	var gap: float = BUTTON_GAP * scale
 
 	# Le stick est dynamique par defaut : il apparait la ou le pouce se pose
 	# dans sa zone, plutot que d'imposer une position au joueur (C.1).
@@ -159,11 +175,14 @@ func _apply_layout() -> void:
 		clampf((rest.y - _stick.position.y) / maxf(1.0, _stick.size.y), 0.0, 1.0)
 	)
 
-	# A dans le coin, B en diagonale sur l'arc du pouce.
+	# A dans le coin, B a cote, C au-dessus : un triangle que le pouce
+	# balaye sans se deplacer.
 	var a_size: Vector2 = BUTTON_A_SIZE * scale
 	var b_size: Vector2 = BUTTON_B_SIZE * scale
+	var c_size: Vector2 = BUTTON_C_SIZE * scale
 	_resize(_button_a, a_size)
 	_resize(_button_b, b_size)
+	_resize(_button_c, c_size)
 
 	var a_pos: Vector2 = Vector2(
 		edge if left_handed else screen.x - edge - a_size.x,
@@ -171,20 +190,32 @@ func _apply_layout() -> void:
 	)
 	_button_a.position = a_pos
 
-	# B se pose a cote de A, vers le centre de l'ecran, et aligne par le bas.
+	# B se pose a cote de A, vers le centre de l'ecran, aligne par le bas.
 	# En mode gaucher il part de l'autre cote (C.9).
 	var b_x: float = (
 		a_pos.x + a_size.x + gap if left_handed else a_pos.x - gap - b_size.x
 	)
 	_button_b.position = Vector2(b_x, a_pos.y + a_size.y - b_size.y)
 
-	# Critere 4 de C.2 : au moins 24 px de vide entre deux boutons. Verifie
-	# ici plutot que relu, parce que le decalage est en pourcentage et qu'un
-	# changement de taille pourrait les faire se toucher.
-	assert(
-		not _button_a.get_rect().grow(gap * 0.5).intersects(_button_b.get_rect()),
-		"A et B se chevauchent ou sont trop proches"
+	# C se pose au-dessus de A, centre sur lui.
+	_button_c.position = Vector2(
+		a_pos.x + (a_size.x - c_size.x) * 0.5,
+		a_pos.y - gap - c_size.y
 	)
+
+	# Critere 4 de C.2 : au moins 24 px de vide entre deux cibles. Verifie
+	# ici plutot que relu — trois boutons voisins qui grandissent ensemble
+	# finissent vite par se toucher.
+	var margin: float = TouchButton.MIN_SPACING * 0.5
+	for pair: Array in [
+		[_button_a, _button_b], [_button_a, _button_c], [_button_b, _button_c],
+	]:
+		assert(
+			not (pair[0] as Control).get_rect().grow(margin).intersects(
+				(pair[1] as Control).get_rect()
+			),
+			"deux boutons se chevauchent ou sont trop proches"
+		)
 
 
 func _fade_stick(target_alpha: float) -> void:

@@ -60,6 +60,9 @@ const ANIMATIONS: Dictionary = {
 	"jump": ["jump"],
 	"fall": ["fall"],
 	"land": ["land"],
+	# S'accroupir reutilise la pose d'atterrissage : c'est le meme corps
+	# tasse, inutile d'en dessiner un second.
+	"crouch": ["land"],
 	"hurt": ["hurt"],
 	"dead": ["dead"],
 	"cast": ["cast"],

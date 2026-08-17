@@ -58,6 +58,22 @@ une rotation **déterministe** — le même endroit du jeu donne toujours le mê
 mini-jeu, donc un enfant peut l'anticiper et le raconter. Le Camp reste en
 place pour rejouer, avec l'économie de A.10.
 
+### Schéma de commandes
+
+| Contrôle | Rôle |
+|---|---|
+| Stick (gauche) | **uniquement** gauche/droite et bas pour s'accroupir |
+| Bouton A | sauter — **le seul moyen de sauter dans tout le jeu** |
+| Bouton B | frapper |
+| Bouton C | utiliser le pouvoir |
+
+Le haut du stick est branché sur `move_up`, une action que **rien ne
+consomme**. Le saut est donc impossible depuis le stick par construction, pas
+par une promesse dans un commentaire — et un test le vérifie en poussant
+réellement le stick vers le haut. Raison : deux façons de faire la même chose,
+c'est une façon de trop à 8 ans, et un enfant qui saute sans le vouloir ne
+comprend plus ce qu'il contrôle.
+
 ### Orientation paysage partout
 
 Décision prise avec le porteur du projet : la bascule paysage → portrait en

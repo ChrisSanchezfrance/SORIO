@@ -195,7 +195,25 @@ mini-jeux. Aucune divergence possible.
 
 ### Contrôles tactiles
 
-Joystick à gauche, deux boutons à droite. Réglages après plusieurs allers-
+**Schéma retenu** : le stick ne fait *que* le déplacement latéral et
+l'accroupissement ; A saute, B frappe, C lance le pouvoir. Le haut du stick
+est branché sur une action que rien ne consomme — le saut est donc impossible
+depuis le stick **par construction**, et un test le vérifie en poussant
+réellement vers le haut.
+
+Deux mécaniques nouvelles accompagnent les boutons :
+- **Le coup (B)** — boîte d'attaque devant SORIO, active 0,16 s, délai de
+  0,30 s. Utilisable dans tous les états, y compris en plein saut : un enfant
+  qui appuie doit voir SORIO frapper, pas se faire refuser l'action.
+- **L'accroupi (bas du stick)** — nouvel état, capsule de collision
+  raccourcie de 112 à 64 px. On ne se déplace pas accroupi : une vitesse de
+  plus à comprendre pour un gain nul. Le saut reste prioritaire, donc rester
+  accroupi ne piège jamais.
+
+Joystick à gauche, trois boutons à droite en triangle (A dans le coin, B à
+côté, C au-dessus), écartés de 40 px — bien au-delà des 24 px minimum, parce
+qu'avec trois cibles voisines un doigt d'enfant doit pouvoir se tromper de
+quelques millimètres. Réglages après plusieurs allers-
 retours à l'écran : stick **180 px**, A **120 px**, B **96 px** — tous très
 au-dessus du plancher de 64 px de C.2. Options > Taille des boutons multiplie
 ces valeurs (Petit ×0,85 → Très grand ×1,5).
@@ -204,20 +222,14 @@ ces valeurs (Petit ×0,85 → Très grand ×1,5).
 touche, en 80 ms. On sait où poser son pouce sans qu'un anneau blanc mange la
 vue du niveau ; mais pendant qu'on pousse, il faut voir dans quelle direction.
 
-Deux décisions de disposition :
+**L'échange de poche** (C.1) n'a plus de bouton dédié : il passera par une
+icône du HUD en passe 4, quand les pouvoirs existeront.
 
-- **Deux boutons, pas trois.** Le bouton poche de C.1 revient en passe 4,
-  avec les pouvoirs. Tant qu'il n'y a rien à échanger, ce serait un bouton
-  sans action — précisément ce que C.6 interdit.
-- **Côte à côte, alignés par le bas.** Empilés, B finissait au milieu du
-  ciel, hors de portée d'un pouce posé dans le coin. En diagonale, les deux
-  se chevauchaient — c'est l'assertion de C.2 écrite dans le code qui l'a
-  attrapé, pas l'œil.
-
-**13 tests** montent les vrais contrôles et mesurent les vraies positions :
-marges de bord, 24 px d'écart minimum, stick entièrement à l'écran, opacité
-de repos, miroir gaucher complet, et le fait qu'aucun réglage de taille ne
-fasse passer un bouton sous 64 px ni sortir de l'écran.
+**15 tests de disposition** montent les vrais contrôles et mesurent les
+vraies positions : marges de bord, aucune paire de boutons trop proche, stick
+entièrement à l'écran, opacité de repos, miroir gaucher complet, et le fait
+qu'aucun réglage de taille ne fasse passer un bouton sous 64 px ni sortir de
+l'écran. **8 tests de comportement** couvrent le coup et l'accroupi.
 
 ![Contrôles doublés](images/passe1_controles.png)
 
@@ -276,7 +288,7 @@ vide en pleine partie.
 
 ```
 validate_project → OK, 20 scènes, 14 ressources, 41 scripts
-run_tests        → 72/72
+run_tests        → 82/82
 ```
 
 ---

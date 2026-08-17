@@ -48,6 +48,11 @@ animations = [{
 "name": &"land",
 "speed": 8.0
 }, {
+"frames": [{"duration": 1.0, "texture": ExtResource("8_p")}],
+"loop": true,
+"name": &"crouch",
+"speed": 8.0
+}, {
 "frames": [{"duration": 1.0, "texture": ExtResource("9_p")}],
 "loop": false,
 "name": &"hurt",

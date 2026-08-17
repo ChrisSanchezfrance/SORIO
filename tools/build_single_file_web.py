@@ -141,9 +141,12 @@ TEMPLATE = """<title>SORIO</title>
     <button id="play" hidden>Commencer l&rsquo;aventure</button>
     <ul class="controls">
       <li><kbd>&larr;</kbd><kbd>&rarr;</kbd> courir</li>
+      <li><kbd>&darr;</kbd> s&rsquo;accroupir</li>
       <li><kbd>Espace</kbd> sauter</li>
+      <li><kbd>J</kbd> frapper</li>
+      <li><kbd>F</kbd> pouvoir</li>
       <li><kbd>F1</kbd> reglages de physique</li>
-      <li>Au doigt : stick a gauche, <kbd>A</kbd> a droite</li>
+      <li>Au doigt : stick a gauche &mdash; <kbd>A</kbd> saut, <kbd>B</kbd> coup, <kbd>C</kbd> pouvoir</li>
     </ul>
   </div>
 </div>
