@@ -80,7 +80,7 @@ func test_the_stick_never_jumps() -> void:
 	# garantit qu'elle ne fera jamais rien.
 	assert_eq(String(_stick().get("action_up")), "move_up")
 	assert_eq(String(_stick().get("action_down")), "move_down",
-		"le bas du stick sert a s'accroupir")
+		"le bas est branche sur une action que rien ne consomme")
 	assert_eq(String(_stick().get("action_left")), "move_left")
 	assert_eq(String(_stick().get("action_right")), "move_right")
 

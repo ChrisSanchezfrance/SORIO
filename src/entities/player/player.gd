@@ -31,11 +31,6 @@ const ATTACK_COOLDOWN_SECONDS: float = 0.30
 ## Distance de la boite de coup devant SORIO.
 const ATTACK_REACH: float = 46.0
 
-## Accroupi : la capsule de collision se raccourcit, ce qui permettra de
-## passer sous les obstacles bas des mondes suivants.
-const STAND_CAPSULE_HEIGHT: float = 112.0
-const CROUCH_CAPSULE_HEIGHT: float = 64.0
-
 ## Couleur de l'echarpe selon les PV restants (A.3) : rouge, orange, blanche.
 const SCARF_COLORS: Array[Color] = [
 	Color(1.0, 1.0, 1.0),
@@ -60,10 +55,6 @@ const SCARF_COLORS: Array[Color] = [
 var input_axis: float = 0.0
 var jump_just_pressed: bool = false
 var jump_held: bool = false
-## Bas du stick : s'accroupir. Le stick NE SAUTE PAS — le saut est au
-## bouton A et nulle part ailleurs, pour qu'un enfant n'ait jamais deux
-## facons contradictoires de faire la meme chose.
-var input_down: bool = false
 var attack_just_pressed: bool = false
 
 ## Sens du regard, +1 a droite. Pilote l'orientation de l'echarpe.
@@ -84,6 +75,10 @@ var friction_factor: float = 1.0
 var is_jump_cuttable: bool = false
 
 var _was_on_floor: bool = false
+## Vitesse d'avant le deplacement. `move_and_slide()` annule la composante
+## verticale au moment ou l'on touche un plafond, donc la lire apres coup
+## donnerait toujours zero — et aucun coup de tete ne serait jamais reconnu.
+var _velocity_before_move: Vector2 = Vector2.ZERO
 var _squash_tween: Tween = null
 
 
@@ -128,7 +123,9 @@ func _physics_process(delta: float) -> void:
 	_read_input()
 	_update_timers(delta)
 	state_machine.physics_update(delta)
+	_velocity_before_move = velocity
 	move_and_slide()
+	_check_head_bump()
 	_update_ground_state()
 	_update_facing()
 
@@ -141,7 +138,6 @@ func _read_input() -> void:
 	input_axis = Input.get_axis(&"move_left", &"move_right")
 	jump_just_pressed = Input.is_action_just_pressed(&"jump")
 	jump_held = Input.is_action_pressed(&"jump")
-	input_down = Input.is_action_pressed(&"move_down")
 	attack_just_pressed = Input.is_action_just_pressed(&"attack")
 	if attack_just_pressed:
 		try_attack()
@@ -250,6 +246,21 @@ func bounce(strength: float = 0.0) -> void:
 	squash(STRETCH_SCALE)
 
 
+## Cogner un Cadeau Surprise par en dessous l'ouvre (A.6).
+##
+## La lecture des collisions de glissement n'a lieu QUE quand SORIO touche
+## un plafond, donc quelques frames par partie : le cout est negligeable et
+## on evite d'inspecter les collisions a chaque frame.
+func _check_head_bump() -> void:
+	if not is_on_ceiling():
+		return
+	for i: int in range(get_slide_collision_count()):
+		var contact: KinematicCollision2D = get_slide_collision(i)
+		var collider: Object = contact.get_collider()
+		if collider is GiftBox:
+			(collider as GiftBox).head_bump(_velocity_before_move.y)
+
+
 # --- Coup porte (bouton B) --------------------------------------------------
 
 func is_attacking() -> bool:
@@ -272,20 +283,6 @@ func try_attack() -> bool:
 	sprite.play(&"cast")
 	Haptics.pulse(&"stomp")
 	return true
-
-
-# --- Accroupi (bas du stick) ------------------------------------------------
-
-## Raccourcit ou restaure la capsule de collision.
-func set_crouched(crouched: bool) -> void:
-	var shape: Shape2D = collision.shape
-	if not (shape is CapsuleShape2D):
-		return
-	var capsule: CapsuleShape2D = shape as CapsuleShape2D
-	var height: float = CROUCH_CAPSULE_HEIGHT if crouched else STAND_CAPSULE_HEIGHT
-	capsule.height = height
-	# Le repere de SORIO est a ses pieds : la capsule reste posee au sol.
-	collision.position.y = -height / 2.0
 
 
 # --- Degats et sante --------------------------------------------------------

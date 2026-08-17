@@ -308,39 +308,23 @@ func test_attack_always_reaches_in_front() -> void:
 	Input.action_release(&"move_left")
 
 
-# --- Accroupi (bas du stick) ------------------------------------------------
+# --- Le stick ne fait que du lateral ----------------------------------------
 
-func test_crouching_shortens_the_collision_shape() -> void:
-	var capsule: CapsuleShape2D = _player.collision.shape as CapsuleShape2D
-	var standing: float = capsule.height
+func test_stick_vertical_axes_do_nothing() -> void:
+	# Ni le haut ni le bas du stick ne declenchent quoi que ce soit : le
+	# saut est au bouton A, et l'accroupissement n'existe pas. Sur telephone,
+	# un pouce qui derape verticalement sur le stick ne doit jamais changer
+	# ce que fait SORIO.
+	assert_true(_player.is_on_floor())
+	var state_before: StringName = _player.state_machine.current_name
+	Input.action_press(&"move_up")
 	Input.action_press(&"move_down")
-	await _step(3)
-	assert_eq(_player.state_machine.current_name, &"crouch")
-	assert_lt(capsule.height, standing, "la capsule doit se raccourcir")
-	Input.action_release(&"move_down")
-	await _step(3)
-	assert_almost_eq(capsule.height, standing, 0.1, "elle doit se redresser")
-
-
-func test_crouching_stops_horizontal_movement() -> void:
-	Input.action_press(&"move_right")
-	await _step(10)
-	assert_gt(_player.velocity.x, 50.0, "SORIO doit avoir pris de la vitesse")
-	Input.action_press(&"move_down")
-	await _step(20)
-	assert_lt(absf(_player.velocity.x), 30.0, "accroupi, on s'arrete")
-	Input.action_release(&"move_down")
-	Input.action_release(&"move_right")
-
-
-func test_jump_still_works_while_crouching() -> void:
-	# Le bouton A reste prioritaire : rester accroupi ne doit jamais pieger.
-	Input.action_press(&"move_down")
-	await _step(4)
-	assert_eq(_player.state_machine.current_name, &"crouch")
-	await _tap_jump()
-	await _step(2)
-	assert_lt(_player.velocity.y, 0.0, "on doit pouvoir sauter depuis l'accroupi")
+	await _step(8)
+	assert_eq(_player.state_machine.current_name, state_before,
+		"les axes verticaux du stick ne changent pas d'etat")
+	assert_true(_player.is_on_floor())
+	assert_gt(_player.velocity.y, -1.0)
+	Input.action_release(&"move_up")
 	Input.action_release(&"move_down")
 
 
@@ -395,3 +379,48 @@ func test_attack_animation_returns_to_the_state_pose() -> void:
 		"le bras doit revenir tout seul une fois le coup termine")
 	assert_eq(String(_player.sprite.animation),
 		String(_player.state_machine.current.get_animation()))
+
+
+# --- Cadeaux Surprise, en conditions reelles --------------------------------
+
+func test_jumping_into_a_gift_box_opens_it() -> void:
+	# Ce cas passe par une VRAIE collision, pas par un appel direct a
+	# `head_bump`. C'est ce qui a revele que `move_and_slide()` annule la
+	# vitesse verticale a l'impact : lue apres coup, elle valait zero et
+	# aucun coup de tete n'etait jamais reconnu.
+	var box: GiftBox = (load("res://src/entities/pickups/gift_box.tscn") as PackedScene) \
+		.instantiate() as GiftBox
+	# Juste au-dessus de la tete de SORIO, largement a portee de saut.
+	box.global_position = Vector2(_player.global_position.x, FLOOR_Y - 190.0)
+	_world.add_child(box)
+	box.setup(_player)
+	# On capte le signal plutot que de garder la reference : un cadeau
+	# ouvert se libere apres son effet de casse, et l'interroger ensuite
+	# reviendrait a lire un noeud detruit.
+	var was_opened: Array[bool] = [false]
+	box.opened.connect(func(_b: GiftBox) -> void: was_opened[0] = true)
+	await _step(2)
+
+	assert_false(was_opened[0], "le cadeau doit commencer ferme")
+	Input.action_press(&"jump")
+	await _step(30)
+	Input.action_release(&"jump")
+	assert_true(was_opened[0], "sauter dans un cadeau doit l'ouvrir")
+
+
+func test_walking_under_a_gift_box_leaves_it_closed() -> void:
+	# Passer dessous sans sauter ne doit rien donner, sinon on ramasse tout
+	# sans le vouloir et la recompense ne veut plus rien dire.
+	var box: GiftBox = (load("res://src/entities/pickups/gift_box.tscn") as PackedScene) \
+		.instantiate() as GiftBox
+	box.global_position = Vector2(_player.global_position.x + 200.0, FLOOR_Y - 190.0)
+	_world.add_child(box)
+	box.setup(_player)
+	var was_opened: Array[bool] = [false]
+	box.opened.connect(func(_b: GiftBox) -> void: was_opened[0] = true)
+	await _step(2)
+
+	Input.action_press(&"move_right")
+	await _step(45)
+	Input.action_release(&"move_right")
+	assert_false(was_opened[0], "marcher dessous ne doit pas l'ouvrir")

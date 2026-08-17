@@ -18,8 +18,8 @@ const MAP: Array[String] = [
 	"................................................................................",
 	"................................................................................",
 	"................................................................................",
-	"................................................................................",
-	".........................................###....................###.............",
+	"...........................?...........................................?..?.....",
+	".........?...?........................?..###....................###.............",
 	".........................................###...............###..................",
 	"..S......................................###..........###.......................",
 	"####################..##########..#############...##############################",
@@ -36,6 +36,7 @@ const SECTIONS: Array[Dictionary] = [
 	{"column": 35, "label": "4. mur de 3 tuiles - saut maintenu"},
 	{"column": 44, "label": "5. trou de 3 tuiles"},
 	{"column": 53, "label": "6. escalier - jump buffer"},
+	{"column": 8, "label": "cadeaux : saute dedans, ou tape avec B"},
 ]
 
 ## Ligne du sol dans la carte.
@@ -60,6 +61,9 @@ const TILE_COLOR: Color = Color(0.34, 0.24, 0.16)
 const TILE_TOP_COLOR: Color = Color(0.36, 0.66, 0.28)
 ## Epaisseur de la bande claire sur le dessus des blocs : repere de sol.
 const TILE_TOP_HEIGHT: float = 8.0
+
+## Scene du Cadeau Surprise.
+const GIFT_BOX_SCENE: String = "res://src/entities/pickups/gift_box.tscn"
 
 var _solids: Array[Rect2] = []
 var _player: Player = null
@@ -88,6 +92,7 @@ func _ready() -> void:
 	_build_backdrop()
 	_build_geometry()
 	_spawn_player()
+	_spawn_gift_boxes()
 	_setup_camera()
 	_build_labels()
 	_attach_debug_panel()
@@ -152,6 +157,28 @@ func _add_strip(body: StaticBody2D, column: int, width: int, row: int) -> void:
 	shape.shape = box
 	shape.position = rect.position + rect.size / 2.0
 	body.add_child(shape)
+
+
+## Les cadeaux sont poses APRES le joueur : chacun recoit sa reference, donc
+## aucun ne va la chercher dans l'arbre (D.2.4).
+func _spawn_gift_boxes() -> void:
+	var scene: PackedScene = load(GIFT_BOX_SCENE) as PackedScene
+	if scene == null:
+		push_error("[TestLevel] scene de cadeau introuvable")
+		return
+	for row: int in range(MAP.size()):
+		var line: String = MAP[row]
+		for column: int in range(line.length()):
+			if line[column] != "?":
+				continue
+			var box: GiftBox = scene.instantiate() as GiftBox
+			# Le repere d'un cadeau est son centre.
+			box.global_position = Vector2(
+				float(column * TILE_SIZE + TILE_SIZE / 2),
+				float(row * TILE_SIZE + TILE_SIZE / 2)
+			)
+			box.setup(_player)
+			add_child(box)
 
 
 func _draw() -> void:

@@ -238,6 +238,34 @@ l'écran. **8 tests de comportement** couvrent le coup et l'accroupi.
 
 ![Contrôles doublés](images/passe1_controles.png)
 
+### Cadeaux Surprise et objets absorbés
+
+Caisse solide : SORIO marche dessus, s'y cogne, la casse. **Trois façons de
+l'ouvrir**, toutes équivalentes — coup de tête par en dessous, coup (B),
+pouvoir (C, dès la passe 4, sans une ligne à changer : tout ce qui vient du
+joueur ouvre le cadeau).
+
+Le contenu ne flotte pas 10 s comme le prévoyait A.6 : il jaillit en éventail,
+puis **fonce sur SORIO et se fait absorber**. Sur téléphone, courir après une
+récompense qui va expirer — le pouce déjà occupé à courir et sauter — est une
+frustration pure.
+
+**Deux bugs que seuls les tests ont pu trouver :**
+
+1. *Le contenu tournait autour du joueur sans jamais l'atteindre.* Une
+   poursuite par accélération pure dépasse la cible, doit faire demi-tour, la
+   dépasse encore — elle orbite. Corrigé en visant une **vitesse voulue**
+   plutôt qu'en accélérant aveuglément, avec un plafond qui interdit de
+   parcourir plus que la distance restante en une frame.
+2. *Le coup de tête ne marchait jamais en jeu.* `move_and_slide()` annule la
+   composante verticale de la vitesse **au moment du contact** : lue après
+   coup, elle valait zéro. Mes tests unitaires appelaient `head_bump(-400)`
+   directement et passaient ; c'est un **playtest dans un vrai navigateur**
+   qui l'a révélé. La vitesse d'avant l'impact est désormais mémorisée, et un
+   test d'intégration passe maintenant par une vraie collision.
+
+![Cadeaux dans le niveau](images/passe1_cadeaux.png)
+
 ### Décor de fond : parallaxe à 4 plans
 
 Le niveau n'était qu'un aplat sombre. Il a maintenant la **vallée en plein
@@ -293,7 +321,7 @@ vide en pleine partie.
 
 ```
 validate_project → OK, 20 scènes, 14 ressources, 41 scripts
-run_tests        → 85/85
+run_tests        → 99/99
 ```
 
 ---

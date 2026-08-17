@@ -88,11 +88,11 @@ func _build() -> void:
 	_stick = VirtualJoystick.new()
 	_stick.action_left = &"move_left"
 	_stick.action_right = &"move_right"
-	# Le stick ne fait QUE le deplacement lateral et l'accroupissement.
-	# `VirtualJoystick` exige une action pour chaque direction, donc le haut
-	# est branche sur `move_up` — une action que RIEN ne consomme. Le saut
-	# devient ainsi impossible depuis le stick par construction, et non par
-	# une simple promesse dans un commentaire.
+	# Le stick ne fait QUE le deplacement lateral. `VirtualJoystick` exige
+	# une action pour chacune de ses quatre directions, donc le haut et le
+	# bas sont branches sur `move_up` et `move_down` — deux actions que RIEN
+	# ne consomme dans le jeu. Les deux axes verticaux du stick sont ainsi
+	# inertes par construction, pas par une promesse en commentaire.
 	_stick.action_up = &"move_up"
 	_stick.action_down = &"move_down"
 	_stick.joystick_size = STICK_SIZE

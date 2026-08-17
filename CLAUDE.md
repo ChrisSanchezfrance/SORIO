@@ -62,17 +62,32 @@ place pour rejouer, avec l'économie de A.10.
 
 | Contrôle | Rôle |
 |---|---|
-| Stick (gauche) | **uniquement** gauche/droite et bas pour s'accroupir |
+| Stick (gauche) | **uniquement** gauche/droite |
 | Bouton A | sauter — **le seul moyen de sauter dans tout le jeu** |
 | Bouton B | frapper |
 | Bouton C | utiliser le pouvoir |
 
-Le haut du stick est branché sur `move_up`, une action que **rien ne
-consomme**. Le saut est donc impossible depuis le stick par construction, pas
-par une promesse dans un commentaire — et un test le vérifie en poussant
-réellement le stick vers le haut. Raison : deux façons de faire la même chose,
-c'est une façon de trop à 8 ans, et un enfant qui saute sans le vouloir ne
-comprend plus ce qu'il contrôle.
+Le haut **et le bas** du stick sont branchés sur `move_up` et `move_down`,
+deux actions que **rien ne consomme**. Les deux axes verticaux sont donc
+inertes par construction, pas par une promesse dans un commentaire — et un
+test le vérifie en poussant réellement le stick. Raison : le jeu se joue
+**au pouce, sur téléphone**, et un pouce dérape verticalement en permanence ;
+il ne doit jamais rien déclencher.
+
+L'accroupissement a été retiré : il n'apportait rien au gameplay et ajoutait
+un verbe à comprendre.
+
+### Cadeaux Surprise
+
+Trois façons d'ouvrir un cadeau, toutes équivalentes : **coup de tête par en
+dessous**, **coup (B)**, **pouvoir (C, passe 4)**. C'est volontaire — trois
+verbes différents pour un même résultat, donc un enfant qui n'a pas trouvé
+l'un s'en sort par l'autre. À ne pas confondre avec le saut, où l'unicité est
+au contraire la règle.
+
+Le contenu ne flotte pas 10 s comme le prévoyait A.6 : il **fonce sur SORIO
+et se fait absorber**. Sur téléphone, courir après une récompense qui va
+expirer, le pouce déjà occupé, est une frustration pure.
 
 ### Orientation paysage partout
 
