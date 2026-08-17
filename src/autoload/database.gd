@@ -15,6 +15,7 @@ const CATEGORIES: Dictionary = {
 	"bosses": "res://resources/bosses",
 	"worlds": "res://resources/worlds",
 	"items": "res://resources/items",
+	"minigames": "res://resources/minigames",
 	"runner_segments": "res://resources/runner_segments",
 }
 
@@ -108,6 +109,10 @@ func world(id: StringName) -> Resource:
 
 func item(id: StringName) -> Resource:
 	return _fetch("items", id)
+
+
+func minigame(id: StringName) -> Resource:
+	return _fetch("minigames", id)
 
 
 func runner_segment(id: StringName) -> Resource:

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="MinigameData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/minigame_data.gd" id="1_mg"]
+
+[resource]
+script = ExtResource("1_mg")
+id = &"vine_swing"
+name_key = "MG_VINE_SWING"
+rules_key = "MG_VINE_SWING_RULES"
+control_type = "tap"
+duration_seconds = 45.0
+unlocked_from_world = 2
+reward_item_ids = Array[StringName]([&"liane", &"ressort"])
+reward_amber = 40
+reward_shards = 0
+usable_as_interlude = true
+interlude_duration_seconds = 30.0

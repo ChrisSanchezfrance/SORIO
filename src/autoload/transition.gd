@@ -19,6 +19,10 @@ const SCENES: Dictionary = {
 	&"platformer": "res://src/scenes/platformer/platformer.tscn",
 	&"runner": "res://src/scenes/runner/runner.tscn",
 	&"camp": "res://src/scenes/minigames/camp.tscn",
+	## Un mini-jeu s'ouvre depuis le Camp OU en intermede entre deux niveaux
+	## (LevelFlow). Meme scene dans les deux cas, seul le contexte change.
+	&"minigame": "res://src/scenes/minigames/minigame_host.tscn",
+	&"interlude": "res://src/scenes/minigames/interlude.tscn",
 	&"shop": "res://src/scenes/shop/shop.tscn",
 	&"collection": "res://src/scenes/collection/collection.tscn",
 	&"options": "res://src/scenes/options/options.tscn",

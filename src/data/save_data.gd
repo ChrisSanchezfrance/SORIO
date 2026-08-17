@@ -60,6 +60,12 @@ const CURRENT_VERSION: int = 1
 # --- Scores -----------------------------------------------------------------
 
 @export var minigame_best: Dictionary = {}      ## id de mini-jeu -> meilleur score
+## Mini-jeux deja proposes en intermede, sous la forme "monde_niveau".
+## Un intermede joue OU passe y entre : on ne represente jamais deux fois
+## le meme au meme endroit (LevelFlow, regle 3).
+@export var interludes_done: Array[String] = []
+## Mini-jeux deja rencontres, donc rejouables depuis le Camp.
+@export var minigames_discovered: Array[StringName] = []
 @export var runner_best_distance: float = 0.0
 @export var level_best_time: Dictionary = {}    ## "monde_niveau" -> secondes
 

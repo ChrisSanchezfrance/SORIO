@@ -26,6 +26,38 @@ réseau restreint), et D.7 interdit d'ajouter un autre addon externe sans
 accord. Le runner maison fait le travail en ~200 lignes, sans dépendance :
 `src/tools/run_tests.gd` + `tests/test_case.gd`.
 
+### SORIO est humanoïde, et il l'est partout
+
+SORIO, PAPI et GRANNA sont des **humains** dessinés par squelette articulé
+(`src/tools/character_drawer.gd`) : tête, cheveux, gros yeux, tunique, bras,
+jambes, bottes. Une pose n'est qu'un jeu de coordonnées d'articulations, donc
+**ajouter une animation ne demande aucune ligne de code**, juste une entrée
+dans `POSES`.
+
+Les fichiers produits servent au mode plateforme, au **mode Course**
+(`Sprite3D` en billboard — B.7 impose les mêmes textures) et aux **mini-jeux**.
+SORIO a donc la même silhouette dans tout le jeu, par construction et non par
+discipline. L'écharpe reste un nœud séparé : c'est elle qui change de couleur
+avec les PV (A.3), et la teinter ne doit pas décolorer le personnage.
+
+### Les mini-jeux sont dans l'aventure
+
+**Écart assumé avec la spec d'origine** (A.10 les réservait au Camp) : un
+mini-jeu s'intercale **entre deux niveaux**, comme une respiration.
+`src/systems/level_flow.gd` est le seul endroit qui décide de l'enchaînement,
+et il tient quatre règles :
+
+1. **Gratuit** — aucun ambre, et ça ne consomme pas une des 3 parties du Camp.
+2. **Sautable** — bouton « Passer » toujours présent.
+3. **Jamais deux fois** — joué *ou* passé, l'intermède est marqué dans la
+   sauvegarde et ne revient pas au même endroit.
+4. **Jamais avant un boss** — on n'interrompt pas la montée de tension.
+
+Rythme : un intermède tous les 3 niveaux, soit deux par monde. Le choix suit
+une rotation **déterministe** — le même endroit du jeu donne toujours le même
+mini-jeu, donc un enfant peut l'anticiper et le raconter. Le Camp reste en
+place pour rejouer, avec l'économie de A.10.
+
 ### Orientation paysage partout
 
 Décision prise avec le porteur du projet : la bascule paysage → portrait en
@@ -129,6 +161,7 @@ scène principale, qui sort via `get_tree().quit(code)`.
 ## 6. État
 
 Voir `PROGRESS.md`. Résumé : **passes 0 et 1 terminées**, passe 2 en cours.
+47 tests au vert.
 
 ---
 

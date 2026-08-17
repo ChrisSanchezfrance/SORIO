@@ -1,0 +1,85 @@
+[gd_resource type="SpriteFrames" load_steps=21 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/papi/idle.png" id="0_p"]
+[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/papi/idle_breathe.png" id="1_p"]
+[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/papi/run_0.png" id="2_p"]
+[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/papi/run_1.png" id="3_p"]
+[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/papi/run_2.png" id="4_p"]
+[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/papi/run_3.png" id="5_p"]
+[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/papi/jump.png" id="6_p"]
+[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/papi/fall.png" id="7_p"]
+[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/papi/land.png" id="8_p"]
+[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/papi/hurt.png" id="9_p"]
+[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/papi/dead.png" id="10_p"]
+[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/papi/cast.png" id="11_p"]
+[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/papi/dash.png" id="12_p"]
+[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/papi/swim_0.png" id="13_p"]
+[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/papi/swim_1.png" id="14_p"]
+[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/papi/roll_0.png" id="15_p"]
+[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/papi/roll_1.png" id="16_p"]
+[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/papi/roll_2.png" id="17_p"]
+[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/papi/roll_3.png" id="18_p"]
+[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/papi/victory.png" id="19_p"]
+
+[resource]
+animations = [{
+"frames": [{"duration": 1.0, "texture": ExtResource("0_p")}, {"duration": 1.0, "texture": ExtResource("1_p")}],
+"loop": true,
+"name": &"idle",
+"speed": 2.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("2_p")}, {"duration": 1.0, "texture": ExtResource("3_p")}, {"duration": 1.0, "texture": ExtResource("4_p")}, {"duration": 1.0, "texture": ExtResource("5_p")}],
+"loop": true,
+"name": &"run",
+"speed": 12.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("6_p")}],
+"loop": true,
+"name": &"jump",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("7_p")}],
+"loop": true,
+"name": &"fall",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("8_p")}],
+"loop": false,
+"name": &"land",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("9_p")}],
+"loop": false,
+"name": &"hurt",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("10_p")}],
+"loop": false,
+"name": &"dead",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("11_p")}],
+"loop": false,
+"name": &"cast",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("12_p")}],
+"loop": true,
+"name": &"dash",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("13_p")}, {"duration": 1.0, "texture": ExtResource("14_p")}],
+"loop": true,
+"name": &"swim",
+"speed": 6.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("15_p")}, {"duration": 1.0, "texture": ExtResource("16_p")}, {"duration": 1.0, "texture": ExtResource("17_p")}, {"duration": 1.0, "texture": ExtResource("18_p")}],
+"loop": true,
+"name": &"roll",
+"speed": 14.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("19_p")}],
+"loop": false,
+"name": &"victory",
+"speed": 8.0
+}]

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ba1hvb3wkeh3a"
-path="res://.godot/imported/granna.png-cac942e023e44cb6a65b61dcf5e5a889.ctex"
+uid="uid://dklf10x81v1o7"
+path="res://.godot/imported/passe1_niveau.png-dc001d60cd4829fb78ef58024363302d.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sprites/placeholder/granna.png"
-dest_files=["res://.godot/imported/granna.png-cac942e023e44cb6a65b61dcf5e5a889.ctex"]
+source_file="res://docs/images/passe1_niveau.png"
+dest_files=["res://.godot/imported/passe1_niveau.png-dc001d60cd4829fb78ef58024363302d.ctex"]
 
 [params]
 

@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="MinigameData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/minigame_data.gd" id="1_mg"]
+
+[resource]
+script = ExtResource("1_mg")
+id = &"fossil_dig"
+name_key = "MG_FOSSIL_DIG"
+rules_key = "MG_FOSSIL_DIG_RULES"
+control_type = "tap"
+duration_seconds = 50.0
+unlocked_from_world = 3
+reward_item_ids = Array[StringName]([])
+reward_amber = 20
+reward_shards = 2
+usable_as_interlude = true
+interlude_duration_seconds = 30.0

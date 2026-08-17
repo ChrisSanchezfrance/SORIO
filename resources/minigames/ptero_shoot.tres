@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="MinigameData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/minigame_data.gd" id="1_mg"]
+
+[resource]
+script = ExtResource("1_mg")
+id = &"ptero_shoot"
+name_key = "MG_PTERO_SHOOT"
+rules_key = "MG_PTERO_SHOOT_RULES"
+control_type = "aim"
+duration_seconds = 45.0
+unlocked_from_world = 1
+reward_item_ids = Array[StringName]([&"eclair", &"cristal"])
+reward_amber = 40
+reward_shards = 0
+usable_as_interlude = true
+interlude_duration_seconds = 30.0

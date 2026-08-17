@@ -33,10 +33,7 @@ const PICKUP_HALO: Color = Color(1.0, 0.97, 0.75)
 ## Assets de base, toujours generes. Le contenu (ennemis, pouvoirs) s'y
 ## ajoute dynamiquement depuis la Database.
 const BASE_SPECS: Array[Dictionary] = [
-	{"name": "sorio", "size": SIZE_PLAYER, "color": Color(0.35, 0.72, 0.35), "kind": Kind.NEUTRAL},
 	{"name": "piko", "size": SIZE_ENEMY, "color": Color(0.98, 0.78, 0.35), "kind": Kind.NEUTRAL},
-	{"name": "papi", "size": SIZE_PLAYER, "color": Color(0.72, 0.58, 0.42), "kind": Kind.NEUTRAL},
-	{"name": "granna", "size": SIZE_PLAYER, "color": Color(0.68, 0.45, 0.72), "kind": Kind.NEUTRAL},
 	{"name": "tile-solid", "size": SIZE_TILE, "color": Color(0.42, 0.31, 0.22), "kind": Kind.TERRAIN},
 	{"name": "tile-oneway", "size": SIZE_TILE, "color": Color(0.56, 0.42, 0.28), "kind": Kind.TERRAIN},
 	{"name": "tile-breakable", "size": SIZE_TILE, "color": Color(0.62, 0.48, 0.30), "kind": Kind.TERRAIN},
@@ -50,6 +47,31 @@ const BASE_SPECS: Array[Dictionary] = [
 	{"name": "flag", "size": Vector2i(64, 128), "color": Color(0.95, 0.85, 0.30), "kind": Kind.PICKUP},
 ]
 
+## Personnages humanoides : id -> palette. SORIO, PAPI et GRANNA sont des
+## humains, ils partagent donc le meme squelette et ne different que par la
+## palette. PIKO est un pterodactyle et reste une forme simple.
+const CHARACTERS: Dictionary = {
+	"sorio": CharacterDrawer.PALETTE_SORIO,
+	"papi": {
+		"skin": Color(0.94, 0.79, 0.66), "hair": Color(0.82, 0.82, 0.80),
+		"tunic": Color(0.56, 0.42, 0.30), "trousers": Color(0.36, 0.30, 0.28),
+		"boots": Color(0.32, 0.24, 0.18), "outline": Color(0.10, 0.08, 0.12),
+		"eye": Color(0.10, 0.08, 0.12),
+	},
+	"granna": {
+		"skin": Color(0.93, 0.78, 0.64), "hair": Color(0.88, 0.86, 0.90),
+		"tunic": Color(0.55, 0.34, 0.62), "trousers": Color(0.34, 0.24, 0.40),
+		"boots": Color(0.30, 0.22, 0.28), "outline": Color(0.10, 0.08, 0.12),
+		"eye": Color(0.10, 0.08, 0.12),
+	},
+}
+
+## Vitesses d'animation, en images par seconde.
+const ANIMATION_SPEED: Dictionary = {"run": 12.0, "roll": 14.0, "swim": 6.0, "idle": 2.0}
+const DEFAULT_ANIMATION_SPEED: float = 8.0
+## Animations qui ne bouclent pas : elles se jouent une fois et restent.
+const ONCE_ANIMATIONS: Array[String] = ["land", "hurt", "dead", "cast", "victory"]
+
 var _created: int = 0
 var _skipped: int = 0
 
@@ -59,10 +81,89 @@ func _ready() -> void:
 	_ensure_directory(OUTPUT_ROOT)
 	for spec: Dictionary in BASE_SPECS:
 		_generate(spec)
+	_generate_characters()
 	_generate_from_database()
 	print("- crees : %d   deja presents : %d" % [_created, _skipped])
 	print("=== OK ===")
 	get_tree().quit(0)
+
+
+## Personnages humanoides : une image par pose, plus le `SpriteFrames` qui
+## les assemble. Ces memes fichiers servent au mode plateforme, au mode
+## Course (Sprite3D en billboard, B.7) et aux mini-jeux : SORIO garde la
+## meme silhouette partout, c'est ce qui fait l'unite du jeu.
+func _generate_characters() -> void:
+	for character: String in CHARACTERS:
+		var palette: Dictionary = CHARACTERS[character]
+		var directory: String = "%s/%s" % [OUTPUT_ROOT, character]
+		_ensure_directory(directory)
+		for animation: String in CharacterDrawer.ANIMATIONS:
+			for pose: String in CharacterDrawer.ANIMATIONS[animation]:
+				_render_pose(directory, character, pose, palette)
+		_write_sprite_frames(character, directory)
+
+
+func _render_pose(
+	directory: String, character: String, pose: String, palette: Dictionary
+) -> void:
+	var path: String = "%s/%s.png" % [directory, pose]
+	if FileAccess.file_exists(path):
+		_skipped += 1
+		return
+	var image: Image = CharacterDrawer.render_pose(pose, palette)
+	if image.save_png(path) != OK:
+		printerr("  * ecriture impossible : %s" % path)
+		return
+	_created += 1
+
+
+## Ecrit le `.tres` qui relie les poses aux 12 animations de B.10.
+func _write_sprite_frames(character: String, directory: String) -> void:
+	var path: String = "res://resources/player/%s_frames.tres" % character
+	var textures: Array[String] = []
+	var blocks: PackedStringArray = PackedStringArray()
+
+	for animation: String in CharacterDrawer.ANIMATIONS:
+		var frames: PackedStringArray = PackedStringArray()
+		for pose: String in CharacterDrawer.ANIMATIONS[animation]:
+			var texture_path: String = "%s/%s.png" % [directory, pose]
+			var index: int = textures.find(texture_path)
+			if index == -1:
+				textures.append(texture_path)
+				index = textures.size() - 1
+			frames.append(
+				'{"duration": 1.0, "texture": ExtResource("%d_p")}' % index
+			)
+		blocks.append(
+			'{\n"frames": [%s],\n"loop": %s,\n"name": &"%s",\n"speed": %.1f\n}'
+			% [
+				", ".join(frames),
+				"false" if animation in ONCE_ANIMATIONS else "true",
+				animation,
+				float(ANIMATION_SPEED.get(animation, DEFAULT_ANIMATION_SPEED)),
+			]
+		)
+
+	var header: PackedStringArray = PackedStringArray()
+	for i: int in range(textures.size()):
+		header.append(
+			'[ext_resource type="Texture2D" path="%s" id="%d_p"]' % [textures[i], i]
+		)
+
+	var content: String = (
+		'[gd_resource type="SpriteFrames" load_steps=%d format=3]\n\n' % (textures.size() + 1)
+		+ "\n".join(header)
+		+ '\n\n[resource]\nanimations = [' + ", ".join(blocks) + ']\n'
+	)
+	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		printerr("  * ecriture impossible : %s" % path)
+		return
+	file.store_string(content)
+	file.close()
+	print("- %s : %d poses, %d animations" % [
+		character, textures.size(), CharacterDrawer.ANIMATIONS.size()
+	])
 
 
 ## Un placeholder par ennemi, boss et pouvoir declares dans les .tres.

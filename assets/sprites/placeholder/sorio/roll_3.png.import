@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://t1obej6iafwn"
-path="res://.godot/imported/sorio.png-135857976ea6ac9d6d9460a08d3e7513.ctex"
+uid="uid://c84pke8wya2n0"
+path="res://.godot/imported/roll_3.png-60f113f48be33b7f760155e304f0ebb3.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sprites/placeholder/sorio.png"
-dest_files=["res://.godot/imported/sorio.png-135857976ea6ac9d6d9460a08d3e7513.ctex"]
+source_file="res://assets/sprites/placeholder/sorio/roll_3.png"
+dest_files=["res://.godot/imported/roll_3.png-60f113f48be33b7f760155e304f0ebb3.ctex"]
 
 [params]
 

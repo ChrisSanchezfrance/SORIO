@@ -174,6 +174,56 @@ screenshot         → docs/images/passe1_niveau.png
 
 ---
 
+## Hors passe — demandes du 17/08 ✅
+
+### SORIO en forme humaine, partout
+
+Le placeholder rectangulaire est remplacé par un **vrai personnage** dessiné
+par squelette articulé : tête, cheveux, gros yeux, tunique verte, bras,
+jambes, bottes, et un cycle de course en 4 images.
+
+`src/tools/character_drawer.gd` définit un pantin de 12 articulations ; une
+pose n'est qu'un jeu de coordonnées. **20 poses, 12 animations**, générées en
+headless sans éditeur ni logiciel de dessin. PAPI et GRANNA partagent le même
+squelette et ne diffèrent que par la palette.
+
+Comme B.7 impose au mode Course d'utiliser **strictement les mêmes textures**
+que la 2D, le faire une fois le fait partout : plateforme, Course et
+mini-jeux. Aucune divergence possible.
+
+![Poses de SORIO](images/sorio_poses.png)
+
+### Les mini-jeux entrent dans l'aventure
+
+Écart assumé avec A.10, qui les réservait au Camp. `LevelFlow` décide
+désormais de tout l'enchaînement — niveau suivant, intermède, boss, Village —
+et tient quatre règles, chacune couverte par un test :
+
+| Règle | Pourquoi |
+|---|---|
+| Gratuit | un mini-jeu imposé ne peut pas être payant |
+| Sautable | un enfant qui n'aime pas ce jeu ne doit pas rester coincé |
+| Jamais deux fois | joué **ou** passé, il ne revient pas au même endroit |
+| Jamais avant un boss | on n'interrompt pas la montée de tension |
+
+Rythme : un intermède tous les 3 niveaux (deux par monde), choisi par une
+rotation **déterministe** couvrant les 10 mini-jeux. Les 10 `MinigameData.tres`
+sont écrits et indexés par la `Database`, avec une durée d'intermède
+raccourcie à 30 s pour ne pas casser l'élan du niveau suivant.
+
+Le Camp reste en place pour rejouer, avec l'économie de A.10.
+
+**17 nouveaux tests**, dont un qui vérifie que chaque mini-jeu cité dans la
+rotation existe vraiment en ressource — sinon l'intermède ouvrirait un écran
+vide en pleine partie.
+
+```
+validate_project → OK, 20 scènes, 14 ressources, 41 scripts
+run_tests        → 47/47
+```
+
+---
+
 ## Passe 2 — Niveaux ASCII ⏳
 
 À livrer : `LevelBuilder`, format de B.6, `lint_levels` avec ses 6
