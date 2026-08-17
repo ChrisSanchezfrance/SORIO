@@ -1,0 +1,100 @@
+; Fichier de configuration du projet SORIO.
+; Godot 4.7.1-stable. Toute modification manuelle doit rester compatible
+; avec la validation headless (src/tools/validate_project.gd).
+
+config_version=5
+
+[application]
+
+config/name="SORIO"
+config/description="Jeu de plateforme 2D prehistorique pour Android."
+config/version="0.1.0"
+run/main_scene="res://src/scenes/boot/boot.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+config/icon="res://assets/ui/icon.svg"
+boot_splash/bg_color=Color(0.05, 0.07, 0.12, 1)
+boot_splash/show_image=false
+config/auto_accept_quit=false
+config/quit_on_go_back=false
+
+[autoload]
+
+; Ordre d'initialisation important : Settings avant AudioManager (volumes),
+; Database avant Game (le jeu lit les ressources), Transition en dernier.
+EventBus="*res://src/autoload/event_bus.gd"
+Settings="*res://src/autoload/settings.gd"
+Database="*res://src/autoload/database.gd"
+SaveManager="*res://src/autoload/save_manager.gd"
+Game="*res://src/autoload/game.gd"
+AudioManager="*res://src/autoload/audio_manager.gd"
+Haptics="*res://src/autoload/haptics.gd"
+Perf="*res://src/autoload/perf.gd"
+Transition="*res://src/autoload/transition.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+; Paysage partout, y compris le mode Course (decision validee) : aucune
+; bascule d'orientation en cours de partie, donc aucune recreation du
+; contexte de rendu sur Android.
+window/handheld/orientation=1
+window/energy_saving/keep_screen_on=true
+
+[dotnet]
+
+project/assembly_name="SORIO"
+
+[file_customization]
+
+folder_colors={
+"res://levels/": "green",
+"res://resources/": "yellow",
+"res://src/": "blue"
+}
+
+[input_devices]
+
+pointing/emulate_touch_from_mouse=true
+
+[internationalization]
+
+locale/translations=PackedStringArray("res://translations/sorio.en.translation", "res://translations/sorio.fr.translation")
+locale/fallback="fr"
+
+[layer_names]
+
+; Couches de physique 2D nommees (B.4). Aucun nombre magique dans le code :
+; on passe toujours par les constantes de src/systems/collision_layers.gd.
+2d_physics/layer_1="world"
+2d_physics/layer_2="one_way"
+2d_physics/layer_3="player"
+2d_physics/layer_4="player_hurtbox"
+2d_physics/layer_5="enemy"
+2d_physics/layer_6="player_projectile"
+2d_physics/layer_7="enemy_projectile"
+2d_physics/layer_8="pickup"
+2d_physics/layer_9="hazard"
+2d_physics/layer_10="trigger"
+2d_physics/layer_11="ally"
+2d_physics/layer_12="breakable"
+
+[physics]
+
+common/physics_ticks_per_second=60
+common/physics_jitter_fix=0.5
+2d/default_gravity=3600.0
+2d/default_gravity_vector=Vector2(0, 1)
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/canvas_textures/default_texture_filter=3
+textures/vram_compression/import_etc2_astc=true
+anti_aliasing/quality/msaa_2d=0
+environment/defaults/default_clear_color=Color(0.05, 0.07, 0.12, 1)
+2d/snap/snap_2d_transforms_to_pixel=false
+2d/snap/snap_2d_vertices_to_pixel=false

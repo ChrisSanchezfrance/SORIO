@@ -1,0 +1,25 @@
+# Cache et fichiers generes par Godot
+.godot/
+.import/
+export_presets.cfg.bak
+
+# Sorties de construction
+build/
+*.apk
+*.aab
+
+# Keystore de release : JAMAIS commite (D.4)
+*.keystore
+*.jks
+release.keystore
+# Dossier de build Gradle genere par Godot, a la racine uniquement :
+# `android/` sans barre oblique exclurait aussi assets/ui/android/.
+/android/
+
+# Outils telecharges localement (voir tools/setup_env.sh)
+.tools/
+
+# Systeme
+.DS_Store
+Thumbs.db
+*~

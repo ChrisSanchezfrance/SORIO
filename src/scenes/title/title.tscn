@@ -1,0 +1,76 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/scenes/title/title.gd" id="1_title"]
+
+[node name="Title" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_title")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.078431375, 0.15686275, 0.15294118, 1)
+
+[node name="Title" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -320.0
+offset_top = 40.0
+offset_right = 320.0
+offset_bottom = 130.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 0.85490197, 0.3019608, 1)
+theme_override_font_sizes/font_size = 80
+text = "SORIO"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Subtitle" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -320.0
+offset_top = 132.0
+offset_right = 320.0
+offset_bottom = 168.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.6156863, 0.83137256, 0.6117647, 1)
+theme_override_font_sizes/font_size = 24
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Menu" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -210.0
+offset_top = 188.0
+offset_right = 210.0
+offset_bottom = 700.0
+grow_horizontal = 2
+alignment = 0
+
+[node name="SkipTutorial" type="CheckBox" parent="."]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -352.0
+offset_top = 32.0
+offset_right = -32.0
+offset_bottom = 76.0
+grow_horizontal = 0
+theme_override_font_sizes/font_size = 22
