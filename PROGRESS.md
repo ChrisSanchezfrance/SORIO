@@ -136,6 +136,11 @@ Swing, Roll, Swim) arrivent en passe 4, avec les pouvoirs qui les déclenchent.
 - Panneau de debug **F1** : 10 curseurs qui modifient la physique **en
   jouant**, plus un bouton qui écrit le `.tres`. Le saut se règle au doigt.
 - Niveau de test à 6 sections, chacune éprouvant un point précis de B.4.
+  **Les trous sont calibrés sur la portée réelle du saut** : 2, 2 et 3 tuiles,
+  soit 42 %, 42 % et 63 % des 4,73 tuiles atteignables. Un plafond de 70 % est
+  inscrit dans le code (`MAX_GAP_RATIO`) et vérifié au chargement comme par
+  un test — c'est la règle 5 de B.6 appliquée dès la passe 1. Un trou calibré
+  à 100 % serait franchissable en théorie et injouable en pratique.
 - Contrôles tactiles : `VirtualJoystick` natif de 4.7 + boutons A/B/poche,
   mode gaucher déjà en place.
 
@@ -210,8 +215,8 @@ Deux mécaniques nouvelles accompagnent les boutons :
   plus à comprendre pour un gain nul. Le saut reste prioritaire, donc rester
   accroupi ne piège jamais.
 
-Joystick à gauche, trois boutons à droite en triangle (A dans le coin, B à
-côté, C au-dessus), écartés de 40 px — bien au-delà des 24 px minimum, parce
+Joystick 270 px à gauche, trois boutons à droite en triangle (A 180 px dans
+le coin, B et C 144 px), écartés de 40 px — bien au-delà des 24 px minimum, parce
 qu'avec trois cibles voisines un doigt d'enfant doit pouvoir se tromper de
 quelques millimètres. Réglages après plusieurs allers-
 retours à l'écran : stick **180 px**, A **120 px**, B **96 px** — tous très
@@ -288,7 +293,7 @@ vide en pleine partie.
 
 ```
 validate_project → OK, 20 scènes, 14 ressources, 41 scripts
-run_tests        → 82/82
+run_tests        → 85/85
 ```
 
 ---

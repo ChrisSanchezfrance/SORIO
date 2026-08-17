@@ -358,3 +358,40 @@ func test_config_reach_matches_b4_values() -> void:
 func test_default_config_is_valid() -> void:
 	var problems: PackedStringArray = _player.config.validate()
 	assert_eq(problems.size(), 0, "PlayerConfig par defaut doit etre valide")
+
+
+# --- Proportion du parcours (regle 5 de B.6) --------------------------------
+
+func test_every_gap_is_jumpable_with_margin() -> void:
+	# Un trou calibre a 100 % de la portee serait franchissable en theorie et
+	# injouable en pratique. La marge existe pour qu'un enfant puisse rater
+	# legerement son appel et retomber quand meme.
+	var config: PlayerConfig = _player.config
+	var budget: float = config.max_jump_distance_tiles() * TestLevel.MAX_GAP_RATIO
+	var gaps: Array[int] = TestLevel.gap_widths()
+	assert_gt(float(gaps.size()), 0.0, "le niveau doit comporter des trous a franchir")
+	for gap: int in gaps:
+		assert_lt(float(gap), budget + 0.001,
+			"trou de %d tuiles pour un budget de %.2f" % [gap, budget])
+
+
+func test_gaps_are_not_trivially_small() -> void:
+	# L'inverse est un defaut aussi : un parcours dont tous les trous font
+	# une tuile n'apprend rien et n'amuse personne.
+	var widest: int = 0
+	for gap: int in TestLevel.gap_widths():
+		widest = maxi(widest, gap)
+	assert_gt(float(widest), 2.0, "au moins un trou doit demander un vrai saut")
+
+
+func test_attack_animation_returns_to_the_state_pose() -> void:
+	# `cast` ne boucle pas : sans retour explicite, SORIO garderait le bras
+	# tendu jusqu'au prochain changement d'etat.
+	_player.try_attack()
+	await _step(1)
+	assert_eq(String(_player.sprite.animation), "cast")
+	await _step(int(ceil(Player.ATTACK_ACTIVE_SECONDS / PHYSICS_STEP)) + 3)
+	assert_ne(String(_player.sprite.animation), "cast",
+		"le bras doit revenir tout seul une fois le coup termine")
+	assert_eq(String(_player.sprite.animation),
+		String(_player.state_machine.current.get_animation()))

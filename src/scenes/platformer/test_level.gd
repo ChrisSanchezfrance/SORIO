@@ -1,3 +1,4 @@
+class_name TestLevel
 extends Node2D
 ## Niveau de test de la passe 1.
 ##
@@ -17,25 +18,38 @@ const MAP: Array[String] = [
 	"................................................................................",
 	"................................................................................",
 	"................................................................................",
-	"..........................................................###...................",
-	".....................................................#....###...................",
-	"................................#............#.......#....###...................",
-	"..S.............................#............#.......#....###...................",
-	"####################.......######............#########....###...................",
-	"####################.......######............#########....###...................",
-	"####################.......######............#########....######################",
-	"####################.......######............#########....######################",
+	"................................................................................",
+	".........................................###....................###.............",
+	".........................................###...............###..................",
+	"..S......................................###..........###.......................",
+	"####################..##########..#############...##############################",
+	"####################..##########..#############...##############################",
+	"####################..##########..#############...##############################",
+	"####################..##########..#############...##############################",
 ]
 
 ## Section -> [colonne de depart, texte affiche].
 const SECTIONS: Array[Dictionary] = [
 	{"column": 2, "label": "1. course et arret"},
-	{"column": 20, "label": "2. trou simple - saut"},
-	{"column": 27, "label": "3. rebord - coyote time"},
-	{"column": 33, "label": "4. mur de 3 tuiles - saut maintenu"},
-	{"column": 46, "label": "5. trou large - portee maximale"},
-	{"column": 58, "label": "6. montee - jump buffer"},
+	{"column": 16, "label": "2. trou de 2 tuiles"},
+	{"column": 24, "label": "3. rebord - coyote time"},
+	{"column": 35, "label": "4. mur de 3 tuiles - saut maintenu"},
+	{"column": 44, "label": "5. trou de 3 tuiles"},
+	{"column": 53, "label": "6. escalier - jump buffer"},
 ]
+
+## Ligne du sol dans la carte.
+const GROUND_ROW: int = 7
+
+## MARGE DE SAUT — regle 5 de B.6, appliquee des maintenant.
+##
+## Aucun trou ne depasse cette fraction de la portee maximale du joueur.
+## 70 % laisse de quoi rater legerement l'appel, sauter un peu tot ou un peu
+## tard, et retomber quand meme sur la plateforme suivante. Un trou calibre
+## a 100 % de la portee serait franchissable en theorie et injouable en
+## pratique — c'est exactement le genre de blocage qu'un enfant ne comprend
+## pas et qui lui fait lacher le jeu.
+const MAX_GAP_RATIO: float = 0.70
 
 ## Plein jour : le decor de fond fournit le ciel, donc la couleur de fond
 ## ne sert plus que de secours si une texture manque.
@@ -52,8 +66,25 @@ var _player: Player = null
 var _camera: GameCamera = null
 
 
+## Largeur de chaque trou du sol, en tuiles. Statique : les tests la lisent
+## sans avoir a monter la scene.
+static func gap_widths() -> Array[int]:
+	var gaps: Array[int] = []
+	var run: int = 0
+	# Le "#" ajoute a la fin ferme le dernier trou eventuel.
+	var line: String = MAP[GROUND_ROW] + "#"
+	for i: int in range(line.length()):
+		if line[i] == ".":
+			run += 1
+		elif run > 0:
+			gaps.append(run)
+			run = 0
+	return gaps
+
+
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(BACKGROUND_COLOR)
+	_check_gaps_are_jumpable()
 	_build_backdrop()
 	_build_geometry()
 	_spawn_player()
@@ -62,6 +93,22 @@ func _ready() -> void:
 	_attach_debug_panel()
 	_attach_touch_controls()
 	Perf.begin_sampling()
+
+
+## Verifie que chaque trou reste franchissable avec de la marge. Le calcul
+## vient de `PlayerConfig`, donc changer la gravite ou la vitesse de course
+## rend ce controle faux immediatement plutot que trois niveaux plus tard.
+func _check_gaps_are_jumpable() -> void:
+	var config: PlayerConfig = load(Player.DEFAULT_CONFIG_PATH) as PlayerConfig
+	if config == null:
+		return
+	var budget: float = config.max_jump_distance_tiles() * MAX_GAP_RATIO
+	for gap: int in gap_widths():
+		assert(
+			float(gap) <= budget,
+			"trou de %d tuiles pour un budget de %.1f (portee %.1f x %d %%)"
+			% [gap, budget, config.max_jump_distance_tiles(), int(MAX_GAP_RATIO * 100.0)]
+		)
 
 
 ## Le decor est ajoute en premier : il vit dans un CanvasLayer negatif,

@@ -17,8 +17,8 @@ extends CanvasLayer
 const STICK_ZONE_RATIO: float = 1.0 / 3.0
 ## Le joueur peut encore ajuster via Options > Taille des boutons
 ## (Petit x0,85 jusqu'a Tres grand x1,5), qui multiplie ces valeurs.
-const STICK_SIZE: float = 180.0
-const STICK_TIP_SIZE: float = 78.0
+const STICK_SIZE: float = 270.0
+const STICK_TIP_SIZE: float = 117.0
 
 ## Le stick s'efface presque completement au repos : il ne doit pas manger
 ## la vue du niveau alors qu'on sait ou poser son pouce. Il redevient
@@ -37,9 +37,9 @@ const SAFE_MARGIN: float = 80.0
 ##   C - pouvoir  (au-dessus de A)
 ## Le saut n'existe QUE sur A. Le stick ne saute pas : deux facons de faire
 ## la meme chose, c'est une facon de trop a 8 ans.
-const BUTTON_A_SIZE: Vector2 = Vector2(120.0, 120.0)
-const BUTTON_B_SIZE: Vector2 = Vector2(96.0, 96.0)
-const BUTTON_C_SIZE: Vector2 = Vector2(96.0, 96.0)
+const BUTTON_A_SIZE: Vector2 = Vector2(180.0, 180.0)
+const BUTTON_B_SIZE: Vector2 = Vector2(144.0, 144.0)
+const BUTTON_C_SIZE: Vector2 = Vector2(144.0, 144.0)
 
 ## Ecart entre boutons. Bien au-dela des 24 px minimum de C.2 : avec trois
 ## cibles voisines, un doigt d'enfant doit pouvoir se tromper de quelques

@@ -160,6 +160,10 @@ func _update_timers(delta: float) -> void:
 		attack_active_timer = maxf(0.0, attack_active_timer - delta)
 		if attack_active_timer <= 0.0:
 			attack_box.monitoring = false
+			# `cast` est une animation qui ne boucle pas : sans ce retour,
+			# SORIO garderait le bras tendu jusqu'au prochain changement
+			# d'etat. On rejoue donc l'animation de l'etat courant.
+			_play_state_animation()
 
 
 ## Ouvre la fenetre de coyote au moment precis ou SORIO quitte le sol sans
