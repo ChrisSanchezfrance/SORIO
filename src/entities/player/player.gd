@@ -100,7 +100,7 @@ func _ready() -> void:
 
 	attack_box.collision_layer = CollisionLayers.PLAYER_PROJECTILE
 	attack_box.collision_mask = CollisionLayers.ENEMY | CollisionLayers.BREAKABLE
-	attack_box.monitoring = false
+	attack_box.set_deferred(&"monitoring", false)
 
 	power_system.setup(sprite)
 	state_machine.setup(self)
@@ -162,7 +162,7 @@ func _update_timers(delta: float) -> void:
 	if attack_active_timer > 0.0:
 		attack_active_timer = maxf(0.0, attack_active_timer - delta)
 		if attack_active_timer <= 0.0:
-			attack_box.monitoring = false
+			attack_box.set_deferred(&"monitoring", false)
 			# `cast` est une animation qui ne boucle pas : sans ce retour,
 			# SORIO garderait le bras tendu jusqu'au prochain changement
 			# d'etat. On rejoue donc l'animation de l'etat courant.
@@ -286,7 +286,7 @@ func try_attack() -> bool:
 		return false
 	attack_active_timer = ATTACK_ACTIVE_SECONDS
 	attack_cooldown_timer = ATTACK_COOLDOWN_SECONDS
-	attack_box.monitoring = true
+	attack_box.set_deferred(&"monitoring", true)
 	sprite.play(&"cast")
 	Haptics.pulse(&"stomp")
 	return true

@@ -274,6 +274,9 @@ func test_attack_activates_the_hitbox_then_stops() -> void:
 	assert_false(_player.attack_box.monitoring, "la boite dort au repos")
 	assert_true(_player.try_attack())
 	assert_true(_player.is_attacking())
+	# L'activation est differee : Godot refuse de changer `monitoring`
+	# pendant le traitement des collisions.
+	await _step(1)
 	assert_true(_player.attack_box.monitoring, "la boite doit faire mal pendant le coup")
 	# Au-dela de la duree active, elle doit se rendormir toute seule.
 	await _step(int(ceil(Player.ATTACK_ACTIVE_SECONDS / PHYSICS_STEP)) + 2)

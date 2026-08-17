@@ -140,7 +140,52 @@ func _check_levels() -> void:
 		LevelBuilder._scan_cells(parsed)
 		for message: String in parsed.errors:
 			_errors.append("%s : %s" % [path.get_file(), message])
+		_check_gaps(path, parsed)
 	print("- niveaux : %d verifies" % files.size())
+
+
+## Regle 5 de B.6, appliquee a TOUS les niveaux.
+##
+## Cette verification n'existait que dans le niveau de test : les vrais
+## niveaux, tapes a la main, comportaient des trous de 5 et 7 tuiles pour
+## une portee de 4,7 — infranchissables. Elle vit ici desormais, donc aucun
+## niveau ne peut plus etre livre injouable.
+const MAX_GAP_RATIO: float = 0.70
+
+func _check_gaps(path: String, parsed: LevelBuilder.Result) -> void:
+	var config: PlayerConfig = load(Player.DEFAULT_CONFIG_PATH) as PlayerConfig
+	if config == null or parsed.grid.is_empty():
+		return
+	var budget: float = config.max_jump_distance_tiles() * MAX_GAP_RATIO
+
+	# Ce qui compte, c'est le GOUFFRE : une colonne ou il n'y a rien, nulle
+	# part, sur toute la hauteur. Un ecart entre deux plateformes flottantes
+	# n'est pas un danger — on retombe simplement au sol entre les deux.
+	var width: int = 0
+	for line: String in parsed.grid:
+		width = maxi(width, line.length())
+
+	var run: int = 0
+	var seen_ground: bool = false
+	for column: int in range(width + 1):
+		var has_floor: bool = column < width and _column_has_floor(parsed, column)
+		if has_floor:
+			if seen_ground and float(run) > budget:
+				_errors.append(
+					"%s : gouffre de %d tuiles a la colonne %d, maximum %.1f"
+					% [path.get_file(), run, column - run, budget]
+				)
+			seen_ground = true
+			run = 0
+		elif seen_ground:
+			run += 1
+
+
+static func _column_has_floor(parsed: LevelBuilder.Result, column: int) -> bool:
+	for line: String in parsed.grid:
+		if column < line.length() and (line[column] == "#" or line[column] == "="):
+			return true
+	return false
 
 
 func _collect_levels(path: String, out: PackedStringArray) -> void:
