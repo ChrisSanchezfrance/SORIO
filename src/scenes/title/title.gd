@@ -60,6 +60,12 @@ func _on_skip_toggled(pressed: bool) -> void:
 
 
 func _on_entry_pressed(screen: StringName) -> void:
+	# Jouer part directement sur le premier niveau construit depuis son
+	# fichier ASCII. La carte du monde et la selection de sauvegarde
+	# viendront s'intercaler ici en passe 7 et 10.
+	if screen == &"platformer":
+		Transition.go_to_path_with_level(Level.FIRST_LEVEL)
+		return
 	Transition.go_to(screen)
 
 

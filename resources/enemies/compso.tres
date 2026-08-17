@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/enemy_data.gd" id="1_en"]
+
+[resource]
+script = ExtResource("1_en")
+id = &"compso"
+name_key = "ENEMY_COMPSO"
+behavior = 0
+max_health = 1
+contact_damage = 1
+stompable = true
+amber_reward = 5
+move_speed = 190.0
+range_pixels = 0.0
+cycle_seconds = 0.0
+color = Color(0.90, 0.75, 0.30, 1)
+size = Vector2(48, 48)
+shape_symbol = "●"

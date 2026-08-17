@@ -6,8 +6,8 @@
 |---|---|---|
 | **0** | Fondations | ✅ **terminée** |
 | **1** | Socle plateforme | ✅ **terminée** |
-| **2** | Niveaux ASCII | ⬜ à faire |
-| 3 | Ennemis et statuts | ⬜ à faire |
+| **2** | Niveaux ASCII | 🟡 LevelBuilder + 3 niveaux, lint à venir |
+| **3** | Ennemis et statuts | 🟡 6 ennemis + 6 comportements, statuts à venir |
 | **4** | Les 36 pouvoirs | 🟡 données + système, effets à venir |
 | 5 | Ergonomie tactile | ⬜ à faire |
 | 6 | Boss | ⬜ à faire |
@@ -237,6 +237,28 @@ qu'aucun réglage de taille ne fasse passer un bouton sous 64 px ni sortir de
 l'écran. **8 tests de comportement** couvrent le coup et l'accroupi.
 
 ![Contrôles doublés](images/passe1_controles.png)
+
+### Niveaux ASCII et ennemis
+
+**`LevelBuilder`** lit un `.txt` — en-tête puis grille — et fabrique le monde :
+sol fusionné en bandes, plateformes traversables à bord pointillé (C.8), pics
+dessinés en triangles, cadeaux, ambres, ennemis, départ et **drapeau
+d'arrivée**. Trois niveaux jouables enchaînés (`next:` dans l'en-tête).
+
+**6 ennemis, 6 comportements**, tous pilotés par un `EnemyData` : RAPTOZ et
+COMPSO patrouillent en faisant demi-tour au bord — ce qui évite l'ennemi le
+plus frustrant du genre, celui qui tombe tout seul du décor ; GUEULE-PIÈGE
+sort du sol par cycles lisibles ; PTÉRODARD vole en ellipse ; TRICRASH charge
+après un télégraphe de 0,7 s ; BOURGEON bondit en arcs.
+
+L'écrasement, les dégâts au contact, le coup de B et la mort au vide sont en
+place. La règle de lisibilité de A.7 — contour sombre **plus** liseré rouge
+sur tout ce qui est dangereux — est dessinée une seule fois, dans `Enemy`,
+donc aucun ennemi ne peut y échapper par oubli.
+
+Mort → reprise au dernier point de contrôle, jamais au début (A.11).
+
+![Niveau construit depuis un .txt](images/passe2_niveau.png)
 
 ### Les 36 pouvoirs, et SORIO qui se transforme
 

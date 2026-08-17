@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/enemy_data.gd" id="1_en"]
+
+[resource]
+script = ExtResource("1_en")
+id = &"pterodard"
+name_key = "ENEMY_PTERODARD"
+behavior = 2
+max_health = 1
+contact_damage = 1
+stompable = true
+amber_reward = 5
+move_speed = 150.0
+range_pixels = 260.0
+cycle_seconds = 3.0
+color = Color(0.75, 0.65, 0.85, 1)
+size = Vector2(80, 64)
+shape_symbol = "◆"

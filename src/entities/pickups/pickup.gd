@@ -13,7 +13,7 @@ extends Area2D
 ##   1. il jaillit du cadeau et retombe un court instant ;
 ##   2. il fonce sur SORIO en accelerant, et se fait absorber.
 
-enum Phase { POP, SEEK, ABSORBED }
+enum Phase { POP, SEEK, ABSORBED, RESTING }
 
 ## Jaillissement : assez haut pour sortir franchement du cadeau.
 const POP_VELOCITY: Vector2 = Vector2(0.0, -520.0)
@@ -25,6 +25,8 @@ const SEEK_ACCELERATION: float = 3200.0
 const SEEK_MAX_SPEED: float = 1500.0
 ## Distance a laquelle l'objet est considere absorbe.
 const ABSORB_DISTANCE: float = 34.0
+## Rayon de ramassage d'un ambre pose dans le niveau.
+const REST_PICKUP_RADIUS: float = 52.0
 ## Filet de securite : un objet ne poursuit jamais indefiniment.
 const MAX_LIFETIME_SECONDS: float = 6.0
 
@@ -71,9 +73,29 @@ func launch(from: Vector2, toward: Node2D, sideways: float = 0.0) -> void:
 	_elapsed = 0.0
 
 
+## Ambre pose dans le niveau : il ne poursuit pas, il attend. Un objet
+## place par le level designer doit rester ou il est, sinon la trajectoire
+## qu'on a dessinee pour le joueur ne veut plus rien dire.
+func rest_at(where: Vector2, toward: Node2D) -> void:
+	global_position = where
+	target = toward
+	_phase = Phase.RESTING
+	if _sprite != null:
+		_sprite.modulate = tint
+
+
 func _physics_process(delta: float) -> void:
 	_elapsed += delta
 	_bob_time += delta
+
+	if _phase == Phase.RESTING:
+		if _sprite != null:
+			_sprite.position.y = sin(_bob_time * BOB_SPEED) * BOB_AMPLITUDE
+		if target != null and is_instance_valid(target) \
+				and global_position.distance_to(target.global_position + Vector2(0, -64)) \
+					<= REST_PICKUP_RADIUS:
+			_absorb()
+		return
 
 	match _phase:
 		Phase.POP:
@@ -92,7 +114,7 @@ func _physics_process(delta: float) -> void:
 
 	# Sans cible ou apres trop longtemps, on se ramasse tout seul plutot que
 	# de laisser un objet fantome vivre dans le niveau.
-	if _elapsed > MAX_LIFETIME_SECONDS:
+	if _phase != Phase.RESTING and _elapsed > MAX_LIFETIME_SECONDS:
 		_absorb()
 
 

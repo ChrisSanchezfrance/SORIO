@@ -16,7 +16,7 @@ const SCENES: Dictionary = {
 	&"save_slot": "res://src/scenes/save_slot/save_slot.tscn",
 	&"world_map": "res://src/scenes/world_map/world_map.tscn",
 	&"village": "res://src/scenes/village/village.tscn",
-	&"platformer": "res://src/scenes/platformer/test_level.tscn",
+	&"platformer": "res://src/scenes/platformer/level.tscn",
 	&"runner": "res://src/scenes/runner/runner.tscn",
 	&"camp": "res://src/scenes/minigames/camp.tscn",
 	## Un mini-jeu s'ouvre depuis le Camp OU en intermede entre deux niveaux
@@ -65,6 +65,27 @@ func go_to(screen: StringName, remember: bool = true) -> void:
 		_history.append(current_screen)
 	await _change(String(SCENES[screen]))
 	current_screen = screen
+
+
+## Charge la scene de niveau en lui passant le fichier ASCII a construire.
+## C'est le seul chemin par lequel un niveau demarre.
+func go_to_path_with_level(level_file: String) -> void:
+	if _busy:
+		return
+	_busy = true
+	await fade_out()
+	var packed: PackedScene = load("res://src/scenes/platformer/level.tscn") as PackedScene
+	var level: Node = packed.instantiate()
+	level.set(&"level_path", level_file)
+	var tree: SceneTree = get_tree()
+	if tree.current_scene != null:
+		tree.current_scene.queue_free()
+	tree.root.add_child(level)
+	tree.current_scene = level
+	await tree.process_frame
+	await fade_in()
+	_busy = false
+	current_screen = &"platformer"
 
 
 ## Charge une scene par chemin (niveaux construits dynamiquement).

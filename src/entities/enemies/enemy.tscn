@@ -1,0 +1,42 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://src/entities/enemies/enemy.gd" id="1_enemy"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(64, 64)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_hurt"]
+size = Vector2(60, 60)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_top"]
+size = Vector2(58, 18)
+
+[node name="Enemy" type="CharacterBody2D"]
+collision_layer = 16
+collision_mask = 2049
+script = ExtResource("1_enemy")
+
+[node name="Collision" type="CollisionShape2D" parent="."]
+position = Vector2(0, -32)
+shape = SubResource("RectangleShape2D_body")
+
+[node name="Hitbox" type="Area2D" parent="."]
+collision_layer = 16
+collision_mask = 40
+
+[node name="Shape" type="CollisionShape2D" parent="Hitbox"]
+position = Vector2(0, -32)
+shape = SubResource("RectangleShape2D_hurt")
+
+[node name="StompZone" type="Area2D" parent="."]
+collision_layer = 16
+collision_mask = 8
+
+[node name="Shape" type="CollisionShape2D" parent="StompZone"]
+position = Vector2(0, -58)
+shape = SubResource("RectangleShape2D_top")
+
+[node name="LedgeProbe" type="RayCast2D" parent="."]
+position = Vector2(-36, -8)
+target_position = Vector2(0, 40)
+collision_mask = 2049
