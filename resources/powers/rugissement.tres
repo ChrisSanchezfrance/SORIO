@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PowerData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/power_data.gd" id="1_pw"]
+
+[resource]
+script = ExtResource("1_pw")
+id = &"rugissement"
+name_key = "POWER_RUGISSEMENT"
+description_key = "POWER_RUGISSEMENT_DESC"
+family = 4
+rarity = 1
+duration = 0.0
+charges = 3
+color = Color(0.58, 0.32, 0.70, 1)
+aura_strength = 0.35

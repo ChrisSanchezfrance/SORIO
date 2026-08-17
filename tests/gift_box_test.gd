@@ -94,23 +94,37 @@ func test_a_tougher_box_needs_several_hits() -> void:
 
 # --- Contenu ----------------------------------------------------------------
 
-func test_opening_spawns_the_contents() -> void:
-	_box.content_count = 3
+func test_opening_spawns_exactly_one_object() -> void:
+	# Un cadeau = UN pouvoir. Un seul objet se lit mieux que trois :
+	# l'enfant comprend qu'il vient de gagner quelque chose de precis.
 	_box.hit(&"attack")
 	await tree.process_frame
-	assert_eq(_pickups().size(), 3, "trois objets doivent jaillir")
+	assert_eq(_pickups().size(), 1)
 
 
-func test_contents_spread_out() -> void:
-	# Trois objets partis exactement du meme point ressemblent a un seul.
-	_box.content_count = 3
+func test_the_object_carries_a_power() -> void:
 	_box.hit(&"attack")
 	await tree.process_frame
-	var xs: Array[float] = []
-	for pickup: Node in _pickups():
-		xs.append((pickup as Node2D).global_position.x)
-	assert_eq(xs.size(), 3)
-	assert_ne(xs[0], xs[2], "les objets doivent s'ecarter en eventail")
+	var pickup: Pickup = _pickups()[0] as Pickup
+	assert_not_null(pickup.power, "chaque cadeau doit contenir un pouvoir")
+	assert_true(Database.has("powers", pickup.power.id))
+
+
+func test_the_object_already_shows_the_power_colour() -> void:
+	# On doit savoir ce qu'on a gagne avant meme d'avoir absorbe l'objet.
+	_box.hit(&"attack")
+	await tree.process_frame
+	var pickup: Pickup = _pickups()[0] as Pickup
+	assert_eq(pickup.tint, pickup.power.color)
+
+
+func test_a_named_power_is_honoured() -> void:
+	# Un cadeau peut imposer son contenu : le didacticiel du monde 1 donnera
+	# toujours l'Eclair, pas un pouvoir au hasard.
+	_box.content_id = &"eclair"
+	_box.hit(&"attack")
+	await tree.process_frame
+	assert_eq((_pickups()[0] as Pickup).power.id, &"eclair")
 
 
 func test_contents_receive_the_player_as_target() -> void:

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PowerData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/power_data.gd" id="1_pw"]
+
+[resource]
+script = ExtResource("1_pw")
+id = &"eclair"
+name_key = "POWER_ECLAIR"
+description_key = "POWER_ECLAIR_DESC"
+family = 0
+rarity = 0
+duration = 0.0
+charges = 8
+color = Color(1.00, 0.90, 0.25, 1)
+aura_strength = 0.25

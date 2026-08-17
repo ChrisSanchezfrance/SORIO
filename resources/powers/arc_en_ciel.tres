@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PowerData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/power_data.gd" id="1_pw"]
+
+[resource]
+script = ExtResource("1_pw")
+id = &"arc_en_ciel"
+name_key = "POWER_ARC_EN_CIEL"
+description_key = "POWER_ARC_EN_CIEL_DESC"
+family = 8
+rarity = 3
+duration = 15.0
+charges = 0
+color = Color(1.00, 0.45, 0.85, 1)
+aura_strength = 0.75

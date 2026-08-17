@@ -7,7 +7,7 @@ extends StaticBody2D
 ##
 ##   1. **un coup de tete par en dessous** — on saute dedans ;
 ##   2. **un coup** (bouton B) ;
-##   3. **un pouvoir** (bouton C, a partir de la passe 4).
+##   3. **un pouvoir** (bouton C).
 ##
 ## Trois entrees pour une meme action, c'est volontaire ici, contrairement au
 ## saut : ce sont trois verbes DIFFERENTS qui aboutissent au meme resultat.
@@ -20,22 +20,17 @@ extends StaticBody2D
 ## Nombre de coups avant ouverture. A 1 par defaut : un cadeau qui resiste
 ## n'apporte rien a 8 ans.
 @export var hits_required: int = 1
-## Identifiant de l'objet contenu. En passe 4, la table de rarete de A.6
-## remplira ce champ avec un pouvoir ; d'ici la, c'est de l'ambre.
-@export var content_id: StringName = &"amber"
-@export var amber_value: int = 10
-## Nombre d'objets qui jaillissent. Plusieurs objets se lisent mieux qu'un
-## seul : ca ressemble a une recompense, pas a un simple ramassage.
-@export var content_count: int = 3
+## Pouvoir contenu. Vide = tire au sort a l'ouverture selon la table de
+## rarete de A.6 (commun 60 %, rare 30 %, epique 9 %, legendaire 1 %).
+@export var content_id: StringName = &""
+## Ambres accordes en plus du pouvoir.
+@export var amber_value: int = 5
 
 ## Vitesse verticale minimale (vers le haut) pour qu'un coup de tete compte.
 const HEAD_BUMP_MIN_SPEED: float = -60.0
 ## Sursaut de la caisse quand on la frappe sans l'ouvrir.
 const NUDGE_PIXELS: float = 6.0
 const NUDGE_SECONDS: float = 0.09
-## Ecartement horizontal des objets qui jaillissent.
-const SPREAD_PIXELS: float = 90.0
-
 ## Scene de l'objet qui sort. Injectable pour les tests.
 const PICKUP_SCENE: String = "res://src/entities/pickups/pickup.tscn"
 
@@ -119,25 +114,31 @@ func _open(cause: StringName) -> void:
 	_play_break_effect()
 
 
+## Un cadeau = UN pouvoir. Un seul objet qui sort se lit mieux que trois :
+## l'enfant comprend qu'il vient de gagner quelque chose de precis.
 func _spawn_contents() -> void:
 	var scene: PackedScene = load(PICKUP_SCENE) as PackedScene
 	if scene == null:
 		push_error("[GiftBox] scene d'objet introuvable : %s" % PICKUP_SCENE)
 		return
-	var parent: Node = get_parent()
-	for i: int in range(maxi(1, content_count)):
-		var pickup: Pickup = scene.instantiate() as Pickup
-		pickup.item_id = content_id
-		pickup.amber_value = amber_value
-		parent.add_child(pickup)
-		# Les objets s'ecartent en eventail : trois objets qui partent
-		# exactement au meme endroit ressemblent a un seul.
-		var spread: float = 0.0
-		if content_count > 1:
-			spread = lerpf(
-				-SPREAD_PIXELS, SPREAD_PIXELS, float(i) / float(content_count - 1)
-			)
-		pickup.launch(global_position, player, spread)
+
+	var power: PowerData = _pick_power()
+	var pickup: Pickup = scene.instantiate() as Pickup
+	pickup.amber_value = amber_value
+	if power != null:
+		pickup.item_id = power.id
+		pickup.power = power
+		# L'objet porte deja la couleur du pouvoir : on sait ce qu'on a
+		# gagne avant meme de l'avoir absorbe.
+		pickup.tint = power.color
+	get_parent().add_child(pickup)
+	pickup.launch(global_position, player, 0.0)
+
+
+func _pick_power() -> PowerData:
+	if not String(content_id).is_empty():
+		return Database.power(content_id) as PowerData
+	return PowerSystem.roll_random_power()
 
 
 func _play_break_effect() -> void:

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PowerData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/power_data.gd" id="1_pw"]
+
+[resource]
+script = ExtResource("1_pw")
+id = &"flamme"
+name_key = "POWER_FLAMME"
+description_key = "POWER_FLAMME_DESC"
+family = 3
+rarity = 1
+duration = 10.0
+charges = 0
+color = Color(1.00, 0.45, 0.12, 1)
+aura_strength = 0.55

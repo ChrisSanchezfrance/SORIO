@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PowerData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/power_data.gd" id="1_pw"]
+
+[resource]
+script = ExtResource("1_pw")
+id = &"lave"
+name_key = "POWER_LAVE"
+description_key = "POWER_LAVE_DESC"
+family = 2
+rarity = 1
+duration = 15.0
+charges = 0
+color = Color(0.92, 0.32, 0.10, 1)
+aura_strength = 0.5

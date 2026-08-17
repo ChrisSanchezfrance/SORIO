@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PowerData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/power_data.gd" id="1_pw"]
+
+[resource]
+script = ExtResource("1_pw")
+id = &"ombre"
+name_key = "POWER_OMBRE"
+description_key = "POWER_OMBRE_DESC"
+family = 3
+rarity = 2
+duration = 8.0
+charges = 0
+color = Color(0.28, 0.22, 0.36, 1)
+aura_strength = 0.6

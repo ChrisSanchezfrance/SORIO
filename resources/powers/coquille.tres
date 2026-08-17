@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PowerData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/power_data.gd" id="1_pw"]
+
+[resource]
+script = ExtResource("1_pw")
+id = &"coquille"
+name_key = "POWER_COQUILLE"
+description_key = "POWER_COQUILLE_DESC"
+family = 1
+rarity = 0
+duration = 12.0
+charges = 0
+color = Color(0.86, 0.76, 0.58, 1)
+aura_strength = 0.2

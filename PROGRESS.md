@@ -6,9 +6,9 @@
 |---|---|---|
 | **0** | Fondations | ✅ **terminée** |
 | **1** | Socle plateforme | ✅ **terminée** |
-| **2** | Niveaux ASCII | ⏳ en cours |
+| **2** | Niveaux ASCII | ⬜ à faire |
 | 3 | Ennemis et statuts | ⬜ à faire |
-| 4 | Les 36 pouvoirs | ⬜ à faire |
+| **4** | Les 36 pouvoirs | 🟡 données + système, effets à venir |
 | 5 | Ergonomie tactile | ⬜ à faire |
 | 6 | Boss | ⬜ à faire |
 | 7 | Les 8 mondes | ⬜ à faire |
@@ -238,6 +238,36 @@ l'écran. **8 tests de comportement** couvrent le coup et l'accroupi.
 
 ![Contrôles doublés](images/passe1_controles.png)
 
+### Les 36 pouvoirs, et SORIO qui se transforme
+
+Chaque Cadeau Surprise contient **un pouvoir**, tiré selon la table de rareté
+de A.6 (commun 60 %, rare 30 %, épique 9 %, légendaire 1 %). L'objet porte
+déjà la couleur du pouvoir avant d'être absorbé.
+
+**Le pouvoir se voit sur SORIO.** Tunique et pantalon prennent sa couleur, un
+halo l'entoure. C'est le point important : un enfant de 8 ans ne lit pas un
+HUD, il regarde son bonhomme. Le HUD ne fait que confirmer, avec la jauge
+circulaire de A.6 — qui descend avec le temps ou avec les charges, et vire au
+rouge dans le dernier quart.
+
+Technique : un **shader** remplace les deux couleurs de la tenue au pixel
+près, plutôt que de générer 36 × 20 images. `modulate` ne convenait pas — il
+aurait teint la peau, les cheveux, et surtout **l'écharpe**, qui porte les PV
+(A.3). Un test vérifie qu'aucune couleur d'écharpe ne peut être confondue
+avec la tunique.
+
+Le pouvoir sert de **bouclier** : prendre un dégât le fait perdre avant de
+retirer un PV (A.6).
+
+**Le bug le plus grave trouvé jusqu'ici.** À l'export, Godot convertit les
+ressources texte en binaire et les renomme. `Database` ne cherchait que
+l'extension `.tres` : 36 pouvoirs en développement, **zéro dans le jeu
+livré**. Les cadeaux s'ouvraient sur du vide, et rien ne le signalait — ni la
+validation, ni les 120 tests, qui tournent tous sur le projet source. Seul un
+playtest dans le vrai build exporté pouvait le révéler.
+
+![SORIO sous pouvoir Lave](images/passe4_pouvoir.png)
+
 ### Cadeaux Surprise et objets absorbés
 
 Caisse solide : SORIO marche dessus, s'y cogne, la casse. **Trois façons de
@@ -321,7 +351,7 @@ vide en pleine partie.
 
 ```
 validate_project → OK, 20 scènes, 14 ressources, 41 scripts
-run_tests        → 99/99
+run_tests        → 120/120
 ```
 
 ---

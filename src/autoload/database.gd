@@ -60,10 +60,26 @@ func _scan_directory(category: String, path: String) -> void:
 		if dir.current_is_dir():
 			if not entry.begins_with("."):
 				_scan_directory(category, full)
-		elif entry.ends_with(".tres"):
-			_register(category, full)
+		elif _is_resource_file(entry):
+			# `.remap` marque une ressource deplacee par l'export : le chemin
+			# a charger est celui SANS le suffixe.
+			_register(category, full.trim_suffix(".remap"))
 		entry = dir.get_next()
 	dir.list_dir_end()
+
+
+## Reconnait une ressource, quel que soit son etat apres export.
+##
+## PIEGE MAJEUR : a l'export, Godot convertit les ressources texte en binaire
+## et les renomme en `.res`, parfois accompagnees d'un `.remap`. Une
+## recherche limitee a `.tres` trouvait donc 36 pouvoirs en developpement et
+## ZERO dans le jeu livre — un cadeau ouvert ne donnait rien, et rien ne le
+## signalait. Le bug n'existait que dans le build.
+static func _is_resource_file(entry: String) -> bool:
+	return entry.ends_with(".tres") \
+		or entry.ends_with(".res") \
+		or entry.ends_with(".tres.remap") \
+		or entry.ends_with(".res.remap")
 
 
 func _register(category: String, path: String) -> void:

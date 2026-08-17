@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PowerData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/power_data.gd" id="1_pw"]
+
+[resource]
+script = ExtResource("1_pw")
+id = &"glace"
+name_key = "POWER_GLACE"
+description_key = "POWER_GLACE_DESC"
+family = 4
+rarity = 0
+duration = 0.0
+charges = 10
+color = Color(0.60, 0.90, 1.00, 1)
+aura_strength = 0.3

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PowerData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/power_data.gd" id="1_pw"]
+
+[resource]
+script = ExtResource("1_pw")
+id = &"ambre"
+name_key = "POWER_AMBRE"
+description_key = "POWER_AMBRE_DESC"
+family = 4
+rarity = 1
+duration = 0.0
+charges = 6
+color = Color(1.00, 0.70, 0.18, 1)
+aura_strength = 0.3

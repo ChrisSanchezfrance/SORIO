@@ -35,6 +35,11 @@ const BOB_SPEED: float = 6.0
 @export var item_id: StringName = &"amber"
 @export var amber_value: int = 10
 
+## Pouvoir transporte. Nul pour un simple ramassage d'ambre.
+var power: PowerData = null
+## Couleur de l'objet, prise sur le pouvoir qu'il contient.
+var tint: Color = Color.WHITE
+
 ## Cible injectee a la creation. Jamais cherchee dans l'arbre (D.2.4).
 var target: Node2D = null
 
@@ -51,11 +56,15 @@ func _ready() -> void:
 	monitoring = false
 	monitorable = false
 	_sprite = get_node_or_null(^"Sprite") as Sprite2D
+	if _sprite != null:
+		_sprite.modulate = tint
 
 
 ## Appele par le cadeau qui vient de s'ouvrir.
 func launch(from: Vector2, toward: Node2D, sideways: float = 0.0) -> void:
 	global_position = from
+	if _sprite != null:
+		_sprite.modulate = tint
 	target = toward
 	_velocity = POP_VELOCITY + Vector2(sideways, 0.0)
 	_phase = Phase.POP
@@ -119,8 +128,12 @@ func _absorb() -> void:
 	_phase = Phase.ABSORBED
 	if amber_value > 0:
 		Game.add_amber(amber_value)
+	# Le pouvoir est remis a SORIO, qui change aussitot d'apparence.
+	if power != null and target != null and is_instance_valid(target):
+		var system: PowerSystem = target.get(&"power_system") as PowerSystem
+		if system != null:
+			system.grant(power)
 	Haptics.pulse(&"power_pickup")
-	EventBus.power_acquired.emit(item_id, &"active")
 	_play_absorb_effect()
 
 

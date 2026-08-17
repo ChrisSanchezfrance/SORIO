@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PowerData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/power_data.gd" id="1_pw"]
+
+[resource]
+script = ExtResource("1_pw")
+id = &"sablier"
+name_key = "POWER_SABLIER"
+description_key = "POWER_SABLIER_DESC"
+family = 7
+rarity = 2
+duration = 8.0
+charges = 0
+color = Color(0.92, 0.84, 0.55, 1)
+aura_strength = 0.45

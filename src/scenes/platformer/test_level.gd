@@ -97,6 +97,7 @@ func _ready() -> void:
 	_build_labels()
 	_attach_debug_panel()
 	_attach_touch_controls()
+	_attach_power_hud()
 	Perf.begin_sampling()
 
 
@@ -243,6 +244,14 @@ func _build_labels() -> void:
 ## clavier dans la meme session.
 func _attach_touch_controls() -> void:
 	add_child(load("res://src/scenes/ui/touch_controls.tscn").instantiate())
+
+
+## Le HUD confirme le pouvoir, il ne l'annonce pas : c'est SORIO lui-meme,
+## avec sa tenue coloree, qui porte l'information principale.
+func _attach_power_hud() -> void:
+	var hud: Node = load("res://src/scenes/ui/power_hud.tscn").instantiate()
+	add_child(hud)
+	hud.call(&"setup", _player.power_system)
 
 
 func _attach_debug_panel() -> void:

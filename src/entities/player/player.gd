@@ -48,6 +48,7 @@ const SCARF_COLORS: Array[Color] = [
 @onready var power_anchor: Node2D = $PowerAnchor
 @onready var attack_box: Area2D = $AttackBox
 @onready var state_machine: PlayerStateMachine = $StateMachine
+@onready var power_system: PowerSystem = $PowerSystem
 
 # --- Etat de la frame -------------------------------------------------------
 
@@ -101,6 +102,7 @@ func _ready() -> void:
 	attack_box.collision_mask = CollisionLayers.ENEMY | CollisionLayers.BREAKABLE
 	attack_box.monitoring = false
 
+	power_system.setup(sprite)
 	state_machine.setup(self)
 	# L'animation suit l'etat : aucun etat n'appelle `play()` lui-meme, donc
 	# il est impossible d'oublier une animation en ajoutant un etat.
@@ -141,6 +143,11 @@ func _read_input() -> void:
 	attack_just_pressed = Input.is_action_just_pressed(&"attack")
 	if attack_just_pressed:
 		try_attack()
+	# Le bouton C consomme une charge du pouvoir actif. Les effets eux-memes
+	# (les 8 briques de A.6.3) arrivent en passe 4 ; la mecanique de cout,
+	# elle, est deja en place.
+	if Input.is_action_just_pressed(&"power"):
+		power_system.use_charge()
 	if jump_just_pressed:
 		# Le saut est memorise meme si SORIO est encore en l'air : c'est le
 		# jump buffer. Il sera consomme des le contact avec le sol.
@@ -296,6 +303,11 @@ func take_damage(amount: int, cause: StringName = &"unknown") -> bool:
 	if is_invincible() or not state_machine.can_take_damage():
 		return false
 	invincibility_timer = config.invincibility_time
+	# Regle de A.6 : le pouvoir actif encaisse a la place des PV. Il sert de
+	# bouclier, ce qui recompense la prise de risque sans punir durement.
+	if power_system.absorb_damage():
+		Haptics.pulse(&"damage")
+		return false
 	Haptics.pulse(&"damage")
 	EventBus.screen_shake_requested.emit(6.0, 0.2)
 	var died: bool = Game.damage(amount, cause)
