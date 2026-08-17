@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="PlayerConfig" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://src/data/player_config.gd" id="1_cfg"]
+
+[resource]
+script = ExtResource("1_cfg")
+gravity = 3600.0
+run_speed = 440.0
+run_acceleration = 2800.0
+run_friction = 2400.0
+jump_velocity = -1240.0
+jump_cut_multiplier = 0.45
+air_control = 0.75
+max_fall_speed = 1800.0
+coyote_time = 0.1
+jump_buffer = 0.12
+stomp_bounce = -840.0
+invincibility_time = 1.2
+ice_friction_factor = 0.25

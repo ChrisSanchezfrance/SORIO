@@ -20,6 +20,9 @@ var _failure_report: PackedStringArray = PackedStringArray()
 
 func _ready() -> void:
 	print("=== Tests SORIO ===")
+	# La racine est encore occupee a construire ses enfants pendant `_ready` :
+	# sans cette frame, le premier `add_child` d'un test echoue.
+	await get_tree().process_frame
 	var files: PackedStringArray = PackedStringArray()
 	_collect(TESTS_ROOT, files)
 	files.sort()
@@ -28,7 +31,7 @@ func _ready() -> void:
 		get_tree().quit(0)
 		return
 	for path: String in files:
-		_run_file(path)
+		await _run_file(path)
 	_report()
 
 
@@ -66,7 +69,7 @@ func _run_file(path: String) -> void:
 	print("- %s (%d cas)" % [suite_name, methods.size()])
 
 	for method: String in methods:
-		_run_case(gd_script, suite_name, method)
+		await _run_case(gd_script, suite_name, method)
 
 
 func _test_methods(gd_script: GDScript) -> Array[String]:
@@ -85,9 +88,12 @@ func _run_case(gd_script: GDScript, suite_name: String, method: String) -> void:
 	var instance: TestCase = gd_script.new() as TestCase
 	instance.tree = get_tree()
 
-	instance.before_each()
-	instance.call(method)
-	instance.after_each()
+	# `await` sur l'appel : un cas qui simule de la physique doit pouvoir
+	# attendre des `physics_frame`. Sur une methode non asynchrone, `await`
+	# rend simplement la valeur immediatement.
+	await instance.before_each()
+	await instance.call(method)
+	await instance.after_each()
 
 	if instance.failures.is_empty():
 		_passed += 1

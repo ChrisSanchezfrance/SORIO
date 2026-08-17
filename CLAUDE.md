@@ -128,7 +128,7 @@ scène principale, qui sort via `get_tree().quit(code)`.
 
 ## 6. État
 
-Voir `PROGRESS.md`. Résumé : **passe 0 terminée**, passe 1 en cours.
+Voir `PROGRESS.md`. Résumé : **passes 0 et 1 terminées**, passe 2 en cours.
 
 ---
 

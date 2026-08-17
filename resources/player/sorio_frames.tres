@@ -1,0 +1,66 @@
+[gd_resource type="SpriteFrames" load_steps=2 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/sprites/placeholder/sorio.png" id="1_tex"]
+
+[resource]
+animations = [{
+"frames": [{"duration": 1.0, "texture": ExtResource("1_tex")}],
+"loop": true,
+"name": &"idle",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_tex")}],
+"loop": true,
+"name": &"run",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_tex")}],
+"loop": true,
+"name": &"jump",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_tex")}],
+"loop": true,
+"name": &"fall",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_tex")}],
+"loop": false,
+"name": &"land",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_tex")}],
+"loop": false,
+"name": &"hurt",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_tex")}],
+"loop": false,
+"name": &"dead",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_tex")}],
+"loop": false,
+"name": &"cast",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_tex")}],
+"loop": true,
+"name": &"dash",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_tex")}],
+"loop": true,
+"name": &"swim",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_tex")}],
+"loop": true,
+"name": &"roll",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_tex")}],
+"loop": false,
+"name": &"victory",
+"speed": 8.0
+}]

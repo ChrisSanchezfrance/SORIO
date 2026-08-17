@@ -5,8 +5,8 @@
 | Passe | Contenu | État |
 |---|---|---|
 | **0** | Fondations | ✅ **terminée** |
-| **1** | Socle plateforme | ⏳ en cours |
-| 2 | Niveaux ASCII | ⬜ à faire |
+| **1** | Socle plateforme | ✅ **terminée** |
+| **2** | Niveaux ASCII | ⏳ en cours |
 | 3 | Ennemis et statuts | ⬜ à faire |
 | 4 | Les 36 pouvoirs | ⬜ à faire |
 | 5 | Ergonomie tactile | ⬜ à faire |
@@ -104,11 +104,78 @@ politique réseau de l'environnement, ou de lancer la construction en local.
 
 ---
 
-## Passe 1 — Socle plateforme ⏳
+## Passe 1 — Socle plateforme ✅
 
-À livrer : `player.tscn`, machine à états, physique exacte de B.4 **avec
-coyote time et jump buffer**, caméra à zone morte, panneau de debug F1, un
-niveau de test, contrôles clavier + tactiles.
+### Fait
 
-C'est la passe la plus importante du projet : on n'en sort pas tant que le
-saut n'est pas juste.
+**Physique de B.4, exacte**
+- `PlayerConfig.tres` : les 13 valeurs de B.4, aucune codée en dur.
+- La ressource calcule elle-même la portée du joueur — **213 px (3,3 tuiles)
+  de haut, 303 px (4,7 tuiles) de portée**. Ce sont exactement les deux
+  nombres dont `lint_levels` aura besoin en passe 2 : changer la gravité
+  changera donc automatiquement la validation des niveaux.
+- `validate()` refuse une configuration absurde au démarrage.
+
+**Coyote time et jump buffer — vérifiés, pas ressentis**
+Compteurs flottants plutôt que nœuds `Timer` : un `Timer` coûte jusqu'à une
+frame d'imprécision sur une fenêtre de 0,10 s, ce qui est précisément ce
+qu'on cherche à maîtriser. 8 cas de test font tourner de **vraies frames de
+physique** et vérifient l'ouverture, l'expiration, l'absence de double saut,
+le déclenchement à l'atterrissage et la hauteur variable.
+
+**Machine à états**
+6 états (Idle, Run, Jump, Fall, Hurt, Dead). Un état ne change jamais d'état
+lui-même : il retourne un nom, la machine tranche — toutes les transitions
+sont donc visibles au même endroit. Les 4 états liés aux pouvoirs (Dash,
+Swing, Roll, Swim) arrivent en passe 4, avec les pouvoirs qui les déclenchent.
+
+**Le reste**
+- `player.tscn` : hurtbox, stompbox, 3 rayons de sol, ancre de pouvoir,
+  écharpe distincte qui change de couleur avec les PV (A.3).
+- `GameCamera` : zone morte, anticipation, tremblement désactivable.
+- Panneau de debug **F1** : 10 curseurs qui modifient la physique **en
+  jouant**, plus un bouton qui écrit le `.tres`. Le saut se règle au doigt.
+- Niveau de test à 6 sections, chacune éprouvant un point précis de B.4.
+- Contrôles tactiles : `VirtualJoystick` natif de 4.7 + boutons A/B/poche,
+  mode gaucher déjà en place.
+
+### Le point d'architecture de la passe
+
+**Le tactile ne parle jamais au joueur.** Les contrôles à l'écran poussent
+les mêmes actions Godot que le clavier (`Input.action_press`). Conséquences :
+`Player` n'a pas une ligne de code spécifique au tactile, le multi-touch
+marche gratuitement (trois doigts, trois nœuds indépendants), et un test
+automatisé peut simuler une entrée exactement comme un vrai doigt.
+
+### Vérifié
+
+```
+validate_project   → OK, 20 scènes, 37 scripts, 0 erreur
+run_tests          → 30/30 (dont 11 de physique en simulation réelle)
+screenshot         → docs/images/passe1_niveau.png
+```
+
+### Bugs trouvés et corrigés pendant la passe
+
+1. La couleur d'écharpe teintait **tout** le sprite : SORIO devenait rouge
+   sombre. L'écharpe est maintenant un nœud distinct — l'information est
+   portée, pas noyée.
+2. `SceneTree.physics_frame` est émis **avant** `_physics_process` : un appui
+   simulé autour d'un seul `await` n'était jamais vu par le joueur.
+3. **Le plus intéressant** : déplacer SORIO en l'air dans un test lui ouvre
+   une fenêtre de coyote, exactement comme s'il quittait un rebord. Un de mes
+   tests de jump buffer passait donc **pour la mauvaise raison** — le saut
+   partait par le coyote, pas par le tampon. Corrigé en attendant explicitement
+   la fermeture de la fenêtre.
+4. Le runner de tests démarrait pendant `_ready`, quand la racine refuse
+   encore les `add_child`.
+
+![Niveau de test](images/passe1_niveau.png)
+
+---
+
+## Passe 2 — Niveaux ASCII ⏳
+
+À livrer : `LevelBuilder`, format de B.6, `lint_levels` avec ses 6
+vérifications, TileSet du monde 1, blocs cassables, plateformes traversables,
+Cadeaux Surprise, ambres, points de contrôle, drapeau, et 3 vrais niveaux.
