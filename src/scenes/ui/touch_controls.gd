@@ -1,3 +1,4 @@
+class_name TouchControls
 extends CanvasLayer
 ## Controles tactiles (C.1).
 ##
@@ -14,20 +15,38 @@ extends CanvasLayer
 
 ## Le stick occupe le tiers gauche de l'ecran (C.1).
 const STICK_ZONE_RATIO: float = 1.0 / 3.0
-const STICK_SIZE: float = 180.0
-const STICK_TIP_SIZE: float = 78.0
+## Tailles doublees a la demande : des doigts d'enfant sur un telephone
+## visent mal, et un controle trop petit est la premiere cause de mort
+## injuste. Le joueur peut redescendre via Options > Taille des boutons
+## (Petit x0,85 jusqu'a Tres grand x1,5), qui multiplie ces valeurs.
+const STICK_SIZE: float = 360.0
+const STICK_TIP_SIZE: float = 156.0
 ## Marge de securite sous les controles : la zone de jeu reste degagee (C.1).
 const SAFE_MARGIN: float = 80.0
 
-## Tailles des trois boutons. A est le plus gros et le plus bas (C.1).
-const BUTTON_A_SIZE: Vector2 = Vector2(120.0, 120.0)
-const BUTTON_B_SIZE: Vector2 = Vector2(96.0, 96.0)
-const BUTTON_POCKET_SIZE: Vector2 = Vector2(76.0, 76.0)
+## Deux boutons a droite, doubles. A reste le plus gros et le plus bas :
+## c'est le saut, donc celui que le pouce doit trouver sans regarder (C.1).
+const BUTTON_A_SIZE: Vector2 = Vector2(240.0, 240.0)
+const BUTTON_B_SIZE: Vector2 = Vector2(192.0, 192.0)
+
+## A et B sont COTE A COTE, alignes par le bas. Deux autres dispositions ont
+## ete essayees et ecartees a cette taille : empiles, B finissait au milieu
+## du ciel, hors de portee d'un pouce pose dans le coin ; en diagonale, les
+## deux se chevauchaient (l'assertion plus bas l'a attrape). Cote a cote,
+## les deux restent bas, dans la course naturelle du pouce, et ne masquent
+## plus le ciel ni le volcan.
+
+## Le bouton poche de C.1 revient en passe 4, avec les pouvoirs : tant qu'il
+## n'y a rien a echanger, c'est une cible tactile qui masque le jeu pour
+## rien.
+
+## Hauteur de la lettre par rapport au bouton : un "A" de 28 px perdu au
+## milieu d'un bouton de 240 px ne se lit pas comme une commande.
+const LABEL_RATIO: float = 0.34
 
 var _stick: VirtualJoystick = null
 var _button_a: TouchButton = null
 var _button_b: TouchButton = null
-var _button_pocket: TouchButton = null
 var _root: Control = null
 
 
@@ -59,7 +78,6 @@ func _build() -> void:
 
 	_button_a = _make_button("A", BUTTON_A_SIZE, &"jump")
 	_button_b = _make_button("B", BUTTON_B_SIZE, &"power")
-	_button_pocket = _make_button("<>", BUTTON_POCKET_SIZE, &"swap_pocket")
 
 
 ## Un bouton tactile qui tient une action enfoncee tant que le doigt est pose.
@@ -71,7 +89,7 @@ func _make_button(label: String, size: Vector2, action: StringName) -> TouchButt
 	button.custom_minimum_size = size
 	button.size = size
 	button.follow_button_scale = false
-	button.add_theme_font_size_override("font_size", 28)
+	button.add_theme_font_size_override("font_size", int(size.y * LABEL_RATIO))
 	button.button_down.connect(func() -> void: Input.action_press(action))
 	button.button_up.connect(func() -> void: Input.action_release(action))
 	_root.add_child(button)
@@ -98,52 +116,73 @@ func _apply_layout() -> void:
 	_stick.joystick_mode = (
 		VirtualJoystick.JOYSTICK_DYNAMIC if dynamic else VirtualJoystick.JOYSTICK_FIXED
 	)
-	# Un stick dynamique affiche en permanence serait un mensonge visuel : il
-	# n'est pas la ou il est dessine. Il ne se montre donc qu'une fois touche.
-	_stick.visibility_mode = (
-		VirtualJoystick.VISIBILITY_WHEN_TOUCHED
-		if dynamic
-		else VirtualJoystick.VISIBILITY_ALWAYS
-	)
+	# Le stick reste VISIBLE au repos, meme en mode dynamique. Un stick qui
+	# n'apparait qu'au toucher n'existe pas pour un enfant qui decouvre le
+	# jeu : il ne peut pas deviner qu'il faut poser le pouce quelque part.
+	# En mode dynamique il se replace sous le pouce des le contact, donc on
+	# garde la souplesse sans sacrifier la decouverte (D.6 : comprendre et
+	# jouer seul en moins de 60 secondes).
+	_stick.visibility_mode = VirtualJoystick.VISIBILITY_ALWAYS
+	# Position de repos : la ou le pouce tombe quand on tient le telephone a
+	# deux mains, mais jamais a cheval sur un bord. Le retrait est calcule
+	# depuis le rayon reel du stick plus la marge de securite de C.2, donc
+	# il reste correct meme si on change la taille ou la resolution.
 	var stick_width: float = screen.x * STICK_ZONE_RATIO
 	_stick.size = Vector2(stick_width, screen.y * 0.6)
 	_stick.position = Vector2(
 		screen.x - stick_width if left_handed else 0.0,
 		screen.y - _stick.size.y
 	)
+	# `joystick_size` est un diametre : le retrait vaut donc la moitie, plus
+	# la marge de bord.
+	var inset: float = STICK_SIZE * 0.5 + edge
+	var rest: Vector2 = Vector2(
+		screen.x - inset if left_handed else inset,
+		screen.y - inset
+	)
+	_stick.initial_offset_ratio = Vector2(
+		clampf((rest.x - _stick.position.x) / maxf(1.0, _stick.size.x), 0.0, 1.0),
+		clampf((rest.y - _stick.position.y) / maxf(1.0, _stick.size.y), 0.0, 1.0)
+	)
 
-	# Boutons : A le plus gros et le plus bas, B au-dessus, poche a cote.
+	# A dans le coin, B en diagonale sur l'arc du pouce.
 	var a_size: Vector2 = BUTTON_A_SIZE * scale
 	var b_size: Vector2 = BUTTON_B_SIZE * scale
-	var pocket_size: Vector2 = BUTTON_POCKET_SIZE * scale
 	_resize(_button_a, a_size)
 	_resize(_button_b, b_size)
-	_resize(_button_pocket, pocket_size)
 
 	var a_pos: Vector2 = Vector2(
 		edge if left_handed else screen.x - edge - a_size.x,
 		screen.y - edge - a_size.y
 	)
 	_button_a.position = a_pos
-	_button_b.position = Vector2(
-		a_pos.x + (a_size.x - b_size.x) * (0.0 if left_handed else 1.0),
-		a_pos.y - gap - b_size.y
+
+	# B se pose a cote de A, vers le centre de l'ecran, et aligne par le bas.
+	# En mode gaucher il part de l'autre cote (C.9).
+	var b_x: float = (
+		a_pos.x + a_size.x + gap if left_handed else a_pos.x - gap - b_size.x
 	)
-	# La poche se place du cote interieur, vers le centre de l'ecran.
-	var pocket_x: float = (
-		a_pos.x + a_size.x + gap if left_handed else a_pos.x - gap - pocket_size.x
+	_button_b.position = Vector2(b_x, a_pos.y + a_size.y - b_size.y)
+
+	# Critere 4 de C.2 : au moins 24 px de vide entre deux boutons. Verifie
+	# ici plutot que relu, parce que le decalage est en pourcentage et qu'un
+	# changement de taille pourrait les faire se toucher.
+	assert(
+		not _button_a.get_rect().grow(gap * 0.5).intersects(_button_b.get_rect()),
+		"A et B se chevauchent ou sont trop proches"
 	)
-	_button_pocket.position = Vector2(pocket_x, a_pos.y + a_size.y - pocket_size.y)
 
 
 func _resize(button: TouchButton, size: Vector2) -> void:
 	button.custom_minimum_size = size
 	button.size = size
 	button.pivot_offset = size / 2.0
+	button.add_theme_font_size_override("font_size", int(size.y * LABEL_RATIO))
 
 
 ## Hauteur reservee aux controles : la zone de jeu ne doit jamais etre
 ## recouverte (C.1). Le niveau s'en sert pour caler sa camera.
 func reserved_bottom_height() -> float:
-	return BUTTON_A_SIZE.y * Settings.get_float_option(&"controls", &"button_scale") \
-		+ TouchButton.EDGE_MARGIN + SAFE_MARGIN
+	var scale: float = Settings.get_float_option(&"controls", &"button_scale")
+	# A est le plus haut des deux : c'est lui qui fixe la hauteur occupee.
+	return BUTTON_A_SIZE.y * scale + TouchButton.EDGE_MARGIN
