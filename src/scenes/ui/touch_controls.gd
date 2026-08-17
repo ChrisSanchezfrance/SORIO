@@ -15,19 +15,27 @@ extends CanvasLayer
 
 ## Le stick occupe le tiers gauche de l'ecran (C.1).
 const STICK_ZONE_RATIO: float = 1.0 / 3.0
-## Tailles doublees a la demande : des doigts d'enfant sur un telephone
-## visent mal, et un controle trop petit est la premiere cause de mort
-## injuste. Le joueur peut redescendre via Options > Taille des boutons
+## Le joueur peut encore ajuster via Options > Taille des boutons
 ## (Petit x0,85 jusqu'a Tres grand x1,5), qui multiplie ces valeurs.
-const STICK_SIZE: float = 360.0
-const STICK_TIP_SIZE: float = 156.0
+const STICK_SIZE: float = 180.0
+const STICK_TIP_SIZE: float = 78.0
+
+## Le stick s'efface presque completement au repos : il ne doit pas manger
+## la vue du niveau alors qu'on sait ou poser son pouce. Il redevient
+## franchement visible des qu'on le touche — sinon on ne verrait plus dans
+## quelle direction on pousse.
+const STICK_IDLE_ALPHA: float = 0.05
+const STICK_ACTIVE_ALPHA: float = 1.0
+## Sous les 100 ms exigees par le critere 3 de C.2.
+const STICK_FADE_SECONDS: float = 0.08
 ## Marge de securite sous les controles : la zone de jeu reste degagee (C.1).
 const SAFE_MARGIN: float = 80.0
 
-## Deux boutons a droite, doubles. A reste le plus gros et le plus bas :
-## c'est le saut, donc celui que le pouce doit trouver sans regarder (C.1).
-const BUTTON_A_SIZE: Vector2 = Vector2(240.0, 240.0)
-const BUTTON_B_SIZE: Vector2 = Vector2(192.0, 192.0)
+## Deux boutons a droite. A reste le plus gros et le plus bas : c'est le
+## saut, donc celui que le pouce doit trouver sans regarder (C.1). Les deux
+## restent tres au-dessus du plancher de 64 px de C.2.
+const BUTTON_A_SIZE: Vector2 = Vector2(120.0, 120.0)
+const BUTTON_B_SIZE: Vector2 = Vector2(96.0, 96.0)
 
 ## A et B sont COTE A COTE, alignes par le bas. Deux autres dispositions ont
 ## ete essayees et ecartees a cette taille : empiles, B finissait au milieu
@@ -48,6 +56,7 @@ var _stick: VirtualJoystick = null
 var _button_a: TouchButton = null
 var _button_b: TouchButton = null
 var _root: Control = null
+var _stick_tween: Tween = null
 
 
 func _ready() -> void:
@@ -73,7 +82,11 @@ func _build() -> void:
 	_stick.action_down = &"move_down"
 	_stick.joystick_size = STICK_SIZE
 	_stick.tip_size = STICK_TIP_SIZE
+	# Presque efface au repos, franc des qu'on pose le pouce.
+	_stick.pressed.connect(_fade_stick.bind(STICK_ACTIVE_ALPHA))
+	_stick.released.connect(_fade_stick.bind(STICK_IDLE_ALPHA))
 	_stick.visibility_mode = VirtualJoystick.VISIBILITY_ALWAYS
+	_stick.modulate.a = STICK_IDLE_ALPHA
 	_root.add_child(_stick)
 
 	_button_a = _make_button("A", BUTTON_A_SIZE, &"jump")
@@ -123,6 +136,7 @@ func _apply_layout() -> void:
 	# garde la souplesse sans sacrifier la decouverte (D.6 : comprendre et
 	# jouer seul en moins de 60 secondes).
 	_stick.visibility_mode = VirtualJoystick.VISIBILITY_ALWAYS
+	_stick.modulate.a = STICK_IDLE_ALPHA
 	# Position de repos : la ou le pouce tombe quand on tient le telephone a
 	# deux mains, mais jamais a cheval sur un bord. Le retrait est calcule
 	# depuis le rayon reel du stick plus la marge de securite de C.2, donc
@@ -171,6 +185,13 @@ func _apply_layout() -> void:
 		not _button_a.get_rect().grow(gap * 0.5).intersects(_button_b.get_rect()),
 		"A et B se chevauchent ou sont trop proches"
 	)
+
+
+func _fade_stick(target_alpha: float) -> void:
+	if _stick_tween != null and _stick_tween.is_valid():
+		_stick_tween.kill()
+	_stick_tween = create_tween()
+	_stick_tween.tween_property(_stick, "modulate:a", target_alpha, STICK_FADE_SECONDS)
 
 
 func _resize(button: TouchButton, size: Vector2) -> void:

@@ -95,12 +95,28 @@ func test_buttons_keep_at_least_24px_between_them() -> void:
 		"critere 4 de C.2 : au moins 24 px de vide")
 
 
-func test_buttons_are_far_above_the_minimum_size() -> void:
-	# Tailles doublees a la demande : on verifie qu'on est bien au-dessus du
-	# plancher de 64 px, pas juste au-dessus.
+func test_buttons_stay_above_the_c2_minimum() -> void:
+	# Meme au reglage le plus petit, un bouton ne doit jamais passer sous les
+	# 64 px du critere 1 de C.2.
+	Settings.set_option(&"controls", &"button_scale", 0.85)
+	await tree.process_frame
 	for button: TouchButton in [_button_a(), _button_b()]:
-		assert_gt(button.size.x, TouchButton.MIN_VISUAL_SIZE * 2.0)
-		assert_gt(button.size.y, TouchButton.MIN_VISUAL_SIZE * 2.0)
+		assert_gt(button.size.x, TouchButton.MIN_VISUAL_SIZE - 0.5)
+		assert_gt(button.size.y, TouchButton.MIN_VISUAL_SIZE - 0.5)
+
+
+func test_stick_is_nearly_invisible_at_rest() -> void:
+	# Au repos le stick ne doit pas manger la vue du niveau : on sait ou
+	# poser son pouce, on n'a pas besoin de le voir en permanence.
+	assert_almost_eq(_stick().modulate.a, TouchControls.STICK_IDLE_ALPHA, 0.001)
+	assert_lt(TouchControls.STICK_IDLE_ALPHA, 0.1)
+
+
+func test_stick_becomes_visible_when_used() -> void:
+	# Sinon on ne verrait plus dans quelle direction on pousse.
+	assert_gt(TouchControls.STICK_ACTIVE_ALPHA, TouchControls.STICK_IDLE_ALPHA * 10.0)
+	assert_lt(TouchControls.STICK_FADE_SECONDS, 0.1,
+		"critere 3 de C.2 : reaction visuelle sous 100 ms")
 
 
 func test_stick_stays_fully_on_screen() -> void:

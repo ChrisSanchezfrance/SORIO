@@ -193,29 +193,31 @@ mini-jeux. Aucune divergence possible.
 
 ![Poses de SORIO](images/sorio_poses.png)
 
-### Contrôles tactiles doublés
+### Contrôles tactiles
 
-Joystick à gauche, deux boutons à droite, **tous deux fois plus grands** :
-stick 180 → 360 px, A 120 → 240 px, B 96 → 192 px, avec la lettre
-proportionnelle au bouton. Le réglage Options > Taille des boutons multiplie
+Joystick à gauche, deux boutons à droite. Réglages après plusieurs allers-
+retours à l'écran : stick **180 px**, A **120 px**, B **96 px** — tous très
+au-dessus du plancher de 64 px de C.2. Options > Taille des boutons multiplie
 ces valeurs (Petit ×0,85 → Très grand ×1,5).
 
-Trois décisions prises en cours de route :
+**Le stick est à 5 % d'opacité au repos** et redevient franc dès qu'on le
+touche, en 80 ms. On sait où poser son pouce sans qu'un anneau blanc mange la
+vue du niveau ; mais pendant qu'on pousse, il faut voir dans quelle direction.
+
+Deux décisions de disposition :
 
 - **Deux boutons, pas trois.** Le bouton poche de C.1 revient en passe 4,
-  avec les pouvoirs. Tant qu'il n'y a rien à échanger, c'est une cible
-  tactile qui masque le jeu pour rien.
-- **Côte à côte, alignés par le bas.** Empilés, un B de 192 px finissait au
-  milieu du ciel, hors de portée d'un pouce posé dans le coin. En diagonale,
-  les deux se chevauchaient — c'est l'assertion de C.2 dans le code qui l'a
+  avec les pouvoirs. Tant qu'il n'y a rien à échanger, ce serait un bouton
+  sans action — précisément ce que C.6 interdit.
+- **Côte à côte, alignés par le bas.** Empilés, B finissait au milieu du
+  ciel, hors de portée d'un pouce posé dans le coin. En diagonale, les deux
+  se chevauchaient — c'est l'assertion de C.2 écrite dans le code qui l'a
   attrapé, pas l'œil.
-- **Le stick reste visible au repos.** Il était en « apparaît au toucher » :
-  un stick qu'on ne voit pas n'existe pas pour un enfant qui découvre le jeu.
-  Il se replace quand même sous le pouce dès le contact.
 
-**11 tests** montent les vrais contrôles et mesurent les vraies positions :
-marges de bord, 24 px d'écart minimum, stick entièrement à l'écran, miroir
-gaucher complet, et le fait que « Très grand » ne pousse aucun bouton dehors.
+**13 tests** montent les vrais contrôles et mesurent les vraies positions :
+marges de bord, 24 px d'écart minimum, stick entièrement à l'écran, opacité
+de repos, miroir gaucher complet, et le fait qu'aucun réglage de taille ne
+fasse passer un bouton sous 64 px ni sortir de l'écran.
 
 ![Contrôles doublés](images/passe1_controles.png)
 
@@ -274,7 +276,7 @@ vide en pleine partie.
 
 ```
 validate_project → OK, 20 scènes, 14 ressources, 41 scripts
-run_tests        → 70/70
+run_tests        → 72/72
 ```
 
 ---
