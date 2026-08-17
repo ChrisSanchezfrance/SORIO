@@ -110,7 +110,23 @@ xvfb-run -a $GODOT --path . --resolution 1280x720 \
 
 # Réimporter après ajout d'un asset ou d'une classe globale
 $GODOT --headless --path . --import
+
+# Build web jouable, en UN seul fichier HTML auto-suffisant
+$GODOT --headless --path . --export-release "Web" build/web/index.html
+python3 tools/build_single_file_web.py build/web build/sorio.html
 ```
+
+### Le build web en un fichier
+
+`tools/build_single_file_web.py` recoud l'export Godot (index.html + .js +
+.wasm + .pck) en une page unique : le `.wasm` de 38 Mo est gzippé puis encodé
+en base64 (~13 Mo), la page le décompresse au chargement via
+`DecompressionStream`, et `fetch` est détourné pour servir les fichiers depuis
+la mémoire. Les worklets audio passent par des blobs. **Aucune requête ne
+quitte la page** — c'est ce qui permet de la publier comme lien jouable.
+
+Taille finale : **13,4 Mo**, sous la limite de 16 Mo. Vérifié dans un vrai
+Chromium via Playwright avant publication (`node test_boot.js`).
 
 ### Les outils sont des scènes, pas des scripts
 

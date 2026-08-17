@@ -16,7 +16,7 @@ const SCENES: Dictionary = {
 	&"save_slot": "res://src/scenes/save_slot/save_slot.tscn",
 	&"world_map": "res://src/scenes/world_map/world_map.tscn",
 	&"village": "res://src/scenes/village/village.tscn",
-	&"platformer": "res://src/scenes/platformer/platformer.tscn",
+	&"platformer": "res://src/scenes/platformer/test_level.tscn",
 	&"runner": "res://src/scenes/runner/runner.tscn",
 	&"camp": "res://src/scenes/minigames/camp.tscn",
 	## Un mini-jeu s'ouvre depuis le Camp OU en intermede entre deux niveaux

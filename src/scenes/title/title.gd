@@ -7,7 +7,7 @@ extends Control
 
 ## Libelle de traduction -> ecran cible. L'ordre est celui de l'affichage.
 const ENTRIES: Array[Dictionary] = [
-	{"key": "MENU_PLAY", "screen": &"save_slot"},
+	{"key": "MENU_PLAY", "screen": &"platformer"},
 	{"key": "MENU_MINIGAMES", "screen": &"camp"},
 	{"key": "MENU_SHOP", "screen": &"shop"},
 	{"key": "MENU_COLLECTION", "screen": &"collection"},
