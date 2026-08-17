@@ -104,7 +104,7 @@ static func build(path: String, parent: Node2D, player: Node2D) -> Result:
 
 	_scan_cells(result)
 	_merge_solids(result)
-	_create_bodies(result, parent)
+	_create_bodies(result, parent, player)
 	_create_entities(result, parent, player)
 	return result
 
@@ -170,12 +170,12 @@ static func _merge_row(
 			start = -1
 
 
-static func _create_bodies(result: Result, parent: Node2D) -> void:
+static func _create_bodies(result: Result, parent: Node2D, player: Node2D) -> void:
 	_add_body(parent, "Solids", result.solids, CollisionLayers.WORLD, false)
 	# Plateformes traversables par le bas : on saute au travers, on retombe
 	# dessus. Le bord superieur pointille de C.8 les distingue a l'oeil.
 	_add_body(parent, "OneWays", result.one_ways, CollisionLayers.ONE_WAY, true)
-	_add_hazards(parent, result.spikes)
+	_add_hazards(parent, result.spikes, player)
 
 
 static func _add_body(
@@ -198,7 +198,7 @@ static func _add_body(
 		body.add_child(shape)
 
 
-static func _add_hazards(parent: Node2D, rects: Array[Rect2]) -> void:
+static func _add_hazards(parent: Node2D, rects: Array[Rect2], player: Node2D) -> void:
 	if rects.is_empty():
 		return
 	var area: Area2D = Area2D.new()
@@ -206,6 +206,12 @@ static func _add_hazards(parent: Node2D, rects: Array[Rect2]) -> void:
 	area.collision_layer = CollisionLayers.HAZARD
 	area.collision_mask = CollisionLayers.PLAYER_HURTBOX
 	parent.add_child(area)
+	# Sans cette connexion, les pics etaient purement decoratifs : on les
+	# traversait sans rien sentir.
+	area.area_entered.connect(func(_other: Area2D) -> void:
+		if player is Player:
+			(player as Player).take_damage(1, &"spike")
+	)
 	for rect: Rect2 in rects:
 		var shape: CollisionShape2D = CollisionShape2D.new()
 		var box: RectangleShape2D = RectangleShape2D.new()

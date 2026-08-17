@@ -40,6 +40,7 @@ var _sun: TextureRect = null
 var _clouds: Parallax2D = null
 var _mountains: Parallax2D = null
 var _forest: Parallax2D = null
+var _life: BackdropLife = null
 
 
 func _ready() -> void:
@@ -48,6 +49,7 @@ func _ready() -> void:
 	_clouds = _build_clouds()
 	_mountains = _build_mountains()
 	_forest = _build_forest()
+	_build_life()
 	EventBus.quality_tier_changed.connect(_on_quality_changed)
 	_apply_quality(Perf.parallax_layers())
 
@@ -76,6 +78,18 @@ func _build_sky() -> void:
 	_sun.size = Vector2(280.0, 280.0)
 	_sun.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_sun)
+
+
+## Oiseaux et feuilles : ce qui donne l'impression que la vallee est
+## vivante. Pose dans le plan des nuages, donc ca defile lentement et ne
+## vole jamais la vedette au jeu.
+func _build_life() -> void:
+	if _clouds == null:
+		return
+	_life = BackdropLife.new()
+	_life.name = "Life"
+	_life.palette = palette
+	_clouds.add_child(_life)
 
 
 # --- Plan 2 : nuages --------------------------------------------------------
@@ -166,13 +180,59 @@ func _build_forest() -> Parallax2D:
 
 	# Litiere : une bande pleine qui ferme le plan par le bas et empeche de
 	# voir le ciel sous les arbres.
+	var litter_y: float = HORIZON_Y + 86.0
 	_add_polygon(plane, PackedVector2Array([
-		Vector2(0.0, HORIZON_Y + 86.0),
-		Vector2(BackdropShapes.PLANE_WIDTH, HORIZON_Y + 86.0),
+		Vector2(0.0, litter_y),
+		Vector2(BackdropShapes.PLANE_WIDTH, litter_y),
+		Vector2(BackdropShapes.PLANE_WIDTH, floor_y),
+		Vector2(0.0, litter_y),
+	]), palette["tree_near"])
+	_add_polygon(plane, PackedVector2Array([
+		Vector2(0.0, litter_y),
+		Vector2(BackdropShapes.PLANE_WIDTH, litter_y),
 		Vector2(BackdropShapes.PLANE_WIDTH, floor_y),
 		Vector2(0.0, floor_y),
 	]), palette["tree_near"])
+	_add_undergrowth(plane, litter_y)
 	return plane
+
+
+## Touffes d'herbe, buissons et fleurs sur la ligne de litiere. C'est ce
+## detail qui empeche la bande de vegetation de ressembler a un aplat.
+func _add_undergrowth(plane: Parallax2D, litter_y: float) -> void:
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 7777
+	var bright: Color = Color(palette["tree_far"]).lightened(0.10)
+	var dark: Color = Color(palette["tree_near"]).darkened(0.20)
+
+	var x: float = 0.0
+	while x < BackdropShapes.PLANE_WIDTH:
+		# Buisson : deux ou trois bosses accolees.
+		if rng.randf() < 0.55:
+			var radius: float = rng.randf_range(16.0, 30.0)
+			for lobe: int in range(rng.randi_range(2, 3)):
+				_add_polygon(plane, BackdropShapes.circle_polygon(
+					Vector2(x + float(lobe) * radius * 0.8, litter_y + 4.0),
+					radius * rng.randf_range(0.7, 1.0)
+				), dark if lobe % 2 == 0 else bright)
+		# Touffes d'herbe : de simples pointes.
+		for blade: int in range(rng.randi_range(2, 4)):
+			var base_x: float = x + rng.randf_range(-18.0, 34.0)
+			var height: float = rng.randf_range(14.0, 30.0)
+			var lean: float = rng.randf_range(-7.0, 7.0)
+			_add_polygon(plane, PackedVector2Array([
+				Vector2(base_x - 4.0, litter_y + 6.0),
+				Vector2(base_x + lean, litter_y - height),
+				Vector2(base_x + 4.0, litter_y + 6.0),
+			]), bright)
+		# Une fleur de temps en temps : la seule tache chaude au sol.
+		if rng.randf() < 0.30:
+			var flower: Vector2 = Vector2(
+				x + rng.randf_range(0.0, 40.0), litter_y - rng.randf_range(8.0, 22.0)
+			)
+			_add_polygon(plane, BackdropShapes.circle_polygon(flower, 5.0),
+				Color(1.0, 0.86, 0.35))
+		x += rng.randf_range(58.0, 96.0)
 
 
 func _add_tree_row(
