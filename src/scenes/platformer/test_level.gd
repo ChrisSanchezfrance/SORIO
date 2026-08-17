@@ -37,9 +37,13 @@ const SECTIONS: Array[Dictionary] = [
 	{"column": 58, "label": "6. montee - jump buffer"},
 ]
 
-const BACKGROUND_COLOR: Color = Color(0.09, 0.15, 0.20)
-const TILE_COLOR: Color = Color(0.30, 0.42, 0.28)
-const TILE_TOP_COLOR: Color = Color(0.42, 0.62, 0.36)
+## Plein jour : le decor de fond fournit le ciel, donc la couleur de fond
+## ne sert plus que de secours si une texture manque.
+const BACKGROUND_COLOR: Color = Color(0.62, 0.85, 0.90)
+## Terrain sombre et sature : il doit trancher nettement sur un fond clair,
+## sinon un enfant ne distingue plus le sol du decor (A.7).
+const TILE_COLOR: Color = Color(0.34, 0.24, 0.16)
+const TILE_TOP_COLOR: Color = Color(0.36, 0.66, 0.28)
 ## Epaisseur de la bande claire sur le dessus des blocs : repere de sol.
 const TILE_TOP_HEIGHT: float = 8.0
 
@@ -50,6 +54,7 @@ var _camera: GameCamera = null
 
 func _ready() -> void:
 	RenderingServer.set_default_clear_color(BACKGROUND_COLOR)
+	_build_backdrop()
 	_build_geometry()
 	_spawn_player()
 	_setup_camera()
@@ -57,6 +62,12 @@ func _ready() -> void:
 	_attach_debug_panel()
 	_attach_touch_controls()
 	Perf.begin_sampling()
+
+
+## Le decor est ajoute en premier : il vit dans un CanvasLayer negatif,
+## donc il passe derriere tout le reste quoi qu'il arrive ensuite.
+func _build_backdrop() -> void:
+	add_child(ParallaxBackdrop.new())
 
 
 ## Fusionne les tuiles solides voisines en bandes horizontales : 80 x 11
@@ -145,7 +156,10 @@ func _build_labels() -> void:
 		var label: Label = Label.new()
 		label.text = String(section["label"])
 		label.add_theme_font_size_override("font_size", 20)
-		label.add_theme_color_override("font_color", Color(0.85, 0.92, 0.70))
+		# Texte sombre cerne de clair : lisible sur un ciel de plein jour.
+		label.add_theme_color_override("font_color", Color(0.12, 0.20, 0.12))
+		label.add_theme_color_override("font_outline_color", Color(1, 1, 1, 0.85))
+		label.add_theme_constant_override("outline_size", 6)
 		label.position = Vector2(float(int(section["column"]) * TILE_SIZE), 96.0)
 		add_child(label)
 

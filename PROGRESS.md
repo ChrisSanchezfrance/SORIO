@@ -193,6 +193,35 @@ mini-jeux. Aucune divergence possible.
 
 ![Poses de SORIO](images/sorio_poses.png)
 
+### Décor de fond : parallaxe à 4 plans
+
+Le niveau n'était qu'un aplat sombre. Il a maintenant la **vallée en plein
+jour** : ciel dégradé, soleil, nuages qui dérivent, chaîne de montagnes,
+**volcan fumant** sur l'horizon, et une double rangée d'arbres.
+
+Les 4 plans de B.10 sont en place — ciel (×0,04), nuages (×0,12), montagnes
+et volcan (×0,30), forêt (×0,60), plateformes (×1,0) — et le nombre de plans
+affichés suit `Perf.parallax_layers()` : 4 au palier haut, 3 au moyen, 2 au
+bas. Les nuages tombent en premier, jamais les arbres : on sacrifie ce qui
+aide le moins à lire le niveau.
+
+**Décision technique.** Une première version peignait le décor pixel par
+pixel et **ne rendait toujours pas après dix minutes** : en GDScript, écrire
+dans un `PackedByteArray` membre recopie tout le tableau à chaque
+affectation. Tout a été refait en `Polygon2D` remplis par le GPU. C'est plus
+rapide, plus léger, plus net — et ça colle mieux au style demandé (formes
+arrondies, contours nets, couleurs saturées). **Aucune texture de décor n'est
+stockée dans le dépôt** : un monde tient dans une palette et quelques nombres.
+
+Les silhouettes se répètent sans couture parce qu'elles sont définies par des
+sommes de sinus à **fréquence entière** sur la largeur : une telle courbe
+revient exactement à sa valeur de départ au bord droit. **12 tests** vérifient
+ces invariants, y compris que les nuages ne chevauchent pas le raccord et que
+le volcan ne dépasse pas 55 % de la largeur — une première version en faisait
+1120 px sur 1280 et écrasait la scène.
+
+![Vallée en plein jour](images/passe1_decor.png)
+
 ### Les mini-jeux entrent dans l'aventure
 
 Écart assumé avec A.10, qui les réservait au Camp. `LevelFlow` décide
@@ -219,7 +248,7 @@ vide en pleine partie.
 
 ```
 validate_project → OK, 20 scènes, 14 ressources, 41 scripts
-run_tests        → 47/47
+run_tests        → 59/59
 ```
 
 ---
