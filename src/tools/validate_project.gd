@@ -40,6 +40,7 @@ func _ready() -> void:
 	for path: String in SCAN_ROOTS:
 		_scan(path)
 	_check_database()
+	_check_levels()
 	_report()
 
 
@@ -122,6 +123,40 @@ func _check_database() -> void:
 	for message: String in Database.load_errors:
 		_errors.append("Database : %s" % message)
 	print("- contenu : %s" % Database.summary())
+
+
+## Chaque fichier de niveau doit s'analyser sans erreur — depart, drapeau,
+## caracteres connus. C'est ce controle qui manquait quand les niveaux se
+## sont retrouves absents du build : rien ne le signalait.
+func _check_levels() -> void:
+	var files: PackedStringArray = PackedStringArray()
+	_collect_levels("res://levels", files)
+	files.sort()
+	for path: String in files:
+		var parsed: LevelBuilder.Result = LevelBuilder.parse(path)
+		if parsed.grid.is_empty():
+			_errors.append("niveau vide ou illisible : %s" % path)
+			continue
+		LevelBuilder._scan_cells(parsed)
+		for message: String in parsed.errors:
+			_errors.append("%s : %s" % [path.get_file(), message])
+	print("- niveaux : %d verifies" % files.size())
+
+
+func _collect_levels(path: String, out: PackedStringArray) -> void:
+	var dir: DirAccess = DirAccess.open(path)
+	if dir == null:
+		return
+	dir.list_dir_begin()
+	var entry: String = dir.get_next()
+	while entry != "":
+		var full: String = path.path_join(entry)
+		if dir.current_is_dir():
+			_collect_levels(full, out)
+		elif entry.ends_with(".txt"):
+			out.append(full)
+		entry = dir.get_next()
+	dir.list_dir_end()
 
 
 func _report() -> void:

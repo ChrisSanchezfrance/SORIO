@@ -38,9 +38,14 @@ func _ready() -> void:
 	_spawn_player()
 
 	result = LevelBuilder.build(level_path, self, _player)
-	for message: String in result.errors:
-		push_error("[Level] %s : %s" % [level_path, message])
-	assert(result.errors.is_empty(), "niveau invalide : %s" % level_path)
+	if not result.errors.is_empty():
+		# `assert` disparait dans un build de release : sans ce garde-fou,
+		# un niveau introuvable donnait un ecran vide et SORIO tombait dans
+		# le neant, sans un mot d'explication. On le dit, maintenant.
+		for message: String in result.errors:
+			push_error("[Level] %s : %s" % [level_path, message])
+		_show_load_failure()
+		return
 
 	_player.global_position = result.spawn
 	_last_checkpoint = result.spawn
@@ -175,6 +180,33 @@ func _go_to_next() -> void:
 		return
 	var folder: String = level_path.get_base_dir()
 	Transition.go_to_path_with_level("%s/%s.txt" % [folder, next])
+
+
+## Ecran d'echec explicite. Mieux vaut un message clair qu'un vide muet.
+func _show_load_failure() -> void:
+	_player.queue_free()
+	_player = null
+	set_physics_process(false)
+
+	var layer: CanvasLayer = CanvasLayer.new()
+	layer.layer = 80
+	add_child(layer)
+	var panel: ColorRect = ColorRect.new()
+	panel.color = Color(0.10, 0.06, 0.08, 0.94)
+	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(panel)
+
+	var label: Label = Label.new()
+	label.text = "%s\n\n%s\n\n%s" % [
+		tr("LEVEL_LOAD_FAILED"), level_path, "  ".join(result.errors)
+	]
+	label.add_theme_font_size_override("font_size", 26)
+	label.add_theme_color_override("font_color", Color(1.0, 0.72, 0.62))
+	label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	panel.add_child(label)
 
 
 # --- Rendu du terrain -------------------------------------------------------
