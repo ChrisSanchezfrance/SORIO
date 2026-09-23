@@ -196,6 +196,7 @@
         background-repeat: no-repeat; background-position: right 0.9rem center; background-size: 10px;
     }
     select:focus { outline: none; border-color: var(--info); }
+    select:disabled { opacity: 0.5; }
 
     .btn-primary {
         width: 100%; padding: 1.1rem; border-radius: var(--radius); border: none;
@@ -324,6 +325,14 @@
         <div class="section-content">
             <textarea class="prompt-main" id="main-prompt" placeholder="Par exemple : « Garde le personnage principal exactement identique mais transforme tout le reste en style cartoon. Ajoute des étoiles brillantes dans le ciel. »"></textarea>
             <div class="prompt-main-hint">💡 Ce prompt s'ajoute au style cartoon sélectionné.</div>
+            <div class="control-row" style="margin-top:0.9rem;margin-bottom:0;">
+                <label class="control-label" for="duration-select">⏱️ Durée de chaque vidéo</label>
+                <select id="duration-select">
+                    <option value="121">5 secondes</option>
+                    <option value="153" selected>6,4 secondes</option>
+                    <option value="241">10 secondes</option>
+                </select>
+            </div>
         </div>
     </div>
 </div>
@@ -349,14 +358,6 @@
 <div class="toast" id="toast">
     <span class="toast-icon" id="toast-icon">✓</span>
     <span id="toast-text">Message</span>
-</div>
-
-<div style="position:fixed;bottom:0;right:0;padding:0.5rem;">
-<select id="duration-select" style="display:none;">
-    <option value="121">5s</option>
-    <option value="153" selected>6,4s</option>
-    <option value="241">10s</option>
-</select>
 </div>
 
 <canvas id="noSleepCanvas" width="2" height="2"></canvas>
@@ -613,6 +614,8 @@ function updateGenerateBtn() {
     const hasImages = state.images.length > 0;
     const hasKey = !!getApiKey();
     btn.disabled = !hasImages || !hasKey || state.isRunning || state.isLoadingImages || !state.selectedEffect;
+    const dur = document.getElementById('duration-select');
+    if (dur) dur.disabled = state.isRunning;
     if (state.isLoadingImages) btn.textContent = 'Chargement… (' + state.images.length + ')';
     else if (state.isRunning) btn.textContent = 'Création… (' + (state.completed + state.failed) + '/' + state.queue.length + ')';
     else if (!hasKey) btn.textContent = 'Ajoutez votre clé API';
