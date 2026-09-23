@@ -112,6 +112,7 @@
         background: #fff1e6; color: var(--info); flex-wrap: wrap; gap: 0.4rem;
     }
     .wake-status.active { background: #e3f5e9; color: var(--success); }
+    .wake-status.warn { background: #fdf6e0; color: var(--warn); }
     .wake-status button {
         background: transparent; border: 1px solid currentColor; color: inherit;
         padding: 0.25rem 0.6rem; border-radius: 6px; font-size: 0.68rem;
@@ -348,6 +349,14 @@
 <div class="toast" id="toast">
     <span class="toast-icon" id="toast-icon">✓</span>
     <span id="toast-text">Message</span>
+</div>
+
+<div style="position:fixed;bottom:0;right:0;padding:0.5rem;">
+<select id="duration-select" style="display:none;">
+    <option value="121">5s</option>
+    <option value="153" selected>6,4s</option>
+    <option value="241">10s</option>
+</select>
 </div>
 
 <canvas id="noSleepCanvas" width="2" height="2"></canvas>
@@ -770,7 +779,10 @@ async function pollVideo(videoId, onProgress) {
         }
         const url = POLL_BASE + '?video_id=' + encodeURIComponent(videoId) + '&model_name=' + encodeURIComponent(MODEL_VIDEO);
         const res = await apiFetch(url, { method: 'GET', headers: { 'Authorization': 'Bearer ' + getApiKey() } }, 'Polling');
-        const d = await res.json();
+        if (res.status === 401 || res.status === 403) throw new Error('Clé API refusée (HTTP ' + res.status + ')');
+        if (!res.ok) { onProgress('Erreur serveur (HTTP ' + res.status + '), nouvel essai…'); continue; }
+        let d;
+        try { d = await res.json(); } catch (e) { onProgress('Réponse illisible, nouvel essai…'); continue; }
         const status = d.status || 'unknown';
         const progress = d.progress || 0;
         onProgress('Création… — ' + progress + '%');
@@ -797,7 +809,7 @@ function renderQueue() {
         if (item.status === 'creating') { icon = '◐'; txt = 'Préparation'; cls = 'creating'; }
         else if (item.status === 'processing') { icon = '◐'; txt = item.progress || 'En cours'; cls = 'processing'; }
         else if (item.status === 'done') { icon = '●'; txt = 'Terminé'; cls = 'done'; }
-        else if (item.status === 'failed') { icon = '✕'; txt = 'Échec'; cls = 'failed'; }
+        else if (item.status === 'failed') { icon = '✕'; txt = item.progress === 'Arrêté' ? 'Arrêté' : 'Échec'; cls = 'failed'; }
         return '<div class="queue-item ' + cls + '"><div class="q-icon">' + icon + '</div><div class="q-name">Photo ' + (item.imageIndex + 1) + '</div><div class="q-status">' + esc(txt) + '</div></div>';
     }).join('');
     q.innerHTML = html;
@@ -810,7 +822,7 @@ function addToGallery(url, label) {
     g.style.display = 'block';
     const el = document.createElement('div');
     el.className = 'gallery-item';
-    el.innerHTML = '<video controls preload="metadata" muted playsinline><source src="' + url + '" type="video/mp4"></video><div class="g-caption">' + esc(label) + '</div>';
+    el.innerHTML = '<video controls preload="metadata" muted playsinline><source src="' + esc(url) + '" type="video/mp4"></video><div class="g-caption">' + esc(label) + '</div>';
     grid.appendChild(el);
 }
 
@@ -882,7 +894,7 @@ async function startGeneration() {
     state.isRunning = false; state.stopRequested = false;
     document.getElementById('stop-btn').classList.remove('visible');
     updateGenerateBtn();
-    showToast(state.completed + ' vidéo' + (state.completed > 1 ? 's' : '') + ' créée' + (state.completed > 1 ? 's' : ''), 'success');
+    showToast(state.completed + ' vidéo' + (state.completed > 1 ? 's' : '') + ' créée' + (state.completed > 1 ? 's' : ''), state.completed === 0 ? 'error' : (state.failed > 0 ? 'warn' : 'success'));
 }
 function stopGeneration() { if (!state.isRunning) return; state.stopRequested = true; setStatus('Arrêt…'); }
 
@@ -908,14 +920,6 @@ function stopGeneration() { if (!state.isRunning) return; state.stopRequested = 
     updateApiPanel(); updateWakeStatus(); renderStyles(); renderImages(); renderQueue();
 })();
 </script>
-
-<div style="position:fixed;bottom:0;right:0;padding:0.5rem;">
-<select id="duration-select" style="display:none;">
-    <option value="121">5s</option>
-    <option value="153" selected>6,4s</option>
-    <option value="241">10s</option>
-</select>
-</div>
 
 </body>
 </html>
