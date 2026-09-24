@@ -2,7 +2,7 @@
 // Rend l'appli installable et permet de l'ouvrir sans réseau.
 // Seuls les fichiers de l'appli sont mis en cache : les appels à l'API
 // et les vidéos passent toujours directement par le réseau.
-const CACHE = 'atelier-video-v1';
+const CACHE = 'atelier-video-v2';
 const APP_FILES = [
     './',
     './index.html',

@@ -502,7 +502,7 @@
 <div class="info-banner">
     <strong>Comment ça marche :</strong> Ajoutez vos images, écrivez votre vision (ou choisissez un effet),
     c'est parti. Chaque vidéo est <strong>la prolongation animée de votre image</strong> — même sujet, même composition,
-    juste le mouvement, la lumière et l'ambiance en plus. Format <strong>portrait 9:16</strong>.
+    juste le mouvement, la lumière et l'ambiance en plus. Format <strong>au choix</strong> (YouTube, TikTok, Instagram, Facebook, Snapchat, télé) — <strong>portrait 9:16</strong> par défaut.
 </div>
 
 <div class="api-panel" id="api-panel">
@@ -614,6 +614,27 @@
     <div class="section-body">
         <div class="section-content">
             <div class="effects-panel" id="styles-grid"></div>
+        </div>
+    </div>
+</div>
+
+<div class="section" id="section-format">
+    <div class="section-header" data-toggle="section-format">
+        <span class="section-title">📐 Format <span class="badge soft" id="format-badge">9:16</span></span>
+        <span class="chevron">▼</span>
+    </div>
+    <div class="section-body">
+        <div class="section-content">
+            <div class="styles-grid" id="format-grid"></div>
+            <div class="control-row" style="margin-top:0.9rem;">
+                <label class="control-label" for="format-fit-select">Adapter l'image au format</label>
+                <select id="format-fit-select">
+                    <option value="crop">Recadrer au centre pour remplir l'écran (recommandé)</option>
+                    <option value="blur">Tout garder, bords remplis par un fond flou</option>
+                    <option value="none">Ne pas modifier l'image</option>
+                </select>
+                <div class="prompt-main-hint" id="format-hint"></div>
+            </div>
         </div>
     </div>
 </div>
@@ -779,6 +800,13 @@ function setAppPaused(paused) {
         }
     }
 }
+
+document.addEventListener('loadedmetadata', e => {
+    const v = e.target;
+    if (v && v.tagName === 'VIDEO' && v.videoWidth && v.videoHeight && v.closest('.gallery-item, .library-item')) {
+        v.style.aspectRatio = v.videoWidth + ' / ' + v.videoHeight;
+    }
+}, true);
 
 document.addEventListener('visibilitychange', () => setAppPaused(document.visibilityState === 'hidden'));
 document.addEventListener('freeze', () => setAppPaused(true));
@@ -1710,6 +1738,149 @@ const FRAMING_PRESETS = {
 };
 
 // ══════════════════════════════════════════════════════════════════
+// FORMATS DE VIDÉO (YouTube, TikTok, Instagram, Facebook, Snapchat, télé)
+// ══════════════════════════════════════════════════════════════════
+// Le modèle anime l'image envoyée et garde sa forme : pour obtenir le
+// format voulu, l'image est d'abord recadrée (ou complétée d'un fond
+// flou) aux bonnes proportions, puis l'orientation est rappelée au prompt.
+const FORMAT_STORAGE = 'atelier_format_v1';
+const FORMAT_FIT_STORAGE = 'atelier_format_fit_v1';
+const FORMAT_RATIOS = {
+    '9:16': { w: 720,  h: 1280, prompt: 'Portrait orientation 9:16 vertical' },
+    '16:9': { w: 1280, h: 720,  prompt: 'Landscape orientation 16:9 horizontal widescreen' },
+    '1:1':  { w: 1080, h: 1080, prompt: 'Square format 1:1' },
+    '4:5':  { w: 1024, h: 1280, prompt: 'Vertical 4:5 format' },
+    '4:3':  { w: 1280, h: 960,  prompt: 'Classic 4:3 television format' },
+    '21:9': { w: 1344, h: 576,  prompt: 'Ultra-wide cinematic 21:9 format' }
+};
+const FORMAT_GROUPS = [
+    { name: 'Par défaut', items: [
+        { id: 'vertical', emoji: '📱', name: 'Vertical', ratio: '9:16', desc: 'Comme avant : portrait plein écran' }
+    ]},
+    { name: 'YouTube', items: [
+        { id: 'youtube', emoji: '▶️', name: 'YouTube vidéo', ratio: '16:9', desc: 'Paysage, lecteur classique' },
+        { id: 'youtube-shorts', emoji: '⚡', name: 'YouTube Shorts', ratio: '9:16', desc: 'Vertical plein écran' }
+    ]},
+    { name: 'TikTok', items: [
+        { id: 'tiktok', emoji: '🎵', name: 'TikTok', ratio: '9:16', desc: 'Vertical plein écran' }
+    ]},
+    { name: 'Instagram', items: [
+        { id: 'instagram-reels', emoji: '🎞️', name: 'Reels / Story', ratio: '9:16', desc: 'Vertical plein écran' },
+        { id: 'instagram-post', emoji: '🖼️', name: 'Publication portrait', ratio: '4:5', desc: 'Fil d\'actualité, le plus visible' },
+        { id: 'instagram-square', emoji: '⬛', name: 'Publication carrée', ratio: '1:1', desc: 'Fil d\'actualité classique' }
+    ]},
+    { name: 'Facebook', items: [
+        { id: 'facebook-reels', emoji: '🎬', name: 'Reels / Story', ratio: '9:16', desc: 'Vertical plein écran' },
+        { id: 'facebook-post', emoji: '📰', name: 'Publication', ratio: '4:5', desc: 'Fil d\'actualité sur mobile' },
+        { id: 'facebook-square', emoji: '🔲', name: 'Publication carrée', ratio: '1:1', desc: 'Fil d\'actualité' },
+        { id: 'facebook-video', emoji: '🖥️', name: 'Vidéo paysage', ratio: '16:9', desc: 'Onglet Vidéo, ordinateur' }
+    ]},
+    { name: 'Snapchat', items: [
+        { id: 'snapchat', emoji: '👻', name: 'Snapchat', ratio: '9:16', desc: 'Story, Spotlight' }
+    ]},
+    { name: 'Télé', items: [
+        { id: 'tv', emoji: '📺', name: 'Télé HD', ratio: '16:9', desc: 'Écran large, TV connectée' },
+        { id: 'tv-classic', emoji: '📼', name: 'Ancienne télé', ratio: '4:3', desc: 'Format rétro' },
+        { id: 'cinema', emoji: '🎥', name: 'Cinéma', ratio: '21:9', desc: 'Très large, bandes cinéma' }
+    ]}
+];
+const FORMATS = {};
+FORMAT_GROUPS.forEach(g => g.items.forEach(f => { f.group = g.name; FORMATS[f.id] = f; }));
+
+function currentFormat() { return FORMATS[state.format] || FORMATS.vertical; }
+function formatShortLabel(f) { return (f.group === 'Par défaut' ? f.name : f.group + ' ' + f.name.replace(f.group, '').trim()).trim() + ' ' + f.ratio; }
+
+function renderFormats() {
+    const grid = document.getElementById('format-grid');
+    if (!grid) return;
+    grid.innerHTML = FORMAT_GROUPS.map(g =>
+        '<div class="style-category-header">' + esc(g.name) + '</div>' +
+        g.items.map(f =>
+            '<div class="style-card" data-format="' + f.id + '">' +
+                '<div class="style-emoji">' + f.emoji + '</div>' +
+                '<div><div class="style-name">' + esc(f.name) + ' · ' + f.ratio + '</div>' +
+                '<div class="style-desc">' + esc(f.desc) + '</div></div>' +
+            '</div>').join('')
+    ).join('');
+    grid.addEventListener('click', e => {
+        const card = e.target.closest('[data-format]');
+        if (!card || !FORMATS[card.dataset.format]) return;
+        state.format = card.dataset.format;
+        try { localStorage.setItem(FORMAT_STORAGE, state.format); } catch (err) {}
+        updateFormatUI();
+        showToast('Format : ' + formatShortLabel(currentFormat()), 'success', 1500);
+    });
+    const fit = document.getElementById('format-fit-select');
+    fit.value = state.formatFit;
+    fit.addEventListener('change', e => {
+        state.formatFit = e.target.value;
+        try { localStorage.setItem(FORMAT_FIT_STORAGE, state.formatFit); } catch (err) {}
+        updateFormatUI();
+    });
+    updateFormatUI();
+}
+
+function updateFormatUI() {
+    const f = currentFormat();
+    document.querySelectorAll('#format-grid [data-format]').forEach(c =>
+        c.classList.toggle('selected', c.dataset.format === f.id));
+    const badge = document.getElementById('format-badge');
+    if (badge) badge.textContent = f.id === 'vertical' ? f.ratio : formatShortLabel(f);
+    const r = FORMAT_RATIOS[f.ratio];
+    const hint = document.getElementById('format-hint');
+    if (hint) hint.textContent = state.formatFit === 'none'
+        ? '⚠️ Image envoyée telle quelle : la vidéo risque de garder la forme de la photo plutôt que le ' + f.ratio + '.'
+        : '📐 Chaque image est préparée en ' + r.w + ' × ' + r.h + ' (' + f.ratio + ') avant l\'envoi' +
+          (state.formatFit === 'blur' ? ', sans rien couper.' : ', centrée sur le sujet.');
+}
+
+function loadImageElement(dataUri) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Image illisible'));
+        img.src = dataUri;
+    });
+}
+
+// Prépare l'image aux proportions du format choisi.
+async function prepareImageForFormat(dataUri) {
+    const f = currentFormat();
+    const r = FORMAT_RATIOS[f.ratio];
+    if (!r || state.formatFit === 'none') return dataUri;
+    let img;
+    try { img = await loadImageElement(dataUri); } catch (e) { return dataUri; }
+    const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+    if (!iw || !ih) return dataUri;
+    // Déjà aux bonnes proportions : on garde l'image d'origine intacte
+    if (Math.abs(iw / ih - r.w / r.h) / (r.w / r.h) < 0.02) return dataUri;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = r.w; canvas.height = r.h;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    const cover = Math.max(r.w / iw, r.h / ih);
+
+    if (state.formatFit === 'blur') {
+        // Fond flou : l'image réduite puis agrandie (flou compatible tous téléphones)
+        const small = document.createElement('canvas');
+        small.width = Math.max(8, Math.round(r.w / 24));
+        small.height = Math.max(8, Math.round(r.h / 24));
+        const sctx = small.getContext('2d');
+        const sc = Math.max(small.width / iw, small.height / ih);
+        sctx.drawImage(img, (small.width - iw * sc) / 2, (small.height - ih * sc) / 2, iw * sc, ih * sc);
+        ctx.drawImage(small, 0, 0, r.w, r.h);
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.fillRect(0, 0, r.w, r.h);
+        const contain = Math.min(r.w / iw, r.h / ih);
+        ctx.drawImage(img, (r.w - iw * contain) / 2, (r.h - ih * contain) / 2, iw * contain, ih * contain);
+    } else {
+        ctx.drawImage(img, (r.w - iw * cover) / 2, (r.h - ih * cover) / 2, iw * cover, ih * cover);
+    }
+    try { return canvas.toDataURL('image/jpeg', 0.92); } catch (e) { return dataUri; }
+}
+
+// ══════════════════════════════════════════════════════════════════
 // ÉTAT GLOBAL
 // ══════════════════════════════════════════════════════════════════
 const state = {
@@ -1722,6 +1893,8 @@ const state = {
     selectedEffects: [],
     mainPrompt: '',
     framing: 'random',
+    format: 'vertical',
+    formatFit: 'crop',
     intensity: 'random',
     durationFrames: 153,
     isLoadingImages: false,
@@ -2476,7 +2649,7 @@ function buildPrompt() {
     } else {
         parts.push('Sound design: minimal foley, soft ambient textures, no music, no instruments, no dialogue');
     }
-    parts.push('Portrait orientation 9:16 vertical, 24fps, no text, no subtitles, no watermarks, consistent character design with the source image');
+    parts.push(FORMAT_RATIOS[currentFormat().ratio].prompt + ', 24fps, no text, no subtitles, no watermarks, consistent character design with the source image');
 
     const labelParts = effects.map(e => (e.num ? e.num + ' ' : '') + e.name)
         .concat(tagged.map(c => '@' + c.name))
@@ -2694,10 +2867,12 @@ async function createTaskOnly(item) {
     const built = buildPrompt();
     const prompt = built.prompt;
     item.prompt = prompt;
-    item.effectLabel = built.label;
+    const fmt = currentFormat();
+    item.effectLabel = built.label + (fmt.id !== 'vertical' ? (built.label ? ' · ' : '') + formatShortLabel(fmt) : '');
 
     log('[Image ' + (item.imageIndex + 1) + '] Création…');
-    const videoId = await createVideoTask(item.image.dataUri, prompt, built.negative);
+    const formattedImage = await prepareImageForFormat(item.image.dataUri);
+    const videoId = await createVideoTask(formattedImage, prompt, built.negative);
     item.videoId = videoId;
     item.startTime = Date.now();
     rememberPendingJob(videoId, 'Image ' + (item.imageIndex + 1) + (built.label ? ' · ' + built.label : ''));
@@ -3345,6 +3520,13 @@ function registerServiceWorker() {
     updateWakeStatus();
     renderPromptPresets();
     renderStyles();
+    try {
+        const savedFormat = localStorage.getItem(FORMAT_STORAGE);
+        if (savedFormat && FORMATS[savedFormat]) state.format = savedFormat;
+        const savedFit = localStorage.getItem(FORMAT_FIT_STORAGE);
+        if (savedFit === 'crop' || savedFit === 'blur' || savedFit === 'none') state.formatFit = savedFit;
+    } catch (e) {}
+    renderFormats();
     initCharacters();
     renderImages();
     renderQueue();

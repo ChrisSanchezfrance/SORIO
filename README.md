@@ -42,4 +42,9 @@ Adresse une fois GitHub Pages activé : **https://chrissanchezfrance.github.io/S
   pause (comptes à rebours, envoi de l'image suivante, lecture des vidéos) et reprend au retour.
   Les vidéos déjà envoyées sont mémorisées : si le téléphone ferme l'appli, elles sont **récupérées
   automatiquement** à la prochaine ouverture (jusqu'à 24 h).
+- **Format** (onglet « 📐 Format ») : Vertical 9:16 par défaut, YouTube (vidéo 16:9, Shorts 9:16), TikTok 9:16,
+  Instagram (Reels/Story 9:16, publication 4:5, carrée 1:1), Facebook (Reels/Story 9:16, publication 4:5, carrée 1:1,
+  vidéo paysage 16:9), Snapchat 9:16, Télé (HD 16:9, ancienne télé 4:3, cinéma 21:9). Chaque image est préparée aux
+  bonnes proportions avant l'envoi : recadrée au centre, ou complétée d'un fond flou pour ne rien couper, ou laissée
+  telle quelle. Le choix est mémorisé.
 - **Hors ligne** : l'appli s'ouvre même sans réseau (la création de vidéos, elle, demande Internet).
