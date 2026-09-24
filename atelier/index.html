@@ -1,0 +1,3377 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Atelier Vidéo — Vos images en mouvement</title>
+<!-- Application installable (PWA) : écran d'accueil, plein écran, icône -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1a1a1a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Atelier Vidéo">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    :root {
+        --bg: #fafafa; --panel: #ffffff; --panel-2: #f5f5f5; --border: #e5e5e5;
+        --ink: #1a1a1a; --ink-dim: #777; --ink-faint: #aaa;
+        --success: #2d8a4e; --error: #c0392b; --warn: #d4a017; --info: #4a6cf7;
+        --radius: 12px;
+    }
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        background: var(--bg); color: var(--ink); min-height: 100vh;
+        padding: 1.5rem 1rem 6rem; font-size: 15px; line-height: 1.5;
+        max-width: 900px; margin: 0 auto;
+    }
+    header { margin-bottom: 1.5rem; text-align: center; }
+    h1 { font-size: 1.4rem; font-weight: 500; letter-spacing: -0.02em; margin-bottom: 0.3rem; }
+    .subtitle { font-size: 0.8rem; color: var(--ink-dim); font-style: italic; }
+
+    .toast {
+        position: fixed; top: 1.5rem; left: 50%;
+        transform: translateX(-50%) translateY(-100px);
+        background: var(--ink); color: #fff;
+        padding: 0.85rem 1.4rem; border-radius: 10px;
+        font-size: 0.85rem; font-weight: 500;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        z-index: 1000; opacity: 0;
+        transition: transform 0.35s ease, opacity 0.35s ease;
+        max-width: 90vw; text-align: center;
+        display: flex; align-items: center; gap: 0.5rem;
+    }
+    .toast.visible { transform: translateX(-50%) translateY(0); opacity: 1; }
+    .toast.success { background: var(--success); }
+    .toast.error { background: var(--error); }
+    .toast.warn { background: var(--warn); }
+    .toast .toast-icon { font-size: 1rem; }
+
+    .info-banner {
+        background: #eef4ff; border-left: 3px solid var(--info);
+        padding: 0.75rem 0.95rem; border-radius: 8px;
+        font-size: 0.78rem; color: #2a3a5c;
+        margin-bottom: 1rem; line-height: 1.45;
+    }
+    .info-banner strong { color: #1a1a1a; }
+
+    .section {
+        background: var(--panel); border: 1px solid var(--border);
+        border-radius: var(--radius); margin-bottom: 1rem;
+        overflow: hidden;
+    }
+    .section-header {
+        padding: 0.9rem 1.1rem; cursor: pointer; user-select: none;
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    .section-header:active { background: var(--panel-2); }
+    .section-title {
+        font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em;
+        color: var(--ink-dim); font-weight: 600;
+    }
+    .section-title .badge {
+        display: inline-block; margin-left: 0.4rem; padding: 0.1rem 0.4rem;
+        background: var(--ink); color: #fff; border-radius: 10px;
+        font-size: 0.65rem; letter-spacing: 0;
+    }
+    .section-title .badge.soft { background: var(--info); color: #fff; }
+    .section-header .chevron {
+        font-size: 0.7rem; color: var(--ink-faint); transition: transform 0.2s;
+    }
+    .section.open .section-header .chevron { transform: rotate(180deg); }
+    .section-body { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+    .section.open .section-body { max-height: 4000px; }
+    .section-content { padding: 0 1.1rem 1.1rem; }
+
+    .api-panel {
+        background: var(--panel); border: 1px solid var(--border);
+        border-radius: var(--radius); padding: 1rem 1.2rem;
+        margin-bottom: 1rem; transition: border-color 0.3s;
+    }
+    .api-panel.ok { border-color: var(--success); }
+
+    .api-key-input {
+        width: 100%; padding: 0.85rem 1rem;
+        border-radius: 8px; border: 1px solid var(--border);
+        background: #fafafa; color: var(--ink);
+        font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+        font-size: 0.85rem; margin-bottom: 0.6rem;
+    }
+    .api-key-input:focus { outline: none; border-color: var(--ink); }
+
+    .api-save-btn {
+        width: 100%; padding: 0.8rem 1.2rem;
+        border-radius: 8px; border: none;
+        background: var(--ink); color: #fff;
+        font-size: 0.9rem; font-weight: 600; font-family: inherit;
+        cursor: pointer; transition: opacity 0.2s, transform 0.1s;
+        margin-bottom: 0.6rem;
+    }
+    .api-save-btn:active { transform: scale(0.98); }
+
+    .api-status-line {
+        font-size: 0.75rem; padding: 0.55rem 0.85rem;
+        border-radius: 6px; margin-bottom: 0.5rem;
+        display: flex; align-items: center; gap: 0.5rem;
+        background: var(--panel-2); color: var(--ink-dim);
+        transition: all 0.3s;
+    }
+    .api-status-line.ok {
+        background: #e3f5e9; color: var(--success); font-weight: 600;
+    }
+    .api-status-line .status-dot {
+        width: 8px; height: 8px; border-radius: 50%;
+        background: var(--ink-faint); flex-shrink: 0;
+        transition: background 0.3s;
+    }
+    .api-status-line.ok .status-dot { background: var(--success); }
+
+    .api-hint { font-size: 0.72rem; color: var(--ink-dim); margin-top: 0.4rem; }
+    .api-hint a { color: var(--ink); text-decoration: underline; }
+    .stat-line {
+        font-size: 0.72rem; color: var(--ink-dim); margin-top: 0.5rem;
+        padding: 0.4rem 0.6rem; background: var(--panel-2); border-radius: 6px;
+        display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.3rem;
+    }
+
+    .wake-status {
+        font-size: 0.72rem; padding: 0.5rem 0.7rem;
+        border-radius: 6px; margin-top: 0.4rem;
+        display: flex; justify-content: space-between; align-items: center;
+        background: #eef4ff; color: var(--info);
+        flex-wrap: wrap; gap: 0.4rem;
+    }
+    .wake-status.active { background: #e3f5e9; color: var(--success); }
+    .wake-status.warn { background: #fdf5e3; color: var(--warn); }
+    .wake-status button {
+        background: transparent; border: 1px solid currentColor;
+        color: inherit; padding: 0.25rem 0.6rem; border-radius: 6px;
+        font-size: 0.68rem; cursor: pointer; font-family: inherit;
+    }
+    .wake-status button:active { opacity: 0.6; }
+
+    .upload-zone {
+        border: 2px dashed var(--border); border-radius: var(--radius);
+        padding: 2rem 1rem; text-align: center; cursor: pointer;
+        transition: border-color 0.2s, background 0.2s; margin-bottom: 1rem;
+        background: var(--panel);
+    }
+    .upload-zone:active { border-color: var(--ink); background: #f5f5f5; }
+    .upload-zone.loading { pointer-events: none; opacity: 0.6; }
+    .upload-zone input[type="file"] { display: none; }
+    .upload-icon { font-size: 2.2rem; margin-bottom: 0.6rem; opacity: 0.6; }
+    .upload-text { font-size: 0.95rem; color: var(--ink); margin-bottom: 0.2rem; }
+    .upload-hint { font-size: 0.75rem; color: var(--ink-dim); }
+
+    .images-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+        gap: 0.5rem; margin-bottom: 1rem;
+    }
+    .image-card {
+        position: relative; border-radius: 8px; overflow: hidden;
+        border: 1px solid var(--border); background: #f0f0f0;
+        aspect-ratio: 9/16;
+    }
+    .image-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .image-card .remove-btn {
+        position: absolute; top: 4px; right: 4px;
+        background: rgba(0,0,0,0.65); color: #fff; border: none;
+        width: 22px; height: 22px; border-radius: 50%; font-size: 11px;
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        line-height: 1;
+    }
+
+    textarea {
+        width: 100%; padding: 0.75rem 0.9rem; border-radius: 8px;
+        border: 1px solid var(--border); background: #fafafa;
+        color: var(--ink); font-family: inherit; font-size: 0.88rem;
+        min-height: 80px; resize: vertical;
+    }
+    textarea:focus { outline: none; border-color: var(--ink); }
+
+    .prompt-main {
+        width: 100%; padding: 0.85rem 1rem;
+        border-radius: 8px; border: 1px solid var(--border);
+        background: #fafafa; color: var(--ink);
+        font-family: inherit; font-size: 0.9rem;
+        min-height: 110px; resize: vertical; line-height: 1.5;
+    }
+    .prompt-main:focus { outline: none; border-color: var(--ink); }
+    .prompt-main-hint {
+        font-size: 0.72rem; color: var(--ink-dim);
+        margin-top: 0.5rem; line-height: 1.4;
+    }
+
+    .prompt-presets {
+        display: flex; flex-wrap: wrap; gap: 0.4rem;
+        margin-top: 0.7rem;
+    }
+    .prompt-preset {
+        padding: 0.35rem 0.7rem; border-radius: 16px;
+        border: 1px solid var(--border); background: var(--panel-2);
+        font-size: 0.72rem; cursor: pointer;
+        transition: all 0.15s; user-select: none;
+    }
+    .prompt-preset:active { transform: scale(0.96); }
+    .prompt-preset:hover { border-color: var(--ink); }
+
+    .styles-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 0.5rem;
+    }
+    .style-card {
+        padding: 0.75rem 0.85rem; border-radius: 8px;
+        border: 1px solid var(--border); background: var(--panel-2);
+        cursor: pointer; transition: all 0.15s;
+        display: flex; align-items: center; gap: 0.5rem;
+    }
+    .style-card:active { transform: scale(0.98); }
+    .style-card.selected { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .style-card .style-emoji { font-size: 1.2rem; flex-shrink: 0; }
+    .style-card .style-name { font-size: 0.8rem; font-weight: 500; line-height: 1.2; }
+    .style-card .style-desc { font-size: 0.65rem; opacity: 0.65; margin-top: 0.1rem; line-height: 1.2; }
+
+    .style-category-header {
+        grid-column: 1 / -1;
+        font-size: 0.7rem; font-weight: 600;
+        color: var(--ink-dim); text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 0.6rem 0 0.3rem;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 0.3rem;
+    }
+    .style-category-header:first-child { padding-top: 0; border-bottom: none; }
+    .style-category-desc {
+        grid-column: 1 / -1;
+        font-size: 0.68rem; color: var(--ink-dim);
+        font-style: italic; margin-bottom: 0.4rem; line-height: 1.35;
+    }
+
+    .no-style-card {
+        grid-column: 1 / -1;
+        padding: 0.8rem 1rem;
+        border-radius: 8px;
+        border: 2px dashed var(--border);
+        background: transparent;
+        text-align: center; cursor: pointer;
+        transition: all 0.15s;
+        font-size: 0.82rem; color: var(--ink-dim);
+    }
+    .no-style-card:active { transform: scale(0.99); }
+    .no-style-card.selected {
+        border-color: var(--ink); border-style: solid;
+        background: var(--panel-2); color: var(--ink); font-weight: 600;
+    }
+
+    /* Catalogue d'effets : recherche, catégories repliables, combinaison */
+    .effect-search {
+        width: 100%; padding: 0.7rem 0.9rem; border-radius: 8px;
+        border: 1px solid var(--border); background: #fafafa;
+        color: var(--ink); font-family: inherit; font-size: 0.88rem;
+        margin-bottom: 0.5rem; -webkit-appearance: none; appearance: none;
+    }
+    .effect-search:focus { outline: none; border-color: var(--ink); }
+    .effects-selected {
+        display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center;
+        min-height: 1.6rem; margin-bottom: 0.6rem;
+    }
+    .effects-hint { font-size: 0.7rem; color: var(--ink-dim); font-style: italic; line-height: 1.35; }
+    .effect-chip {
+        padding: 0.3rem 0.6rem; border-radius: 14px;
+        background: var(--ink); color: #fff; font-size: 0.72rem;
+        cursor: pointer; user-select: none;
+    }
+    .effect-chip:active { opacity: 0.7; }
+    .effects-scroll {
+        max-height: 60vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain; padding-right: 0.2rem;
+    }
+    .effects-scroll .no-style-card { margin-bottom: 0.6rem; }
+    .effect-group { border-top: 1px solid var(--border); }
+    .effect-group summary {
+        list-style: none; cursor: pointer; user-select: none;
+        padding: 0.7rem 0.1rem; display: flex; align-items: center; gap: 0.5rem;
+        font-size: 0.8rem; font-weight: 600; color: var(--ink);
+    }
+    .effect-group summary::-webkit-details-marker { display: none; }
+    .effect-group summary::after {
+        content: '▾'; color: var(--ink-faint); font-size: 0.75rem; transition: transform 0.2s;
+    }
+    .effect-group[open] summary::after { transform: rotate(180deg); }
+    .effect-group .group-count { margin-left: auto; font-size: 0.68rem; font-weight: 500; color: var(--ink-dim); }
+    .effect-group .styles-grid { padding-bottom: 0.8rem; }
+    .effect-group .style-category-desc { margin-top: -0.2rem; }
+    .style-card .style-num {
+        flex-shrink: 0; min-width: 2rem; height: 1.6rem; padding: 0 0.3rem;
+        border-radius: 6px; background: var(--border); color: var(--ink);
+        font-size: 0.68rem; font-weight: 700;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .style-card.selected .style-num { background: rgba(255,255,255,0.22); color: #fff; }
+    .effects-empty { text-align: center; font-size: 0.8rem; color: var(--ink-dim); padding: 1rem 0; }
+
+    /* Répliques et personnages */
+    .vision-detect { display: flex; flex-direction: column; gap: 0.2rem; margin-top: 0.45rem; font-size: 0.72rem; line-height: 1.35; }
+    .vision-detect:empty { display: none; }
+    .vision-detect .ok { color: var(--success); }
+    .vision-detect .warn { color: var(--warn); }
+    .char-intro { font-size: 0.75rem; color: var(--ink-dim); line-height: 1.45; margin-bottom: 0.8rem; }
+    .char-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; }
+    .char-empty { font-size: 0.75rem; color: var(--ink-dim); font-style: italic; }
+    .char-card {
+        display: flex; gap: 0.7rem; align-items: flex-start;
+        padding: 0.7rem; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2);
+    }
+    .char-thumb {
+        width: 52px; height: 52px; flex-shrink: 0; border-radius: 8px; object-fit: cover;
+        background: var(--border); color: var(--ink-dim); font-weight: 700;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .char-info { flex: 1; min-width: 0; }
+    .char-tag { font-size: 0.85rem; font-weight: 600; }
+    .char-desc {
+        font-size: 0.72rem; color: var(--ink-dim); line-height: 1.35; margin-top: 0.1rem;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .char-actions { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.45rem; }
+    .char-btn {
+        background: var(--panel); border: 1px solid var(--border); color: var(--ink);
+        padding: 0.35rem 0.6rem; border-radius: 6px; font-size: 0.7rem; font-family: inherit; cursor: pointer;
+    }
+    .char-btn:active { transform: scale(0.97); }
+    .char-btn.danger { color: var(--error); }
+    .char-form { border-top: 1px solid var(--border); padding-top: 0.9rem; }
+    .char-input {
+        width: 100%; padding: 0.7rem 0.9rem; border-radius: 8px;
+        border: 1px solid var(--border); background: #fafafa; color: var(--ink);
+        font-family: inherit; font-size: 0.88rem;
+    }
+    .char-input:focus { outline: none; border-color: var(--ink); }
+    .char-photo-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+    .char-photo-preview { width: 52px; height: 52px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border); }
+    .char-form .api-save-btn { margin-top: 0.3rem; }
+
+    .control-row { margin-bottom: 0.9rem; }
+    .control-row:last-child { margin-bottom: 0; }
+    .control-label {
+        display: block; font-size: 0.72rem; color: var(--ink-dim);
+        margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em;
+        font-weight: 600;
+    }
+    select {
+        width: 100%; padding: 0.7rem 0.9rem; border-radius: 8px;
+        border: 1px solid var(--border); background: #fafafa;
+        color: var(--ink); font-family: inherit; font-size: 0.88rem;
+        -webkit-appearance: none; appearance: none;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%231a1a1a' d='M0 0l5 6 5-6z'/></svg>");
+        background-repeat: no-repeat;
+        background-position: right 0.9rem center;
+        background-size: 10px;
+    }
+    select:focus { outline: none; border-color: var(--ink); }
+
+    .btn-primary {
+        width: 100%; padding: 1.1rem; border-radius: var(--radius);
+        border: none; background: var(--ink); color: #fff;
+        font-size: 1rem; font-weight: 600; font-family: inherit;
+        cursor: pointer; transition: opacity 0.2s, transform 0.1s;
+        margin-bottom: 1rem;
+    }
+    .btn-primary:active:not(:disabled) { transform: scale(0.98); }
+    .btn-primary:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    .btn-stop {
+        width: 100%; padding: 0.8rem; border-radius: var(--radius);
+        border: 1px solid var(--border); background: var(--panel);
+        color: var(--error); font-size: 0.85rem; font-weight: 600;
+        font-family: inherit; cursor: pointer; margin-bottom: 1rem;
+        display: none;
+    }
+    .btn-stop.visible { display: block; }
+
+    .queue { margin-top: 1rem; }
+    .queue-summary {
+        background: var(--panel); border: 1px solid var(--border);
+        border-radius: 8px; padding: 0.7rem 0.9rem; margin-bottom: 0.6rem;
+        font-size: 0.78rem; display: flex; justify-content: space-between;
+        align-items: center; flex-wrap: wrap; gap: 0.4rem;
+    }
+    .queue-summary .progress-text { color: var(--ink); font-weight: 600; }
+    .queue-summary .eta-text { color: var(--ink-dim); }
+
+    .queue-item {
+        display: flex; align-items: center; gap: 0.8rem;
+        padding: 0.7rem 0.8rem; border-radius: 8px;
+        border: 1px solid var(--border); margin-bottom: 0.4rem;
+        background: var(--panel); transition: border-color 0.3s, opacity 0.3s;
+        font-size: 0.82rem;
+    }
+    .queue-item.pending { opacity: 0.5; }
+    .queue-item.creating { border-color: var(--warn); }
+    .queue-item.processing { border-color: var(--ink); }
+    .queue-item.done { border-color: var(--success); }
+    .queue-item.failed { border-color: var(--error); }
+    .queue-item .q-icon { font-size: 1rem; width: 1.5rem; text-align: center; flex-shrink: 0; }
+    .queue-item .q-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .queue-item .q-status { font-size: 0.72rem; color: var(--ink-dim); text-align: right; flex-shrink: 0; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .queue-more {
+        text-align: center; padding: 0.5rem; color: var(--ink-dim);
+        font-size: 0.75rem; font-style: italic;
+    }
+
+    .gallery { margin-top: 1.5rem; }
+    .gallery-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 0.8rem;
+    }
+    .gallery-item {
+        border-radius: var(--radius); overflow: hidden;
+        border: 1px solid var(--border); background: #000;
+        animation: fadeIn 0.4s ease;
+    }
+    .gallery-item video { width: 100%; display: block; aspect-ratio: 9/16; object-fit: cover; }
+    .gallery-item .g-caption {
+        padding: 0.4rem 0.6rem; background: var(--panel);
+        font-size: 0.7rem; color: var(--ink-dim);
+    }
+
+    .status-bar {
+        position: fixed; bottom: 0; left: 0; right: 0;
+        background: var(--ink); color: #fff; padding: 0.7rem 1rem;
+        font-size: 0.78rem; display: flex; align-items: center; gap: 0.6rem;
+        transform: translateY(100%); transition: transform 0.3s;
+        z-index: 100;
+    }
+    .status-bar.visible { transform: translateY(0); }
+    .status-bar .spinner {
+        width: 12px; height: 12px; border: 2px solid rgba(255,255,255,0.3);
+        border-top-color: #fff; border-radius: 50%;
+        animation: spin 0.8s linear infinite; flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    .hidden { display: none !important; }
+
+    /* Anti-veille : canvas 1x1 invisible */
+    #noSleepCanvas { position: fixed; top: 0; left: 0; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; z-index: -1; }
+    #noSleepVideo { position: fixed; top: 0; left: 0; width: 1px; height: 1px; opacity: 0.01; pointer-events: none; z-index: -1; }
+
+    /* Appli installée : enregistrement des vidéos, bibliothèque, installation */
+    .gallery-item .g-actions, .library-item .g-actions {
+        display: flex; gap: 0.3rem; padding: 0 0.6rem 0.5rem; background: var(--panel);
+    }
+    .g-btn {
+        flex: 1; background: var(--panel-2); border: 1px solid var(--border); color: var(--ink);
+        padding: 0.4rem 0.3rem; border-radius: 6px; font-size: 0.7rem; font-family: inherit;
+        cursor: pointer; white-space: nowrap;
+    }
+    .g-btn:active { transform: scale(0.97); }
+    .g-btn.danger { flex: 0 0 auto; color: var(--error); }
+    .library-head {
+        display: flex; justify-content: space-between; align-items: center;
+        gap: 0.5rem; margin-bottom: 0.8rem; flex-wrap: wrap;
+    }
+    .library-head .section-title { margin: 0; }
+    .library-item {
+        border-radius: var(--radius); overflow: hidden;
+        border: 1px solid var(--border); background: #000;
+        animation: fadeIn 0.4s ease;
+    }
+    .library-item video { width: 100%; display: block; aspect-ratio: 9/16; object-fit: cover; }
+    .library-item .g-caption {
+        padding: 0.4rem 0.6rem; background: var(--panel);
+        font-size: 0.7rem; color: var(--ink-dim);
+    }
+    .library-item .g-date { display: block; font-size: 0.62rem; color: var(--ink-faint); }
+    .library-hint { font-size: 0.72rem; color: var(--ink-dim); margin-bottom: 0.8rem; line-height: 1.4; }
+    .app-status { background: #f3f3f3; color: var(--ink-dim); }
+    .app-status.active { background: #e3f5e9; color: var(--success); }
+</style>
+</head>
+<body>
+
+<header>
+    <h1>Atelier Vidéo</h1>
+    <p class="subtitle">Vos images prolongées en vidéo</p>
+</header>
+
+<div class="info-banner">
+    <strong>Comment ça marche :</strong> Ajoutez vos images, écrivez votre vision (ou choisissez un effet),
+    c'est parti. Chaque vidéo est <strong>la prolongation animée de votre image</strong> — même sujet, même composition,
+    juste le mouvement, la lumière et l'ambiance en plus. Format <strong>portrait 9:16</strong>.
+</div>
+
+<div class="api-panel" id="api-panel">
+    <input type="password" class="api-key-input" id="api-key-input"
+           placeholder="Collez votre clé API ici (sk-...)" autocomplete="off" spellcheck="false">
+    <button type="button" class="api-save-btn" id="api-save-btn">Enregistrer la clé</button>
+    <div class="api-status-line" id="api-status-line">
+        <span class="status-dot"></span>
+        <span id="api-status-text">Aucune clé API enregistrée</span>
+    </div>
+    <div class="api-hint">
+        Clé gratuite sur <a href="https://platform.agnes-ai.com" target="_blank">platform.agnes-ai.com</a> → Settings → API Keys
+    </div>
+    <div class="stat-line" id="stat-line">
+        <span>📊 Vitesse moyenne : <span id="stat-speed">en attente de données</span></span>
+        <span id="stat-samples">0 génération</span>
+    </div>
+    <div class="wake-status" id="wake-status">
+        <span id="wake-status-text">💤 Veille automatique</span>
+        <button type="button" id="wake-toggle-btn">Garder l'écran allumé</button>
+    </div>
+    <div class="wake-status app-status" id="autosave-status">
+        <span id="autosave-status-text">💾 Copie sur le téléphone : manuelle</span>
+        <button type="button" id="autosave-toggle-btn">Copier automatiquement</button>
+    </div>
+    <div class="wake-status app-status hidden" id="install-status">
+        <span id="install-status-text">📲 Installez l'appli sur votre téléphone</span>
+        <button type="button" id="install-btn" class="hidden">Installer</button>
+    </div>
+</div>
+
+<div class="upload-zone" id="upload-zone">
+    <input type="file" id="file-input" accept="image/*" multiple>
+    <div class="upload-icon">＋</div>
+    <div class="upload-text">Ajoutez vos images</div>
+    <div class="upload-hint">Autant que vous voulez — chacune deviendra une vidéo</div>
+</div>
+
+<div class="images-grid" id="images-grid"></div>
+
+<div class="section open" id="section-prompt">
+    <div class="section-header" data-toggle="section-prompt">
+        <span class="section-title">✍️ Votre vision <span class="badge soft">recommandé</span></span>
+        <span class="chevron">▼</span>
+    </div>
+    <div class="section-body">
+        <div class="section-content">
+            <textarea class="prompt-main" id="main-prompt"
+                placeholder="Décrivez ce que vous voulez que l'intelligence artificielle fasse avec TOUTES vos images. Par exemple :
+
+« Anime doucement chaque image comme si le temps s'arrêtait. Un vent léger fait bouger les cheveux et les feuilles. La lumière est chaude et dorée. Garde chaque sujet exactement identique à la photo originale. »"></textarea>
+            <div class="vision-detect" id="vision-detect"></div>
+            <div class="prompt-presets" id="prompt-presets"></div>
+            <div class="prompt-main-hint">
+                💡 Ce prompt s'applique à <strong>toutes</strong> les images. Si vous laissez vide et que vous choisissez
+                des effets ci-dessous (jusqu'à 3), ils géreront les vidéos. Si vous écrivez un prompt ET choisissez des effets,
+                les deux se combinent.
+            </div>
+            <div class="prompt-main-hint">
+                🗣️ Une réplique entre guillemets « … » fait parler le personnage.
+                👤 Écrivez <strong>@Nom</strong> pour appeler une fiche de la section Personnages.
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="section" id="section-characters">
+    <div class="section-header" data-toggle="section-characters">
+        <span class="section-title">👤 Personnages <span class="badge" id="characters-badge">optionnel</span></span>
+        <span class="chevron">▼</span>
+    </div>
+    <div class="section-body">
+        <div class="section-content">
+            <p class="char-intro">
+                Créez une fiche, puis écrivez <strong>@Nom</strong> dans votre vision : sa description est ajoutée à chaque vidéo.
+                Le visage vient de l'image animée, donc pour garder exactement le même visage, utilisez « Animer sa photo ».
+            </p>
+            <div class="char-list" id="char-list"></div>
+            <div class="char-form">
+                <div class="control-row">
+                    <label class="control-label" for="char-name">Nom (un seul mot)</label>
+                    <input type="text" class="char-input" id="char-name" placeholder="Marc" autocomplete="off" spellcheck="false" maxlength="30">
+                </div>
+                <div class="control-row">
+                    <label class="control-label" for="char-desc">Description fixe</label>
+                    <textarea id="char-desc" placeholder="Homme de 40 ans, cheveux bruns courts, barbe de trois jours, veste en cuir noire"></textarea>
+                </div>
+                <div class="control-row">
+                    <label class="control-label">Photo de référence (facultatif)</label>
+                    <div class="char-photo-row">
+                        <img id="char-photo-preview" class="char-photo-preview hidden" alt="">
+                        <button type="button" class="char-btn" id="char-photo-btn">Choisir une photo</button>
+                        <button type="button" class="char-btn danger hidden" id="char-photo-remove">Retirer la photo</button>
+                        <input type="file" id="char-photo-input" accept="image/*" hidden>
+                    </div>
+                </div>
+                <button type="button" class="api-save-btn" id="char-save-btn">Enregistrer le personnage</button>
+                <button type="button" class="char-btn hidden" id="char-cancel-btn">Annuler la modification</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="section" id="section-style">
+    <div class="section-header" data-toggle="section-style">
+        <span class="section-title"><span id="effects-title">🎨 Effets visuels</span> <span class="badge" id="effects-badge">optionnel</span></span>
+        <span class="chevron">▼</span>
+    </div>
+    <div class="section-body">
+        <div class="section-content">
+            <div class="effects-panel" id="styles-grid"></div>
+        </div>
+    </div>
+</div>
+
+<div class="section" id="section-tech">
+    <div class="section-header" data-toggle="section-tech">
+        <span class="section-title">📷 Réglages techniques</span>
+        <span class="chevron">▼</span>
+    </div>
+    <div class="section-body">
+        <div class="section-content">
+            <div class="control-row">
+                <label class="control-label">Durée de chaque vidéo</label>
+                <select id="duration-select">
+                    <option value="121">5 secondes</option>
+                    <option value="153" selected>6,4 secondes (recommandé)</option>
+                    <option value="241">10 secondes</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label class="control-label">Cadrage</label>
+                <select id="framing-select">
+                    <option value="random">Aléatoire</option>
+                    <option value="close">Très serré (gros plan)</option>
+                    <option value="medium">Moyen (buste)</option>
+                    <option value="wide">Large (plan large)</option>
+                </select>
+            </div>
+            <div class="control-row">
+                <label class="control-label">Intensité du mouvement</label>
+                <select id="intensity-select">
+                    <option value="random">Aléatoire</option>
+                    <option value="subtle">Subtile</option>
+                    <option value="moderate">Modérée</option>
+                    <option value="strong">Forte</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+<button type="button" class="btn-primary" id="generate-btn" disabled>
+    Créer les vidéos
+</button>
+
+<button type="button" class="btn-stop" id="stop-btn">
+    ⏹ Arrêter la génération
+</button>
+
+<div class="queue" id="queue" style="display:none;"></div>
+
+<div class="gallery" id="gallery" style="display:none;">
+    <div class="section-title" style="margin-bottom:0.8rem;">Vidéos générées</div>
+    <div class="gallery-grid" id="gallery-grid"></div>
+</div>
+
+<div class="gallery" id="library" style="display:none;">
+    <div class="library-head">
+        <div class="section-title">📁 Mes vidéos enregistrées <span class="badge" id="library-badge">0</span></div>
+        <button type="button" class="char-btn" id="library-save-all">💾 Tout copier sur le téléphone</button>
+    </div>
+    <div class="library-hint">
+        Chaque vidéo terminée est enregistrée ici automatiquement et reste disponible même après la fermeture de l'appli.
+        « Enregistrer » la copie dans la galerie ou les téléchargements du téléphone.
+    </div>
+    <div class="gallery-grid" id="library-grid"></div>
+</div>
+
+<div class="status-bar" id="status-bar">
+    <div class="spinner"></div>
+    <span id="status-text">Préparation…</span>
+</div>
+
+<div class="toast" id="toast">
+    <span class="toast-icon" id="toast-icon">✓</span>
+    <span id="toast-text">Message</span>
+</div>
+
+<!-- Éléments pour l'anti-veille -->
+<canvas id="noSleepCanvas" width="2" height="2"></canvas>
+<video id="noSleepVideo" playsinline muted loop></video>
+
+<script>
+// ══════════════════════════════════════════════════════════════════
+// CONFIGURATION
+// ══════════════════════════════════════════════════════════════════
+const API_BASE = 'https://apihub.agnes-ai.com/v1';
+const POLL_BASE = 'https://apihub.agnes-ai.com/agnesapi';
+const MODEL_VIDEO = 'agnes-video-v2.0';
+const FRAME_RATE = 24;
+
+let createIntervalMs = 62000;
+const CREATE_INTERVAL_MIN = 62000;
+const CREATE_INTERVAL_MAX = 90000;
+const CREATE_INTERVAL_SAFE = 75000;
+
+const POLL_INTERVAL_SEC = 8;
+const MAX_POLL_ATTEMPTS = 100;
+
+const TIMING_CACHE_KEY = 'agnes_timing_cache_v10';
+const API_KEY_STORAGE = 'agnes_api_key';
+const WAKE_LOCK_PREF = 'agnes_wakelock_enabled';
+
+const MAX_VISIBLE_QUEUE = 30;
+const MAX_IMAGE_SIZE = 12 * 1024 * 1024;
+const THUMBNAIL_MAX_WIDTH = 200;
+
+// ══════════════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════════════
+let toastTimeout = null;
+function showToast(message, type = 'success', duration = 2500) {
+    const toast = document.getElementById('toast');
+    const icon = document.getElementById('toast-icon');
+    const text = document.getElementById('toast-text');
+    if (!toast || !icon || !text) return;
+
+    toast.classList.remove('visible', 'success', 'error', 'warn');
+    void toast.offsetWidth;
+
+    const icons = { success: '✓', error: '✕', warn: '⚠' };
+    icon.textContent = icons[type] || '✓';
+    text.textContent = message;
+    toast.classList.add(type);
+
+    requestAnimationFrame(() => toast.classList.add('visible'));
+
+    if (toastTimeout) clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => toast.classList.remove('visible'), duration);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// PAUSE EN ARRIÈRE-PLAN
+// ══════════════════════════════════════════════════════════════════
+// Quand l'appli passe en arrière-plan (autre appli, écran verrouillé),
+// tout se met en pause : attentes, comptes à rebours, envoi de la vidéo
+// suivante et lecture des vidéos. Les vidéos déjà envoyées continuent de
+// se fabriquer côté serveur ; leur numéro est gardé en mémoire
+// (voir RÉCUPÉRATION) et tout reprend au retour dans l'appli.
+let appPaused = document.visibilityState === 'hidden';
+let pauseWaiters = [];
+
+function waitWhilePaused() {
+    if (!appPaused) return Promise.resolve();
+    return new Promise(resolve => pauseWaiters.push(resolve));
+}
+
+function setAppPaused(paused) {
+    if (paused === appPaused) return;
+    appPaused = paused;
+    if (paused) {
+        document.querySelectorAll('video').forEach(v => {
+            if (v.id !== 'noSleepVideo' && !v.paused) { try { v.pause(); } catch (e) {} }
+        });
+        console.log('[Atelier] Pause (arrière-plan)');
+    } else {
+        const waiters = pauseWaiters;
+        pauseWaiters = [];
+        waiters.forEach(resolve => resolve());
+        console.log('[Atelier] Reprise');
+        if (typeof state !== 'undefined' && state.isRunning) {
+            showToast('▶ Reprise de la génération', 'success', 2000);
+        }
+    }
+}
+
+document.addEventListener('visibilitychange', () => setAppPaused(document.visibilityState === 'hidden'));
+document.addEventListener('freeze', () => setAppPaused(true));
+document.addEventListener('resume', () => setAppPaused(document.visibilityState === 'hidden'));
+window.addEventListener('pagehide', () => setAppPaused(true));
+window.addEventListener('pageshow', () => setAppPaused(document.visibilityState === 'hidden'));
+
+// ══════════════════════════════════════════════════════════════════
+// ANTI-VEILLE — Wake Lock API + fallback canvas capturé en flux vidéo
+// ══════════════════════════════════════════════════════════════════
+
+/**
+ * Stratégie à deux niveaux :
+ *
+ * 1. Screen Wake Lock API — méthode moderne. Fonctionne sur
+ *    Chrome (Android/Desktop), Edge, Firefox, Safari 16.4+.
+ *
+ * 2. Fallback canvas + captureStream — méthode compatible iOS
+ *    et vieux navigateurs. On dessine sur un petit canvas, on
+ *    capture le flux (captureStream) et on le passe à un élément
+ *    <video> muet en lecture. Le navigateur considère qu'une
+ *    "session média" est active et empêche la mise en veille.
+ *
+ *    C'est la même technique utilisée par la bibliothèque NoSleep.js
+ *    mais sans fichier vidéo encodé — on utilise directement le
+ *    flux canvas en temps réel.
+ */
+
+let wakeLockSentinel = null;
+let wakeLockEnabled = false;
+let canvasStream = null;
+let canvasInterval = null;
+
+function isWakeLockSupported() {
+    return 'wakeLock' in navigator && typeof navigator.wakeLock.request === 'function';
+}
+
+// ─── Méthode 1 : Wake Lock API ────────────────────────────────────
+async function requestWakeLockAPI() {
+    if (!isWakeLockSupported()) return false;
+    try {
+        wakeLockSentinel = await navigator.wakeLock.request('screen');
+        wakeLockSentinel.addEventListener('release', () => {
+            wakeLockSentinel = null;
+            updateWakeStatus();
+        });
+        return true;
+    } catch (e) {
+        console.warn('[WakeLock API] refusé :', e.message);
+        return false;
+    }
+}
+
+async function releaseWakeLockAPI() {
+    if (wakeLockSentinel) {
+        try { await wakeLockSentinel.release(); } catch (e) {}
+        wakeLockSentinel = null;
+    }
+}
+
+// ─── Méthode 2 : Canvas + captureStream (fallback iOS) ────────────
+function startCanvasStream() {
+    if (canvasStream) return true;
+    try {
+        const canvas = document.getElementById('noSleepCanvas');
+        const video = document.getElementById('noSleepVideo');
+        if (!canvas || !video) return false;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return false;
+
+        // Dessiner initialement
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Vérifier le support de captureStream
+        if (typeof canvas.captureStream !== 'function') {
+            console.warn('[Canvas Stream] captureStream non supporté');
+            return false;
+        }
+
+        // Capturer le flux à 1 fps
+        canvasStream = canvas.captureStream(1);
+
+        // Animer le canvas pour maintenir le flux actif
+        let toggle = false;
+        canvasInterval = setInterval(() => {
+            toggle = !toggle;
+            ctx.fillStyle = toggle ? '#000000' : '#010101';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }, 1000);
+
+        // Brancher le flux sur la vidéo muette
+        video.srcObject = canvasStream;
+        video.muted = true;
+        video.playsInline = true;
+
+        const playPromise = video.play();
+        if (playPromise && playPromise.catch) {
+            playPromise.catch(e => {
+                console.warn('[Video fallback] Lecture refusée :', e.message);
+                // On essaie quand même — l'utilisateur a déjà interagi
+            });
+        }
+
+        console.log('[Canvas Stream] Actif');
+        return true;
+    } catch (e) {
+        console.warn('[Canvas Stream] Échec :', e.message);
+        return false;
+    }
+}
+
+function stopCanvasStream() {
+    if (canvasInterval) {
+        clearInterval(canvasInterval);
+        canvasInterval = null;
+    }
+    const video = document.getElementById('noSleepVideo');
+    if (video) {
+        try {
+            video.pause();
+            video.srcObject = null;
+        } catch (e) {}
+    }
+    if (canvasStream) {
+        try {
+            canvasStream.getTracks().forEach(t => t.stop());
+        } catch (e) {}
+        canvasStream = null;
+    }
+}
+
+// ─── Combinaison des deux méthodes ────────────────────────────────
+async function activateWakeLock() {
+    let success = false;
+
+    // Priorité : Wake Lock API si disponible
+    if (isWakeLockSupported()) {
+        success = await requestWakeLockAPI();
+    }
+
+    // Fallback : canvas stream (iOS et vieux navigateurs)
+    // On l'active TOUJOURS si l'API échoue ou n'est pas supportée
+    if (!success) {
+        success = startCanvasStream();
+    }
+
+    // Si les deux échouent, essayer quand même le canvas stream
+    // au cas où l'API a répondu mais s'est relâchée immédiatement
+    if (!success && !canvasStream) {
+        success = startCanvasStream();
+    }
+
+    return success;
+}
+
+async function deactivateWakeLock() {
+    await releaseWakeLockAPI();
+    stopCanvasStream();
+}
+
+function updateWakeStatus() {
+    const el = document.getElementById('wake-status');
+    const txt = document.getElementById('wake-status-text');
+    const btn = document.getElementById('wake-toggle-btn');
+    if (!el || !txt || !btn) return;
+
+    el.classList.remove('active', 'warn');
+
+    const hasAnyMechanism = isWakeLockSupported() ||
+        (document.getElementById('noSleepCanvas')?.captureStream);
+
+    if (!hasAnyMechanism) {
+        el.classList.add('warn');
+        txt.textContent = '⚠️ Non supporté par ce navigateur';
+        btn.style.display = 'none';
+        return;
+    }
+
+    btn.style.display = 'inline-block';
+
+    const isActive = wakeLockSentinel !== null || canvasStream !== null;
+
+    if (wakeLockEnabled && isActive) {
+        el.classList.add('active');
+        txt.textContent = '✅ L\'écran reste allumé';
+        btn.textContent = 'Désactiver';
+    } else if (wakeLockEnabled && !isActive) {
+        el.classList.add('warn');
+        txt.textContent = '⏳ En attente (touchez la page)';
+        btn.textContent = 'Désactiver';
+    } else {
+        txt.textContent = '💤 Veille automatique';
+        btn.textContent = 'Garder l\'écran allumé';
+    }
+}
+
+async function toggleWakeLock() {
+    if (wakeLockEnabled) {
+        wakeLockEnabled = false;
+        await deactivateWakeLock();
+        try { localStorage.setItem(WAKE_LOCK_PREF, '0'); } catch (e) {}
+        showToast('Veille automatique réactivée', 'warn');
+    } else {
+        wakeLockEnabled = true;
+        const ok = await activateWakeLock();
+        try { localStorage.setItem(WAKE_LOCK_PREF, '1'); } catch (e) {}
+
+        if (ok) {
+            showToast('L\'écran va rester allumé', 'success');
+        } else {
+            showToast('Activez manuellement dans les réglages', 'warn');
+        }
+    }
+    updateWakeStatus();
+}
+
+// Réactivitation sur retour d'onglet (le wake lock est relâché
+// automatiquement quand l'onglet devient invisible)
+document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && wakeLockEnabled) {
+        await activateWakeLock();
+        updateWakeStatus();
+    }
+});
+
+// Réactivation automatique pendant la génération
+async function ensureWakeLockActive() {
+    if (!wakeLockEnabled) return;
+    if (wakeLockSentinel === null && canvasStream === null) {
+        await activateWakeLock();
+        updateWakeStatus();
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// CACHE DES TEMPS
+// ══════════════════════════════════════════════════════════════════
+function loadTimingCache() {
+    try { return JSON.parse(localStorage.getItem(TIMING_CACHE_KEY) || '{}'); }
+    catch (e) { return {}; }
+}
+function saveTimingCache(cache) {
+    try { localStorage.setItem(TIMING_CACHE_KEY, JSON.stringify(cache)); } catch (e) {}
+}
+function recordGenerationTime(numFrames, durationMs) {
+    const cache = loadTimingCache();
+    const key = String(numFrames);
+    if (!cache[key]) cache[key] = [];
+    cache[key].push(durationMs);
+    if (cache[key].length > 10) cache[key] = cache[key].slice(-10);
+    saveTimingCache(cache);
+    updateTimingDisplay();
+}
+function estimateGenerationTime(numFrames) {
+    const cache = loadTimingCache();
+    const samples = cache[String(numFrames)];
+    if (samples && samples.length > 0) {
+        const sorted = [...samples].sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        return sorted.length % 2 === 0 ? (sorted[mid-1] + sorted[mid]) / 2 : sorted[mid];
+    }
+    return 30000 + numFrames * 500;
+}
+function updateTimingDisplay() {
+    const cache = loadTimingCache();
+    const all = Object.values(cache).flat();
+    const speedEl = document.getElementById('stat-speed');
+    const samplesEl = document.getElementById('stat-samples');
+    if (!speedEl || !samplesEl) return;
+    if (all.length === 0) {
+        speedEl.textContent = 'en attente de données';
+        samplesEl.textContent = '0 génération';
+        return;
+    }
+    const avg = all.reduce((a, b) => a + b, 0) / all.length;
+    speedEl.textContent = (avg / 1000).toFixed(1) + ' s en moyenne';
+    samplesEl.textContent = all.length + ' génération' + (all.length > 1 ? 's' : '');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// PRESETS DE PROMPT
+// ══════════════════════════════════════════════════════════════════
+const PROMPT_PRESETS = [
+    { label: '🌬️ Vent léger',
+      text: 'Anime doucement l\'image comme si le temps s\'arrêtait. Un vent léger fait bouger les cheveux et les feuilles. La lumière est chaude et dorée. Garde chaque sujet exactement identique à la photo originale.' },
+    { label: '💭 Rêve éveillé',
+      text: 'Prolonge cette image dans un rêve éveillé. Mouvements très lents, respiration visible, lumière douce et diffuse. Atmosphère onirique et paisible. Le sujet reste identique à la photo.' },
+    { label: '🌅 Golden hour',
+      text: 'Anime cette image avec une lumière dorée de fin de journée. Longues ombres chaudes, reflets lumineux, ambiance cinématographique. Le sujet reste identique à la photo originale.' },
+    { label: '🌙 Nuit calme',
+      text: 'Prolonge cette image dans une ambiance nocturne paisible. Lumière bleutée, reflets argentés, mouvement très lent. Le sujet reste identique à la photo.' },
+    { label: '⚫ Noir & blanc',
+      text: 'Anime cette image en noir et blanc élégant. Contraste doux, grain subtil, ambiance photographique classique. Le sujet reste identique à la photo.' },
+    { label: '🎬 Cinématique',
+      text: 'Anime cette image avec une esthétique cinématographique. Mouvement de caméra lent, lumière dramatique, profondeur de champ. Le sujet reste identique à la photo originale.' },
+    { label: '🌫️ Brume poétique',
+      text: 'Prolonge cette image dans une brume douce et poétique. Halo lumineux, particules flottantes, atmosphère mystérieuse. Le sujet reste identique à la photo.' }
+];
+
+// ══════════════════════════════════════════════════════════════════
+// EFFETS VISUELS
+// ══════════════════════════════════════════════════════════════════
+const AMBIANCE_EFFECTS = [
+    { id: 'cinematic', name: 'Cinématique', emoji: '🎬', desc: 'Éclairage dramatique, grain film',
+      prompt: 'cinematic film look, dramatic lighting, subtle film grain, shallow depth of field, professional color grading, movie-like atmosphere. Preserve the exact subject identity, face, pose, and clothing.' },
+    { id: 'golden-hour', name: 'Golden Hour', emoji: '🌅', desc: 'Lumière chaude dorée',
+      prompt: 'golden hour warm sunlight, soft amber glow, long shadows, luminous atmosphere, hazy warm tones. Preserve the exact subject identity, face, pose, and clothing.' },
+    { id: 'bw', name: 'Noir & Blanc', emoji: '⚫', desc: 'Désaturation élégante',
+      prompt: 'elegant black and white, high contrast monochrome, deep blacks and luminous whites. Preserve the exact subject identity, face, pose, and clothing.' },
+    { id: 'pastel-dream', name: 'Pastel Rêveur', emoji: '🌸', desc: 'Teintes douces, flou léger',
+      prompt: 'soft pastel color palette, dreamy diffused light, gentle dreamlike atmosphere, subtle glow. Preserve the exact subject identity, face, pose, and clothing.' },
+    { id: 'neon-urban', name: 'Néon Urbain', emoji: '🌆', desc: 'Reflets colorés nocturnes',
+      prompt: 'neon-soaked night atmosphere, colorful reflections, cinematic urban glow, magenta and cyan accents. Preserve the exact subject identity, face, pose, and clothing.' },
+    { id: 'vintage-super8', name: 'Vintage Super 8', emoji: '📽️', desc: 'Grain, vignettage, chaleur',
+      prompt: 'vintage Super 8 film aesthetic, grainy texture, subtle vignette, warm faded colors, soft focus edges. Preserve the exact subject identity, face, pose, and clothing.' },
+    { id: 'dramatic-contrast', name: 'Contraste Dramatique', emoji: '🌓', desc: 'Ombres profondes',
+      prompt: 'high contrast dramatic lighting, deep shadows, bright highlights, chiaroscuro effect. Preserve the exact subject identity, face, pose, and clothing.' },
+    { id: 'misty', name: 'Brume Mystique', emoji: '🌫️', desc: 'Halo atmosphérique',
+      prompt: 'atmospheric mist, soft haze, diffused glowing light, mystical fog, ethereal atmosphere. Preserve the exact subject identity, face, pose, and clothing.' },
+    { id: 'chiaroscuro', name: 'Chiaroscuro', emoji: '🕯️', desc: 'Clair-obscur pictural',
+      prompt: 'chiaroscuro painting lighting, single source of warm light, deep surrounding darkness. Preserve the exact subject identity, face, pose, and clothing.' },
+    { id: 'tropical', name: 'Tropical Saturé', emoji: '🌴', desc: 'Couleurs vives',
+      prompt: 'vibrant tropical color palette, saturated warm colors, lush green and turquoise. Preserve the exact subject identity, face, pose, and clothing.' },
+    { id: 'moonlight', name: 'Clair de Lune', emoji: '🌙', desc: 'Ambiance bleutée',
+      prompt: 'cool moonlight atmosphere, blue and silver tones, soft lunar glow, peaceful night mood. Preserve the exact subject identity, face, pose, and clothing.' },
+    { id: 'sunrise', name: 'Aube Douce', emoji: '🌄', desc: 'Premières lueurs',
+      prompt: 'dawn light, soft pink and pale blue sky tones, gentle awakening atmosphere. Preserve the exact subject identity, face, pose, and clothing.' }
+];
+
+const STYLIZE_EFFECTS = [
+    { id: 'simpson', name: 'Les Simpson', emoji: '🍩', desc: 'Transformation cartoon',
+      prompt: 'The Simpsons cartoon style, yellow-skinned characters, thick black outlines, flat saturated colors, Matt Groening art style. Transform the entire image into this cartoon style.' },
+    { id: 'ghibli', name: 'Studio Ghibli', emoji: '🌿', desc: 'Transformation anime',
+      prompt: 'Studio Ghibli anime style, Hayao Miyazaki aesthetic, hand-painted watercolor backgrounds, cel-shaded characters. Transform the entire image into this anime style.' },
+    { id: 'manga-nb', name: 'Manga N&B', emoji: '🖤', desc: 'Transformation manga',
+      prompt: 'black and white Japanese manga style, stark ink outlines, dramatic screentones, high contrast. Transform the entire image into this manga style.' },
+    { id: 'polar', name: 'Polar / Film Noir', emoji: '🕵️', desc: 'Transformation N&B',
+      prompt: 'classic film noir aesthetic, high contrast black and white, dramatic chiaroscuro, 1940s detective atmosphere. Transform the entire image into this noir style.' },
+    { id: 'cyberpunk', name: 'Cyberpunk', emoji: '🌃', desc: 'Transformation futuriste',
+      prompt: 'cyberpunk futuristic aesthetic, neon pink and cyan lighting, holographic advertisements, Blade Runner atmosphere. Transform the entire image into this cyberpunk style.' },
+    { id: 'pixar', name: 'Pixar 3D', emoji: '✨', desc: 'Transformation 3D',
+      prompt: 'high-quality 3D computer animation, Pixar-style rendering, subsurface scattering, cinematic lighting. Transform the entire image into this 3D animated style.' },
+    { id: 'bd-franco', name: 'BD franco-belge', emoji: '📘', desc: 'Transformation ligne claire',
+      prompt: 'Franco-Belgian bande dessinée style, ligne claire technique, uniform clean ink outlines, flat vivid colors. Transform the entire image into this comic book style.' },
+    { id: 'watercolor', name: 'Aquarelle', emoji: '🎨', desc: 'Transformation aquarelle',
+      prompt: 'dreamy watercolor painting aesthetic, soft bleeding edges, translucent washes, paper texture. Transform the entire image into this watercolor style.' },
+    { id: 'oil', name: 'Peinture à l\'huile', emoji: '🖼️', desc: 'Transformation huile',
+      prompt: 'classical oil painting style, visible impasto brushstrokes, rich textured paint, old master technique. Transform the entire image into this oil painting style.' },
+    { id: 'claymation', name: 'Claymation', emoji: '🧱', desc: 'Transformation claymation',
+      prompt: 'claymation stop-motion animation, plasticine texture, fingerprint details, Aardman Studios style. Transform the entire image into this claymation style.' },
+    { id: 'vaporwave', name: 'Vaporwave', emoji: '🌴', desc: 'Transformation 90s',
+      prompt: 'vaporwave aesthetic, nostalgic 90s imagery, pastel gradient, VHS quality. Transform the entire image into this vaporwave style.' },
+    { id: 'surrealist', name: 'Surréaliste', emoji: '🌀', desc: 'Transformation surréaliste',
+      prompt: 'surrealist aesthetic, impossible juxtapositions, dreamlike distortions, Salvador Dali influence. Transform the entire image into this surrealist style.' }
+];
+
+// ══════════════════════════════════════════════════════════════════
+// CATALOGUE COMPLET DES EFFETS (n° 1 à 400)
+// ══════════════════════════════════════════════════════════════════
+// Code d'un effet : "MODE:GÈRE:SON"
+//   MODE : A = ambiance (image préservée), X = action (sujet reconnaissable, scène animée),
+//          S = style (image redessinée)
+//   GÈRE : a = action du sujet, c = caméra, l = lumière
+//          (le tirage au hasard correspondant est alors désactivé)
+//   SON  : m = musique, v = voix
+// Format : [numéro, "Nom", "Description", "prompt envoyé à l'IA", "code" (facultatif), "tirage" (facultatif)]
+const EFFECT_CATALOG = [
+    { emoji: "🎨", name: "Styles et transformations", range: "1–25", code: "S", items: [
+        [1, "Studio Anime", "Style Studio Ghibli, manga, anime 90s", "anime style inspired by Studio Ghibli and 90s Japanese animation, hand-painted backgrounds, soft cel shading"],
+        [2, "Cartoon Factory", "Simpson, Pixar, Disney, claymation…", "playful cartoon animation style, bold outlines, bright flat colors, exaggerated expressive motion"],
+        [3, "Cinéma Noir", "Noir et blanc, polar, ombres dramatiques", "black and white film noir look, hard shadows through window blinds, smoky atmosphere, 1940s crime mood", "A:l"],
+        [4, "Clip Musical", "Lumières rythmées, néons, glitch", "music video energy, rhythmic light pulses, neon accents, quick glitch flashes", "X::m"],
+        [5, "Pub Réseaux Sociaux", "Format TikTok/Reels, hook visuel", "punchy social media ad look, strong visual hook in the first second, dynamic energy, bright clean colors", "X"],
+        [6, "Packshot Produit", "Produit animé sur fond neutre", "clean product commercial, slow rotation of the product, neutral studio background, soft reflections", "X:acl"],
+        [7, "Visite Immobilière", "Caméra qui glisse dans le logement", "real estate walkthrough, smooth gimbal camera gliding through the room, bright natural light, wide lens", "X:acl"],
+        [8, "Portrait Vivant", "Respiration, clignements, léger mouvement", "living portrait, gentle breathing, natural blinking, tiny head movements, subject stays in place", "A:a"],
+        [9, "Mème Animé", "Mouvement exagéré et drôle", "funny meme animation, exaggerated comedic reaction, snappy timing", "X:a"],
+        [10, "BD Animée", "Case de BD qui prend vie", "comic book panel coming to life, halftone dots, ink outlines, graphic sound-effect shapes without readable text"],
+        [11, "Storyboard", "Plans animés pour préparer un film", "animated storyboard, rough pencil sketch style, simple shading, clear staging of the action"],
+        [12, "Conte Enfant", "Illustration douce et magique", "gentle children's storybook illustration, soft pastel colors, warm magical glow, sparkles"],
+        [13, "Photos Anciennes", "Restaure et anime une vieille photo", "restored vintage family photo, cleaned scratches, natural subtle motion, respectful period look", "A:a"],
+        [14, "Souvenirs Famille", "Émotion, lumière douce, mouvements lents", "nostalgic family memory, soft warm light, slow gentle motion, tender atmosphere", "A"],
+        [15, "Animaux", "Donne vie aux animaux", "realistic animal behavior, natural breathing, ear and tail movement, curious glances", "A:a"],
+        [16, "Recette Cuisine", "Vapeur, mouvement appétissant", "appetizing food shot, rising steam, glistening textures, slow camera push-in", "X:ac"],
+        [17, "Lookbook Mode", "Défilé, tissus qui bougent, lumière studio", "fashion lookbook, confident pose shift, fabric flowing, clean studio lighting", "X:al"],
+        [18, "Carte Postale Voyage", "Paysage de carte postale vivante", "living postcard landscape, drifting clouds, sparkling water, gentle breeze in the trees", "A"],
+        [19, "Paysage Vivant", "Montagnes, océans, couchers de soleil", "living landscape, moving clouds, rippling water, swaying vegetation, changing light", "A"],
+        [20, "Science-Fiction", "Portails, vaisseaux, néons", "science fiction atmosphere, glowing portals, distant spaceships, futuristic neon details", "X"],
+        [21, "Horreur Gothique", "Brouillard, bougies, ombres", "gothic horror mood, creeping fog, flickering candles, long menacing shadows", "A:l"],
+        [22, "Fantasy Magique", "Fées, poussière d'étoile, forêt enchantée", "enchanted fantasy atmosphere, floating fairy lights, stardust, magical forest glow", "X"],
+        [23, "Cyberpunk", "Néons, pluie, hologrammes", "cyberpunk night, neon pink and cyan signs, rain, holograms", "X:l"],
+        [24, "Steampunk", "Cuivre, engrenages, vapeur", "steampunk world, brass gears turning, puffs of steam, retro-futuristic machines"],
+        [25, "Aquarelle Animée", "Aquarelle qui coule et respire", "watercolor painting that breathes, pigments bleeding and blending, paper texture"]
+    ]},
+    { emoji: "🧩", name: "Effets spéciaux et rendus", range: "26–40", code: "X", items: [
+        [26, "Croquis → Animation", "Le dessin devient une scène animée", "the pencil sketch gradually comes to life as a fully colored animated scene", "S"],
+        [27, "3D Turnaround", "Rotation 3D autour du sujet", "smooth 3D turnaround, the camera orbits around the subject revealing its volume", "X:c"],
+        [28, "Avatar Créateur", "Avatar animé stylisé", "stylized animated avatar version of the subject, clean 3D look, friendly expression", "S"],
+        [29, "Tête Parlante", "Le sujet parle face caméra", "the subject talks to the camera with natural lip movement and facial expressions", "X:a:v"],
+        [30, "Karaoké", "Le sujet chante en rythme", "the subject sings along with rhythmic head movement and expressive lip sync", "X:a:m"],
+        [31, "Diaporama Vidéo", "Panoramique et zoom lents", "slideshow Ken Burns effect, slow pan and zoom across the image", "A:ac"],
+        [32, "Avant/Après", "Bascule vers une version transformée", "before and after reveal, a light wipe transitions the scene into an enhanced version"],
+        [33, "Time-lapse", "Le temps s'écoule", "time-lapse, light and shadows sweep across the scene, clouds racing, day turning to evening", "A:l"],
+        [34, "Effets Saisonniers", "Neige, feuilles, fleurs", "seasonal particles, falling snow or autumn leaves or spring petals drifting through the frame", "A"],
+        [35, "Météo", "Pluie, orage, vent, brouillard", "dynamic weather, rain, wind gusts, rolling fog, distant lightning", "A"],
+        [36, "Lumière & Particules", "Poussière dorée, lucioles, bokeh", "golden dust, fireflies, floating bokeh, soft light rays", "A"],
+        [37, "Glitch & VHS", "Distorsions de vieux magnétoscope", "VHS tape look, tracking lines, color bleeding, occasional glitch distortion", "A"],
+        [38, "Double Exposition", "Superposition onirique", "dreamy double exposure, a translucent landscape blended inside the subject's silhouette", "S"],
+        [39, "Kaléidoscope", "Symétries hypnotiques", "hypnotic kaleidoscope, mirrored symmetrical patterns rotating slowly", "S"],
+        [40, "Directeur Artistique", "Un style différent tiré au hasard pour chaque image", "", "A", "style"]
+    ]},
+    { emoji: "🥋", name: "Action, combat et arts martiaux", range: "41–50", code: "X:a", items: [
+        [41, "Kung Fu Cinématique", "Sauts, coups de pied, ralenti à la Matrix", "fluid kung fu sequence, jumps and spinning kicks, Matrix-style slow motion"],
+        [42, "Karaté Impact", "Coups puissants, ondes de choc", "powerful karate strikes, visible shockwave, speed lines"],
+        [43, "Boxe / MMA", "Esquives, coups, ralenti dramatique", "boxing footwork, dodges and punches, sweat flying, dramatic slow motion"],
+        [44, "Samouraï / Katana", "Duel au sabre, pétales de cerisier", "samurai katana duel stance, cherry blossom petals, intense tension"],
+        [45, "Ninja Furtif", "Déplacements silencieux, fumée", "stealthy ninja movement, puff of smoke, silent swift motion"],
+        [46, "Arts Martiaux Fantastiques", "Aura énergétique, vol, projectiles", "glowing energy aura, the martial artist levitates, magical energy blast"],
+        [47, "Scène de Poursuite", "Course urbaine, sauts, cascades", "urban chase, running and jumping over obstacles, handheld tracking camera", "X:ac"],
+        [48, "Combat Au Ralenti", "Impact ralenti style Matrix", "extreme slow motion combat impact, debris and droplets frozen in the air"],
+        [49, "Wuxia", "Combats aériens dans les bambous", "wuxia flight through a bamboo forest, graceful aerial swordplay"],
+        [50, "Street Fight", "Combat de rue brut, caméra épaule", "raw street fight, shoulder-mounted camera, gritty realism", "X:ac"]
+    ]},
+    { emoji: "💃", name: "Danse et mouvement", range: "51–60", code: "X:a:m", items: [
+        [51, "Hip-Hop / Breakdance", "Freeze, battle, mouvements urbains", "hip-hop breakdance moves, freeze pose, battle energy"],
+        [52, "Ballet Classique", "Pirouettes, lumière de scène", "classical ballet, graceful pirouette, stage spotlight", "X:al:m"],
+        [53, "Danse Contemporaine", "Mouvements fluides, tissus", "contemporary dance, fluid emotional movement, flowing fabric"],
+        [54, "K-pop", "Chorégraphie synchronisée, néons", "sharp K-pop choreography, precise synchronized moves, neon stage", "X:al:m"],
+        [55, "Salsa / Tango", "Passion, hanches, tours", "passionate salsa and tango steps, hip movement, spins"],
+        [56, "Claquettes", "Jeu de jambes rythmé", "tap dance, fast rhythmic footwork"],
+        [57, "Danse du Feu", "Flammes, mouvements hypnotiques", "hypnotic fire dance, swirling flames, percussive energy"],
+        [58, "Vogue / Ballroom", "Poses, attitude, catwalk", "vogue ballroom posing, sharp attitude, catwalk strut"],
+        [59, "Bollywood", "Couleurs, énergie, groupe", "joyful Bollywood dance, vibrant colors, energetic group moves"],
+        [60, "Danse au Ralenti", "Ralenti avec particules", "dance in slow motion, particles floating in the light"]
+    ]},
+    { emoji: "🎥", name: "Mouvements de caméra avancés", range: "61–75", code: "X:c", items: [
+        [61, "Dolly Zoom (Vertigo)", "Effet Hitchcock, perspective déformée", "dolly zoom vertigo effect, the background stretches while the subject keeps the same size"],
+        [62, "Orbite 360°", "La caméra tourne autour du sujet", "the camera orbits 360 degrees around the subject"],
+        [63, "Drone Aérien", "Survol, révélation du paysage", "aerial drone shot rising and flying over the scene, revealing the landscape"],
+        [64, "Crane Shot", "Montée verticale dramatique", "dramatic crane shot rising vertically above the subject"],
+        [65, "Steadicam Fluide", "Suivi du sujet sans secousses", "smooth steadicam tracking the subject without shake"],
+        [66, "Snorricam", "Caméra fixée au sujet, monde qui tourne", "snorricam rig, the camera stays locked on the subject while the world spins around"],
+        [67, "Push-In Dramatique", "Zoom lent vers le visage", "slow dramatic push-in toward the face"],
+        [68, "Pull-Out Révélation", "Dézoom qui révèle le contexte", "slow pull-out revealing the wider context"],
+        [69, "Whip Pan", "Rotation rapide, flou de mouvement", "fast whip pan with motion blur"],
+        [70, "Rack Focus", "Bascule de netteté", "rack focus shifting between foreground and background"],
+        [71, "Parallaxe 2.5D", "Profondeur à partir d'une image 2D", "layered 2.5D parallax, foreground and background move at different speeds", "A:c"],
+        [72, "Tilt Up / Tilt Down", "Révélation verticale", "vertical tilt revealing the scene from bottom to top"],
+        [73, "Travelling Latéral", "Déplacement horizontal fluide", "smooth lateral tracking shot"],
+        [74, "Caméra Subjective (POV)", "À travers les yeux du sujet", "first-person point of view shot"],
+        [75, "Caméra Épaule", "Tremblement organique, urgence", "handheld shoulder camera, organic shake, urgency"]
+    ]},
+    { emoji: "✂️", name: "Effets de cut et montage", range: "76–90", code: "X:c", note: "Un seul plan est généré par image : les coupes sont demandées à l'IA, l'appli ne monte pas plusieurs vidéos entre elles.", items: [
+        [76, "Jump Cut", "Coupes sèches rythmées", "rhythmic jump cuts within the shot, the subject jumps between positions"],
+        [77, "Match Cut", "Transition entre formes similaires", "match cut transition between two similar shapes"],
+        [78, "Cut sur Action", "Coupe au moment du mouvement", "cut on action, the movement continues seamlessly into a new angle"],
+        [79, "Smash Cut", "Rupture brutale de ton", "abrupt smash cut to a contrasting mood"],
+        [80, "Cross Cutting", "Alternance de deux scènes", "alternating between two parallel moments"],
+        [81, "Montage Rapide", "Plans courts et intenses", "fast montage of short intense shots"],
+        [82, "Montage Sériel", "Accumulation d'images", "series of quick related shots building one idea"],
+        [83, "Cut au Battement", "Coupes sur la musique", "cuts synchronized to a musical beat", "X:c:m"],
+        [84, "Transition Flash", "Éclair blanc entre deux plans", "white flash transition between two shots"],
+        [85, "Transition Glitch", "Coupure numérique", "digital glitch transition"],
+        [86, "Transition Morphing", "Transformation fluide", "smooth morph from one image into another"],
+        [87, "Transition Couleur", "Coupe sur une couleur commune", "transition through a shared dominant color"],
+        [88, "Transition Objet", "Un objet masque l'écran", "an object passes in front of the lens and wipes to a new scene"],
+        [89, "Zoom Cut", "Zoom rapide vers le plan suivant", "fast zoom that becomes the next shot"],
+        [90, "Cut dans l'Obscurité", "Noir total, puis retour", "cut to total black, then back to the scene"]
+    ]},
+    { emoji: "💥", name: "Effets spéciaux et superpouvoirs", range: "91–105", code: "X:a", items: [
+        [91, "Explosion Cinématique", "Boule de feu, onde de choc", "cinematic explosion behind the subject, fireball, shockwave, flying debris", "X"],
+        [92, "Super Vitesse", "Traînées, distorsion", "super speed, light trails and motion distortion"],
+        [93, "Force Invisible", "Télékinésie, objets qui volent", "telekinesis, objects float and fly around the subject"],
+        [94, "Boule d'Énergie", "Énergie entre les mains", "glowing energy ball forming between the hands"],
+        [95, "Éclairs / Foudre", "Pouvoir électrique, yeux brillants", "electric powers, crackling lightning, glowing eyes"],
+        [96, "Glace / Givre", "Cristaux, souffle froid", "ice powers, frost crystals spreading, cold breath"],
+        [97, "Téléportation", "Disparition dans la fumée", "teleportation, the subject vanishes and reappears in a puff of smoke"],
+        [98, "Lévitation", "Le sujet flotte dans les airs", "the subject slowly levitates above the ground"],
+        [99, "Transformation", "Le sujet se transforme", "the subject magically transforms into another creature"],
+        [100, "Invocation", "Une créature apparaît", "a creature materializes from swirling light", "X"],
+        [101, "Bouclier Magique", "Dôme d'énergie protecteur", "a protective magic energy dome appears around the subject", "X"],
+        [102, "Régénération", "Guérison accélérée", "accelerated healing, glowing light closes a small scratch", "X"],
+        [103, "Contrôle du Temps", "Gel, retour, accélération", "time control, everything freezes, then rewinds and speeds up", "X"],
+        [104, "Portail Dimensionnel", "Ouverture vers un autre monde", "a swirling dimensional portal opens behind the subject", "X"],
+        [105, "Pluie de Météores", "Ciel qui s'embrase", "a meteor shower sets the sky ablaze", "X"]
+    ]},
+    { emoji: "🌪️", name: "Catastrophes et phénomènes naturels", range: "106–115", code: "X", items: [
+        [106, "Tornade", "Vent violent, débris, ciel noir", "violent tornado in the distance, flying debris, dark sky"],
+        [107, "Tsunami", "Vague géante qui arrive", "a giant wave approaching from the horizon"],
+        [108, "Séisme", "Sol qui tremble, fissures", "ground shaking, cracks spreading, camera trembling", "X:c"],
+        [109, "Éruption Volcanique", "Lave, fumée, cendres", "volcanic eruption, lava glow, smoke and ash"],
+        [110, "Tempête de Sable", "Mur de poussière", "a wall of sand approaching, dusty orange light"],
+        [111, "Blizzard", "Neige violente, vent glacial", "violent blizzard, snow blowing sideways, icy wind"],
+        [112, "Orage Électrique", "Éclairs, pluie battante", "electrical storm, multiple lightning strikes, heavy rain"],
+        [113, "Aurore Boréale", "Ciel vert et rose mouvant", "green and pink aurora borealis rippling across the sky", "A"],
+        [114, "Éclipse", "Soleil noir, ambiance étrange", "solar eclipse, black sun, eerie light", "A:l"],
+        [115, "Étoiles Filantes", "Ciel nocturne magique", "shooting stars streaking across the night sky", "A"]
+    ]},
+    { emoji: "🏆", name: "Sport et performance", range: "116–130", code: "X:a", items: [
+        [116, "Football", "But, célébration, ralenti", "soccer action, goal kick and celebration, slow motion"],
+        [117, "Basketball", "Dunk, suspension, foule", "slam dunk, hang time, roaring crowd"],
+        [118, "Tennis", "Échange rapide, smash", "fast tennis rally, powerful smash"],
+        [119, "Course à Pied", "Sprint, sueur, dépassement", "sprinting, sweat, overtaking"],
+        [120, "Natation", "Plongée, éclaboussures", "swimming, dive, splashing water"],
+        [121, "Skateboard", "Figure, grind", "skateboard trick, grind on a rail"],
+        [122, "Surf", "Vague, tube, embruns", "surfing a wave, spray, barrel"],
+        [123, "Escalade", "Effort, prise suivante", "climbing effort, reaching for the next hold"],
+        [124, "Gymnastique", "Sauts, rotations, grâce", "gymnastics flips and rotations, grace"],
+        [125, "Boxe / MMA", "Round, KO au ralenti", "boxing round, knockout punch in slow motion"],
+        [126, "Cyclisme", "Descente, vitesse", "cycling descent, speed, landscape rushing by"],
+        [127, "Ski / Snowboard", "Poudreuse, saut", "powder snow spray, jump, mountain"],
+        [128, "Formule 1", "Vitesse, dépassement", "Formula 1 car at full speed, overtaking", "X:ac"],
+        [129, "Parkour", "Sauts urbains fluides", "parkour jumps across urban obstacles, fluid flow"],
+        [130, "Yoga", "Postures, respiration, sérénité", "slow yoga poses, calm breathing, serenity"]
+    ]},
+    { emoji: "🚗", name: "Véhicules et machines", range: "131–140", code: "X:ac", items: [
+        [131, "Voiture de Sport", "Drift, accélération, reflets", "sports car drifting, acceleration, glossy reflections"],
+        [132, "Moto", "Roue arrière, virage", "motorcycle wheelie and lean into a turn"],
+        [133, "Avion", "Décollage, nuages", "airplane takeoff into the clouds"],
+        [134, "Hélicoptère", "Survol, souffle des pales", "helicopter flyover, rotor wash"],
+        [135, "Bateau", "Vagues, embruns", "boat speeding over waves, sea spray"],
+        [136, "Train", "Paysage qui défile", "train passing, landscape scrolling by"],
+        [137, "Vélo", "Balade, chemin", "relaxed bike ride along a path"],
+        [138, "Tracteur", "Champ, labour", "tractor plowing a field, farm life"],
+        [139, "Robot / Mecha", "Marche, transformation", "giant mecha walking and transforming, heavy mechanical motion"],
+        [140, "Vaisseau Spatial", "Décollage, hyperespace", "spaceship launch, jump to hyperspace, planet below"]
+    ]},
+    { emoji: "🎭", name: "Émotions et expressions", range: "141–150", code: "A:a", items: [
+        [141, "Joie", "Sourire, rire, yeux qui brillent", "genuine joy, smile turning into laughter, shining eyes"],
+        [142, "Tristesse", "Larme, regard baissé", "quiet sadness, a tear, lowered gaze"],
+        [143, "Colère", "Regard intense, poings serrés", "rising anger, intense stare, clenched fists"],
+        [144, "Peur", "Tremblement, recul", "fear, trembling, stepping back into the shadow"],
+        [145, "Surprise", "Sursaut, yeux écarquillés", "sudden surprise, startled, wide eyes, open mouth"],
+        [146, "Amour", "Regard tendre, lumière chaude", "tender loving gaze, warm soft light"],
+        [147, "Nostalgie", "Souvenir, flou, sépia", "nostalgic reverie, soft blur, sepia tint"],
+        [148, "Détermination", "Regard fixe, mâchoire serrée", "fierce determination, fixed gaze, set jaw"],
+        [149, "Folie", "Rire nerveux, regard instable", "unsettling madness, nervous laugh, unstable gaze"],
+        [150, "Sérénité", "Respiration lente, paix", "serenity, slow breathing, eyes closing peacefully"]
+    ]},
+    { emoji: "🎮", name: "Gaming et virtuel", range: "151–160", code: "S", items: [
+        [151, "Let's Play", "Réaction de joueur, lueur d'écran", "gamer reacting to a game, webcam framing, screen glow on the face", "X:a:v"],
+        [152, "Cinématique de Jeu", "Intro épique style AAA", "epic AAA video game cinematic, dramatic hero shot"],
+        [153, "Personnage RPG", "Portrait de héros, armure", "RPG character portrait, fantasy armor, subtle idle animation"],
+        [154, "Carte de Jeu", "Carte animée, sorts", "animated trading card, glowing frame, spell effects"],
+        [155, "Streaming", "Lumières RGB, décor de streamer", "streamer setup, animated RGB lights, glowing background", "X"],
+        [156, "Avatar VTuber", "Avatar anime qui parle", "VTuber anime avatar, expressive head movement, talking", "S::v"],
+        [157, "Monde Voxel", "Style cubes à la Minecraft", "blocky voxel world style"],
+        [158, "Monde Low Poly", "Géométrie minimaliste", "low poly geometric world"],
+        [159, "Réalité Augmentée", "Objet 3D dans la scène réelle", "augmented reality, a glowing 3D hologram object appears in the real scene", "X"],
+        [160, "Réalité Virtuelle", "Vue immersive 360°", "immersive 360-degree VR view, wide fisheye perspective", "X:c"]
+    ]},
+    { emoji: "🎵", name: "Musique et clips", range: "161–170", code: "X::m", items: [
+        [161, "Clip Rap", "Ville de nuit, chaînes, néons", "rap music video, urban night, gold chains, neon", "X:l:m"],
+        [162, "Clip Pop", "Couleurs vives, confettis", "pop music video, vivid colors, confetti"],
+        [163, "Clip Rock", "Guitare, fumée, scène", "rock music video, guitar energy, stage smoke"],
+        [164, "Clip Électro", "Lasers, stroboscopes, foule", "electro music video, lasers, strobe lights, crowd", "X:l:m"],
+        [165, "Clip Jazz", "Club sombre, saxophone", "jazz club, dim smoky light, saxophone", "X:l:m"],
+        [166, "Clip Classique", "Orchestre, lustres", "classical music, orchestra hall, chandeliers, elegance"],
+        [167, "Clip Reggaeton", "Plage, danse, couleurs chaudes", "reggaeton video, beach, warm colors, dancing"],
+        [168, "Clip Country", "Route, campagne, coucher de soleil", "country music video, open road, countryside sunset"],
+        [169, "Clip Metal", "Feu, chaos, contraste", "metal music video, fire, chaos, high contrast"],
+        [170, "Clip Lo-Fi", "Pluie, ambiance calme", "lo-fi chill, rainy window, cozy anime vibe", "S::m"]
+    ]},
+    { emoji: "📚", name: "Éducation et explication", range: "171–180", code: "X", items: [
+        [171, "Explication Scientifique", "Particules, ADN", "animated science explainer, glowing particles and DNA strands around the subject"],
+        [172, "Histoire", "Reconstitution d'époque", "historical reenactment atmosphere, period costumes and setting"],
+        [173, "Géographie", "Carte et relief 3D", "a map unfolding into 3D terrain relief", "S"],
+        [174, "Mathématiques", "Formes et schémas animés", "floating geometric shapes and diagrams animating in the air"],
+        [175, "Langues", "Objets du quotidien illustrés", "illustrated scene of everyday objects coming to life"],
+        [176, "Cuisine", "Recette étape par étape", "step-by-step cooking, hands preparing ingredients", "X:a"],
+        [177, "Bricolage", "Mains, outils, gros plans", "DIY tutorial, hands using tools, close-up details", "X:a"],
+        [178, "Médical", "Anatomie, circulation", "medical visualization, translucent anatomy, circulation flowing", "S"],
+        [179, "Astronomie", "Planètes, galaxies", "planets, galaxies and black holes drifting in space"],
+        [180, "Documentaire Nature", "Animal, écosystème", "nature documentary, animal behavior, lush ecosystem, telephoto lens", "X:c"]
+    ]},
+    { emoji: "🏢", name: "Business et professionnel", range: "181–190", code: "X", items: [
+        [181, "Présentation Produit", "Rotation, zoom sur les détails", "product showcase, slow rotation, zoom on key details", "X:ac"],
+        [182, "Témoignage Client", "Portrait qui parle", "customer testimonial, the subject speaks sincerely to the camera", "A:a:v"],
+        [183, "Annonce Entreprise", "Équipe, vision", "corporate announcement, confident team, bright modern office"],
+        [184, "Recrutement", "Équipe, culture d'entreprise", "recruitment video, friendly team, office culture"],
+        [185, "Formation Interne", "Gestes explicatifs", "training video, clear explanatory gestures, clean backdrop", "X:a:v"],
+        [186, "Rapport Annuel", "Croissance, look corporate", "annual report, growth visuals, clean corporate look"],
+        [187, "Immobilier", "Visite virtuelle, quartier", "real estate showcase, virtual tour, neighborhood glimpse", "X:c"],
+        [188, "Restaurant", "Plat, ambiance, service", "restaurant ambience, plated dish, attentive service"],
+        [189, "Hôtel", "Chambre, piscine, vue", "luxury hotel, room, pool, view"],
+        [190, "Boutique", "Vitrine, produit, promotion", "shop window, featured product, promotion vibe"]
+    ]},
+    { emoji: "🌍", name: "Voyage et tourisme", range: "191–200", code: "A", items: [
+        [191, "Carte Postale Animée", "Monument qui prend vie", "monument coming to life like an animated postcard"],
+        [192, "Guide Touristique", "Présentateur face caméra", "travel guide vibe, landmark, welcoming presenter", "X:a:v"],
+        [193, "Road Trip", "Route, paysage qui défile", "road trip, open road, landscape rolling by", "X:c"],
+        [194, "Croisière", "Mer, pont, escales", "cruise ship deck, sea, ports of call"],
+        [195, "Safari", "Savane, coucher de soleil", "safari, wild animals, savanna sunset"],
+        [196, "Montagne", "Sommet, neige, randonnée", "mountain summit, snow, hikers"],
+        [197, "Plage Paradisiaque", "Sable, palmiers, vagues", "paradise beach, white sand, palm trees, gentle waves"],
+        [198, "Ville Nocturne", "Lumières, circulation", "city at night, lights, traffic light trails"],
+        [199, "Village Traditionnel", "Ruelles, artisanat", "traditional village, old houses, narrow streets, crafts"],
+        [200, "Aventure Extrême", "Saut, cascade, adrénaline", "extreme adventure, jump, waterfall, adrenaline", "X:a"]
+    ]},
+    { emoji: "🕰️", name: "Époques et histoire", range: "201–212", code: "S", items: [
+        [201, "Préhistoire", "Dinosaures, volcans", "prehistoric world, dinosaurs in the distance, volcanoes, wild nature"],
+        [202, "Égypte Antique", "Pyramides, pharaon", "ancient Egypt, pyramids, hieroglyphs, pharaoh"],
+        [203, "Grèce Antique", "Temple, mythologie", "ancient Greece, marble temple, mythology"],
+        [204, "Rome Antique", "Colisée, légions", "ancient Rome, Colosseum, legions, emperor"],
+        [205, "Moyen Âge", "Château, chevaliers", "medieval castle, knights, tournament"],
+        [206, "Renaissance", "Art, inventeurs, cités", "Renaissance city, art, inventors"],
+        [207, "XVIIIe siècle", "Versailles, carrosses", "eighteenth century Versailles, carriages, candlelight"],
+        [208, "Années 1920", "Charleston, Art déco", "1920s art deco, Charleston, jazz"],
+        [209, "Années 1950", "Rock'n'roll, drive-in", "1950s rock and roll, classic cars, drive-in"],
+        [210, "Années 1980", "Néons, VHS, synthwave", "1980s neon, VHS, synthwave"],
+        [211, "Années 2000", "Y2K, mode", "Y2K 2000s aesthetic, glossy tech, fashion"],
+        [212, "Futur 2100", "Ville high-tech, robots", "high-tech city of 2100, AI, robots"]
+    ]},
+    { emoji: "🖼️", name: "Mouvements artistiques", range: "213–222", code: "S", items: [
+        [213, "Impressionnisme", "Touches, lumière", "impressionist painting, visible brushstrokes, dappled light"],
+        [214, "Cubisme", "Formes géométriques", "cubist art, geometric fragments, multiple viewpoints"],
+        [215, "Surréalisme", "Rêve, absurdité", "surrealist dream, absurd juxtapositions, melting forms"],
+        [216, "Pop Art", "Couleurs vives, trames", "pop art, bold colors, halftone dots, comic look"],
+        [217, "Art Nouveau", "Courbes, fleurs", "art nouveau, flowing curves, floral ornaments"],
+        [218, "Art Déco", "Géométrie dorée", "art deco, gold geometric patterns"],
+        [219, "Bauhaus", "Formes simples, couleurs primaires", "Bauhaus design, primary colors, simple geometric shapes"],
+        [220, "Expressionnisme", "Émotion brute", "expressionist painting, raw emotion, intense distorted colors"],
+        [221, "Minimalisme", "Épuré, essentiel", "minimalist, clean empty space, essential forms"],
+        [222, "Baroque", "Opulence, théâtre", "baroque opulence, dramatic theatrical light, rich ornament"]
+    ]},
+    { emoji: "🧠", name: "Illusions et optique", range: "223–230", code: "X", items: [
+        [223, "Trompe-l'œil", "Le sujet sort du cadre", "trompe-l'oeil, the subject appears to step out of the frame"],
+        [224, "Anamorphose", "Image qui se révèle sous un angle", "anamorphic illusion, distorted shapes resolving into a clear image as the camera moves", "X:c"],
+        [225, "Double Sens", "Deux images en une", "ambiguous image revealing a second hidden picture", "S"],
+        [226, "Escher", "Escaliers impossibles", "Escher-like impossible staircases looping endlessly", "S"],
+        [227, "Illusion d'Optique", "Motifs qui semblent bouger", "optical illusion, patterns that seem to move", "S"],
+        [228, "Perspective Forcée", "Taille faussée", "forced perspective, playful size illusion"],
+        [229, "Réflexion Infinie", "Miroirs à l'infini", "infinite mirror reflections repeating into the distance"],
+        [230, "Portrait Composite", "Visage fait d'autres images", "portrait composed of many small images", "S"]
+    ]},
+    { emoji: "📱", name: "Formats sociaux et tendances", range: "231–240", code: "X", items: [
+        [231, "TikTok Hook", "Captiver en une seconde", "strong visual hook in the first second, instantly captivating"],
+        [232, "Reel Transition", "Transition virale", "viral reel transition, quick spin or snap into a new look"],
+        [233, "YouTube Intro", "Intro dynamique", "energetic channel intro vibe, dynamic motion", "X::m"],
+        [234, "Short en Boucle", "La fin rejoint le début", "perfectly looping short, the end matches the start"],
+        [235, "Story Instagram", "Spontané, vertical", "casual vertical story, spontaneous handheld feel", "X:c"],
+        [236, "Live Stream", "Lumières, discussion", "live stream setup, glowing lights, casual talking", "X:a:v"],
+        [237, "Podcast Visuel", "Micro, invité qui parle", "podcast studio, microphone, the subject talking", "X:a:v"],
+        [238, "Mème Tendance", "Réaction exagérée", "trending meme format, exaggerated reaction", "X:a"],
+        [239, "Before / After", "Transformation spectaculaire", "dramatic before and after transformation reveal"],
+        [240, "Day in the Life", "Routine en accéléré", "day in the life, sped-up daily routine", "X:a"]
+    ]},
+    { emoji: "🧬", name: "Sciences et futur", range: "241–250", code: "X", items: [
+        [241, "ADN", "Double hélice lumineuse", "rotating glowing DNA double helix around the scene"],
+        [242, "Cellule", "Mitose, organites", "microscopic cell world, mitosis, organelles moving", "S"],
+        [243, "Cerveau", "Neurones, synapses", "neural network of glowing synapses firing"],
+        [244, "Espace", "Galaxie, nébuleuse", "galaxy, nebula, black hole swirling"],
+        [245, "Robotique", "Bras robotisés, drones", "robotic arms and drones moving with precision"],
+        [246, "Nanotechnologie", "Échelle microscopique", "microscopic nanotech scale, tiny machines"],
+        [247, "Réalité Quantique", "Superposition, doubles", "quantum particles, superposition, shimmering duplicates"],
+        [248, "Clonage", "Le sujet se duplique", "the subject duplicates into identical clones", "X:a"],
+        [249, "Terraformation", "Planète qui devient verte", "a barren planet becoming green and habitable"],
+        [250, "Post-apocalyptique", "Ruines, nature qui reprend", "post-apocalyptic ruins, survival, nature reclaiming the city"]
+    ]},
+    { emoji: "🧙", name: "Fantastique et mythologie", range: "251–260", code: "X", items: [
+        [251, "Dragon", "Vol, feu, écailles", "a dragon flies overhead breathing fire, scales glinting"],
+        [252, "Licorne", "Forêt magique, arc-en-ciel", "unicorn in a magical forest, rainbow light"],
+        [253, "Sirène", "Océan, lumière sous-marine", "mermaid in the ocean, shimmering tail, underwater light", "S"],
+        [254, "Phénix", "Renaissance dans les flammes", "a phoenix rising from flames"],
+        [255, "Loup-garou", "Transformation, pleine lune", "werewolf transformation under the full moon", "X:a"],
+        [256, "Vampire", "Nuit, château, crocs", "vampire at night, gothic castle, pale skin, fangs", "S"],
+        [257, "Fantôme", "Apparition, brume froide", "ghostly apparition, translucent, cold mist"],
+        [258, "Ange / Démon", "Ailes, halo", "angel or demon wings unfolding, halo, contrast", "X:a"],
+        [259, "Dieu Nordique", "Tonnerre, marteau", "Norse god, thunder, hammer, Valhalla sky", "S"],
+        [260, "Créature des Abysses", "Tentacules, obscurité", "abyssal creature, tentacles emerging from darkness"]
+    ]},
+    { emoji: "🎬", name: "Genres cinématographiques", range: "261–275", code: "X", items: [
+        [261, "Western", "Duel, poussière", "western showdown, dust, setting sun"],
+        [262, "Polar", "Enquête, pluie, imperméable", "crime investigation mood, rain, trench coat"],
+        [263, "Horreur", "Ombre, silence, sursaut", "horror, sudden jump scare, shadow, silence"],
+        [264, "Comédie", "Gag, timing", "comedy, comedic timing, funny expression", "X:a"],
+        [265, "Romance", "Regard tendre, pluie", "romantic mood, tender gaze, gentle rain"],
+        [266, "Science-Fiction", "Futur, technologie", "science fiction, futuristic technology, wonder"],
+        [267, "Fantasy", "Quête, magie", "fantasy quest, magic, mythical creature"],
+        [268, "Thriller", "Tension, poursuite", "thriller tension, pursuit, sudden twist"],
+        [269, "Documentaire", "Réalisme, lumière naturelle", "documentary realism, natural light, archival feel", "A:c"],
+        [270, "Film Noir", "Ombres, fumée", "film noir, shadows, cigarette smoke, black and white", "A:l"],
+        [271, "Comédie Musicale", "Danse, chant, couleurs", "musical, dancing and singing, bright colors", "X:a:m"],
+        [272, "Guerre", "Champ de bataille, fumée", "war film, battlefield, smoke, soldiers"],
+        [273, "Espionnage", "Gadgets, infiltration", "spy thriller, gadgets, infiltration"],
+        [274, "Catastrophe", "Chaos, survie", "disaster movie, chaos, survival"],
+        [275, "Biopic", "Époque, introspection", "biopic, period atmosphere, reflective mood", "A"]
+    ]},
+    { emoji: "🧪", name: "Effets de style avancés", range: "276–290", code: "S", items: [
+        [276, "Rotoscopie", "Animation sur images réelles", "rotoscope animation traced over live action"],
+        [277, "Cel Shading", "Rendu cartoon 3D", "cel-shaded 3D cartoon rendering"],
+        [278, "Low Poly", "Facettes géométriques", "low poly faceted geometry"],
+        [279, "Pixel Art", "Style 8/16 bits", "8-bit and 16-bit pixel art"],
+        [280, "Vectoriel", "Aplats, contours nets", "flat vector illustration, crisp outlines"],
+        [281, "Gravure", "Hachures, encre", "engraving, ink cross-hatching, antique print"],
+        [282, "Vitrail", "Plomb, couleurs lumineuses", "stained glass, lead lines, glowing colored light"],
+        [283, "Mosaïque", "Tesselles antiques", "ancient mosaic tiles"],
+        [284, "Origami", "Papier plié", "folded paper origami world"],
+        [285, "Papier Découpé", "Couches de papier, ombres", "layered paper cut-out with soft shadows"],
+        [286, "Enseigne Néon", "Tubes lumineux", "glowing neon tube outlines at night"],
+        [287, "Hologramme", "Transparence, lignes de balayage", "translucent hologram, scanlines, blue glow"],
+        [288, "Rayons X", "Vue à travers la matière", "X-ray vision revealing inner structure"],
+        [289, "Caméra Thermique", "Infrarouge", "thermal infrared camera look"],
+        [290, "Sonar / Radar", "Ondes de détection", "sonar radar scan, pulsing detection waves"]
+    ]},
+    { emoji: "🎁", name: "Systèmes complets", range: "291–300", code: "X", items: [
+        [291, "Production Haut de Gamme", "Lumière, caméra et étalonnage soignés", "high-end cinematic production, refined lighting, elegant camera movement, professional color grading", "X:cl"],
+        [292, "Mode Aléatoire Total", "Un effet tiré au hasard dans tout le catalogue pour chaque image", "", "X", "all"],
+        [293, "Chaîne YouTube", "Le sujet présente face caméra", "YouTube-style energetic presentation, the subject addresses the camera", "X:a:v"],
+        [294, "Publicité", "Hook, produit, conclusion", "advertising spot, strong hook, product highlight, confident finish"],
+        [295, "Story en 5 Plans", "Mise en place, détail, action, réaction, fin", "short story told in five quick shots: setup, detail, action, reaction, ending", "X:c"],
+        [296, "Clip Musical Monté", "Coupes sur le rythme", "music video editing, cuts synced to the beat", "X:c:m"],
+        [297, "Portrait Vivant Avancé", "Yeux, bouche, respiration", "living portrait, blinking eyes, subtle mouth movement, breathing", "A:a"],
+        [298, "Photo Ancienne Vivante", "Restauration et animation", "restored old photo gently brought to life", "A:a"],
+        [299, "Avatar Parlant", "Synchronisation labiale", "talking avatar, natural lip sync", "X:a:v"],
+        [300, "Diaporama Cinématique", "Panoramique et zoom lents", "cinematic slideshow feel with slow pan and zoom", "A:ac"]
+    ]},
+    { emoji: "📺", name: "Séries TV — réalisme de l'image", range: "301–315", code: "A", items: [
+        [301, "Look Caméra Cinéma", "Grain fin, dynamique naturelle", "shot on a full-frame cinema camera, fine grain, natural dynamic range"],
+        [302, "Peau Réaliste", "Pores, imperfections, pas de lissage", "realistic skin texture, visible pores, natural imperfections, no smoothing"],
+        [303, "Micro-expressions", "Yeux, déglutition, mâchoire", "subtle micro-expressions, eyes narrowing, swallowing, jaw tension", "A:a"],
+        [304, "Respiration Naturelle", "Poitrine et épaules qui bougent", "natural breathing, chest and shoulders moving", "A:a"],
+        [305, "Regard Vivant", "Clignements irréguliers, reflet dans l'œil", "lifelike eyes, irregular blinks, small eye movements, catchlight in the iris"],
+        [306, "Cheveux et Tissus Physiques", "Mèches et plis qui suivent le mouvement", "physically accurate hair strands and clothing folds following the motion"],
+        [307, "Profondeur de Champ", "Flou d'arrière-plan anamorphique", "anamorphic lens shallow depth of field, oval bokeh"],
+        [308, "Mise au Point Humaine", "Le point cherche légèrement", "slightly organic focus pulling like a human focus puller"],
+        [309, "Flou de Mouvement Naturel", "Obturateur à 180°, 24 i/s", "180-degree shutter natural motion blur at 24fps"],
+        [310, "Lumière Motivée", "Sources visibles : lampe, fenêtre, écran", "motivated lighting from visible practical sources, lamps, windows, screens", "A:l"],
+        [311, "Lumière de Fenêtre", "Lumière latérale douce", "soft window side light, realistic shadows on the face", "A:l"],
+        [312, "Nuit Urbaine", "Lampadaires, néons, bitume mouillé", "urban night, sodium streetlights, neon, reflections on wet asphalt", "A:l"],
+        [313, "Météo Crédible", "Pluie sur les vitres, buée, flaques", "believable weather, fine rain on windows, fog on glass, puddles"],
+        [314, "Poussière dans la Lumière", "Particules dans un rayon", "dust particles floating in a sunbeam"],
+        [315, "Caméra Documentaire", "Cadrage imparfait, zooms rapides", "documentary camera, imperfect framing, reframing, quick zooms", "A:c"]
+    ]},
+    { emoji: "🎞️", name: "Séries TV — étalonnages", range: "316–325", code: "A:l", items: [
+        [316, "Teal & Orange", "Peaux chaudes, ombres bleutées", "teal and orange grade, warm skin, cool shadows"],
+        [317, "Polar Nordique", "Tons froids et désaturés", "Nordic noir grade, cold desaturated tones, low grey sky"],
+        [318, "Drame Chaleureux", "Tons ambrés, contraste doux", "warm amber drama grade, soft contrast"],
+        [319, "Thriller Verdâtre", "Dominante verte, malaise", "sickly green thriller tint, unease"],
+        [320, "Série d'Époque", "Couleurs patinées, bougie", "period drama grade, aged colors, candlelight"],
+        [321, "Sud Ensoleillé", "Soleil de midi, ombres nettes", "harsh midday Mediterranean sun, crisp shadows, saturated colors"],
+        [322, "Hiver Gris", "Ciel blanc, souffle visible", "grey winter, white sky, pale skin, visible breath"],
+        [323, "Nuit Américaine", "Nuit simulée, bleu profond", "day-for-night, deep blue simulated night"],
+        [324, "Flash-back Délavé", "Couleurs passées, grain", "washed-out flashback, faded colors, halation, heavier grain"],
+        [325, "Noir Brillant", "Noirs profonds, look premium", "rich deep blacks, controlled highlights, glossy premium look"]
+    ]},
+    { emoji: "🗂️", name: "Séries TV — genres", range: "326–340", code: "X", items: [
+        [326, "Drame Familial", "Repas tendus, non-dits", "family drama, tense dinner, unspoken words, heavy glances"],
+        [327, "Policier / Enquête", "Commissariat, tableau d'indices", "police procedural, precinct, evidence board, interrogation mood"],
+        [328, "Série Médicale", "Urgences, blouses, néons", "medical drama, emergency room, scrubs, fluorescent light"],
+        [329, "Série Judiciaire", "Tribunal, plaidoirie", "courtroom drama, closing argument, verdict tension"],
+        [330, "Thriller Psychologique", "Paranoïa, silences", "psychological thriller, paranoia, tight framing, silence"],
+        [331, "Chronique Sociale", "Quartier, travail, fins de mois", "social realist drama, working-class neighborhood, everyday struggles"],
+        [332, "Série de Quartier", "Voisins, commerces, vie de rue", "neighborhood series, neighbors, local shops, street life"],
+        [333, "Série d'Entreprise", "Open space, rivalités", "corporate drama, open space office, meetings, rivalries"],
+        [334, "Série de Chantier", "Artisans, outils, équipe", "construction site series, craftsmen, tools, dust, teamwork"],
+        [335, "Faux Documentaire", "Interviews face caméra", "mockumentary, glances at the camera, talking-head interview", "X:c:v"],
+        [336, "Série Sportive", "Vestiaire, match décisif", "sports drama, locker room, training, decisive match"],
+        [337, "Série Historique", "Costumes et décors d'époque", "historical drama, period costumes and sets"],
+        [338, "Série de Braquage", "Préparation, plan, exécution", "heist series, planning, tension, execution"],
+        [339, "Fantastique du Quotidien", "Surnaturel discret", "a subtle supernatural event in an ordinary everyday setting"],
+        [340, "Anthologie", "Histoire indépendante", "standalone anthology episode mood, distinctive self-contained atmosphere"]
+    ]},
+    { emoji: "🎬", name: "Séries TV — scènes types", range: "341–365", code: "X", items: [
+        [341, "Cold Open", "Scène choc avant le générique", "shocking cold open moment, sudden dramatic event"],
+        [342, "Cliffhanger", "Révélation, réaction figée", "cliffhanger, shocking revelation, freeze on the reaction", "X:a"],
+        [343, "Flash-back", "Retour dans le passé", "flashback, dreamy transition into the past, faded look"],
+        [344, "Flash-forward", "Aperçu de l'avenir", "flash-forward glimpse of the future, cold sharp look"],
+        [345, "Interrogatoire", "Table, lampe, face-à-face", "interrogation room, table, harsh lamp, face-to-face", "X:l"],
+        [346, "Dispute de Couple", "Voix qui montent, porte qui claque", "couple argument, raised voices, a door slams", "X:a:v"],
+        [347, "Repas de Famille Tendu", "Silences, regards croisés", "tense family dinner, silences, crossed looks"],
+        [348, "Entrée d'un Personnage", "Arrivée en contre-plongée", "a character enters the frame, low angle, commanding presence", "X:ac"],
+        [349, "Révélation", "Zoom lent, réaction", "slow zoom on a stunned reaction, silence", "X:ac"],
+        [350, "Coup de Téléphone", "Visage qui change", "waiting for a phone call, face changing at the news", "X:a"],
+        [351, "Filature", "Suivi dans la foule", "tailing someone from a distance through a crowd", "X:c"],
+        [352, "Poursuite à Pied", "Ruelles, escaliers", "foot chase through alleys and stairs, heavy breathing", "X:ac"],
+        [353, "Scène de Crime", "Rubalise, gyrophares", "crime scene, police tape, flashing blue lights, investigators", "X:l"],
+        [354, "Réveil Difficile", "Lumière du matin, réveil", "hard wake-up, morning light, ringing alarm", "X:a"],
+        [355, "Trajet en Voiture", "Conversation, reflets", "car ride conversation, landscape passing, reflections on the window", "X:c"],
+        [356, "Scène de Bar", "Comptoir, confidences", "bar counter confidences, dim warm light", "X:l"],
+        [357, "Attente à l'Hôpital", "Couloir, néons", "hospital corridor, fluorescent lights, anxious waiting", "X:l"],
+        [358, "Rupture sous la Pluie", "Adieux, taxi qui part", "breakup in the rain, umbrella, a taxi leaving", "X:a"],
+        [359, "Retrouvailles", "Gare, course, étreinte", "reunion at a train station, running, embrace", "X:a"],
+        [360, "Monologue Intérieur", "Regard dans le vide", "inner monologue, distant gaze, thoughtful stillness", "A:a"],
+        [361, "Réunion de Crise", "Table, écrans, décisions", "crisis meeting, table, screens, urgent decisions"],
+        [362, "Enterrement", "Cimetière, parapluies noirs", "funeral, cemetery, black umbrellas, silence"],
+        [363, "Mariage", "Fête, discours, danse", "wedding celebration, speech, dancing", "X::m"],
+        [364, "Confrontation Finale", "Face-à-face, tension maximale", "final confrontation, face-to-face, maximum tension", "X:a"],
+        [365, "Épilogue", "Ralenti, dernier regard", "epilogue, slow motion, soft music, last look", "X:a:m"]
+    ]},
+    { emoji: "🎥", name: "Séries TV — réalisation", range: "366–380", code: "X:c", items: [
+        [366, "Champ / Contrechamp", "Dialogue entre deux personnages", "shot reverse shot dialogue coverage between two characters", "X:c:v"],
+        [367, "Plan-séquence", "Une seule prise continue", "continuous single-take tracking shot following the action"],
+        [368, "Plan d'Établissement", "Vue du lieu avant la scène", "establishing shot of the location before the scene"],
+        [369, "Insert", "Gros plan sur un objet clé", "insert close-up on a key object, a letter, a key, a phone"],
+        [370, "Plan de Réaction", "Visage qui encaisse", "reaction shot, a face absorbing the news", "X:ac"],
+        [371, "Par-dessus l'Épaule", "Cadrage de dialogue", "over-the-shoulder dialogue framing"],
+        [372, "Montage Parallèle", "Deux actions simultanées", "parallel editing between two simultaneous actions"],
+        [373, "Écran Partagé", "Deux lieux à la fois", "split screen showing two places at once"],
+        [374, "Ellipse", "Saut dans le temps par un fondu", "time jump through a soft dissolve"],
+        [375, "Fondu au Noir", "Fin de scène sobre", "sober fade to black at the end of the scene"],
+        [376, "Générique d'Ouverture", "Montage stylé, musique", "opening credits mood, stylish montage", "X:c:m"],
+        [377, "« Précédemment dans… »", "Résumé rapide", "quick recap montage of previous events"],
+        [378, "Face Caméra", "Le personnage parle au spectateur", "the character breaks the fourth wall and talks to the viewer", "X:ac:v"],
+        [379, "Caméra de Surveillance", "Vidéosurveillance noir et blanc", "CCTV security camera footage, high angle, black and white, low quality", "X:cl"],
+        [380, "Vidéo Smartphone", "Qualité téléphone, tenue à la main", "vertical smartphone footage, casual handheld, phone quality"]
+    ]},
+    { emoji: "🔗", name: "Séries TV — continuité", range: "381–390", code: "A", note: "À combiner avec un autre effet pour garder personnages, tenues et décors identiques d'une vidéo à l'autre.", items: [
+        [381, "Personnage Récurrent", "Même visage, même coiffure", "keep exactly the same face, hairstyle and body throughout, strict character consistency"],
+        [382, "Costume Fixe", "Même tenue partout", "keep exactly the same outfit throughout"],
+        [383, "Décor Récurrent", "Même lieu, mêmes objets", "keep the same set, furniture and objects unchanged"],
+        [384, "Continuité de Lumière", "Même heure du jour", "consistent time of day and lighting throughout", "A:l"],
+        [385, "Continuité Météo", "Même temps du début à la fin", "the weather stays consistent from start to end"],
+        [386, "Évolution du Personnage", "Barbe, blessure, fatigue", "a subtle visible change on the character over time, stubble, bruise, tiredness", "X"],
+        [387, "Fiche Personnage", "Traits identiques à chaque image", "strict character sheet consistency, identical features in every frame"],
+        [388, "Bible Visuelle", "Palette et style communs", "unified series look, consistent palette, locations and style"],
+        [389, "Raccord Regard", "Regards dans le bon sens", "correct eyeline match, characters look in coherent directions"],
+        [390, "Raccord Mouvement", "Geste continu d'un plan à l'autre", "match on action, movements continue seamlessly"]
+    ]},
+    { emoji: "💞", name: "Séries TV — relations et romance", range: "391–400", code: "X:a", note: "Romance au niveau d'une série grand public, sans contenu sexuel.", items: [
+        [391, "Premier Regard", "Temps suspendu", "two characters notice each other, time suspended"],
+        [392, "Rapprochement", "Mains qui se frôlent", "hands almost touching, shy smile"],
+        [393, "Danse Lente", "Couple qui danse", "a couple slow dancing, warm light", "X:a:m"],
+        [394, "Déclaration", "Aveu hésitant", "hesitant confession, silence, reaction", "X:a:v"],
+        [395, "Premier Baiser", "Cadrage serré puis fondu au noir", "tender first kiss in a tight frame, then fade to black"],
+        [396, "Jalousie", "Regard en coin", "side glance, clenched jaw, jealousy"],
+        [397, "Dîner aux Chandelles", "Bougies, conversation", "candlelit dinner, quiet conversation", "X:al"],
+        [398, "Lettre d'Amour", "Lecture, émotion", "reading a love letter, emotion"],
+        [399, "Séparation", "Valises, regard en arrière", "suitcases, door, looking back"],
+        [400, "Réconciliation", "Excuses, étreinte", "apology, embrace, light returning"]
+    ]}
+];
+
+const MAX_EFFECTS = 3;
+const EFFECTS = {};
+const EFFECT_GROUPS = [];
+
+function parseEffectCode(code) {
+    const p = String(code || 'A').split(':');
+    return {
+        mode: ({ A: 'ambiance', X: 'action', S: 'style' })[p[0]] || 'ambiance',
+        owns: p[1] || '',
+        sound: p[2] || ''
+    };
+}
+
+(function registerEffects() {
+    const originals = [
+        { id: 'g-ambiance', name: "✨ Effets d'ambiance (d'origine)", note: "Ces effets préservent votre image. Seule l'ambiance change.", list: AMBIANCE_EFFECTS, mode: 'ambiance' },
+        { id: 'g-stylize', name: "🎭 Transformations stylistiques (d'origine)", note: "Ces effets transforment radicalement votre image.", list: STYLIZE_EFFECTS, mode: 'style' }
+    ];
+    originals.forEach(g => {
+        g.list.forEach(s => {
+            EFFECTS[s.id] = { id: s.id, num: null, emoji: s.emoji, name: s.name, desc: s.desc,
+                prompt: s.prompt, mode: g.mode, owns: '', sound: '', random: '' };
+        });
+        EFFECT_GROUPS.push({ id: g.id, name: g.name, note: g.note, open: true, ids: g.list.map(s => s.id) });
+    });
+    EFFECT_CATALOG.forEach((g, gi) => {
+        const ids = [];
+        g.items.forEach(it => {
+            const code = parseEffectCode(it[4] || g.code);
+            const id = 'n' + it[0];
+            EFFECTS[id] = { id: id, num: it[0], emoji: '', name: it[1], desc: it[2], prompt: it[3],
+                mode: code.mode, owns: code.owns, sound: code.sound, random: it[5] || '' };
+            ids.push(id);
+        });
+        EFFECT_GROUPS.push({ id: 'g-' + gi, name: g.emoji + ' ' + g.name + ' (' + g.range + ')', note: g.note || '', open: false, ids: ids });
+    });
+})();
+
+function pickRandomEffect(kind) {
+    const pool = Object.values(EFFECTS).filter(e => !e.random && (kind === 'all' || e.mode !== 'action'));
+    return randomItem(pool);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// MOUVEMENTS
+// ══════════════════════════════════════════════════════════════════
+const RANDOM_ACTIONS = [
+    'the subject slowly raises a hand toward the camera, fingers trembling slightly',
+    'a single tear rolls down the subject\'s cheek in extreme slow motion',
+    'the subject turns their head slowly, eyes closing, breathing softly',
+    'the subject\'s hair moves gently in an imperceptible breeze',
+    'the subject stands still, only their chest rising and falling with breath',
+    'the subject\'s eyes open slowly, revealing an intense gaze directly at the camera',
+    'the subject extends a hand as if reaching for something just out of frame',
+    'the subject lifts their chin slightly, a silent gesture of presence',
+    'the subject walks slowly toward the camera, each step deliberate',
+    'the subject looks down at their own hands, discovering them for the first time',
+    'the subject\'s body shivers involuntarily, a wave of emotion passing through',
+    'the subject leans forward slightly, closing the distance with the viewer'
+];
+
+const RANDOM_CAMERA = [
+    'slow dolly-in, camera gliding forward almost imperceptibly',
+    'static locked-off frame, subject moves within fixed borders',
+    'handheld, slight tremor, camera breathing with the subject',
+    'slow pan following the subject\'s movement',
+    'subtle parallax movement revealing depth',
+    'high angle looking down, subject appears small and vulnerable',
+    'low angle looking up, subject appears powerful',
+    'rack focus from foreground to subject',
+    'camera drifts backward slowly, revealing a bit more of the environment'
+];
+
+const RANDOM_LIGHTING = [
+    'soft diffused natural light',
+    'warm golden hour backlight',
+    'dramatic side lighting with deep shadows',
+    'gentle ambient glow, almost shadowless',
+    'cool moonlight atmosphere',
+    'warm interior candlelight flicker',
+    'cinematic rim lighting emphasizing the silhouette'
+];
+
+const INTENSITY_PRESETS = {
+    subtle: 'very subtle movement, barely perceptible change, minimal animation, gentle and quiet',
+    moderate: 'moderate movement, clear but controlled motion, balanced energy',
+    strong: 'strong dynamic movement, energetic motion, pronounced physical action'
+};
+
+const FRAMING_PRESETS = {
+    close: 'extreme close-up framing, tight on the subject, intimate and intense',
+    medium: 'medium shot, subject framed from waist up, balanced composition',
+    wide: 'wide shot, subject framed with the environment visible'
+};
+
+// ══════════════════════════════════════════════════════════════════
+// ÉTAT GLOBAL
+// ══════════════════════════════════════════════════════════════════
+const state = {
+    images: [],
+    isRunning: false,
+    stopRequested: false,
+    queue: [],
+    completed: 0,
+    failed: 0,
+    selectedEffects: [],
+    mainPrompt: '',
+    framing: 'random',
+    intensity: 'random',
+    durationFrames: 153,
+    isLoadingImages: false,
+    creationAttemptsSinceLastError: 0
+};
+
+// ══════════════════════════════════════════════════════════════════
+// CLÉ API
+// ══════════════════════════════════════════════════════════════════
+function getApiKey() {
+    try { return (localStorage.getItem(API_KEY_STORAGE) || '').trim(); }
+    catch (e) { return ''; }
+}
+
+function saveApiKey() {
+    const input = document.getElementById('api-key-input');
+    if (!input) return;
+    const key = input.value.trim();
+
+    if (!key) {
+        try { localStorage.removeItem(API_KEY_STORAGE); } catch (e) {}
+        updateApiPanel();
+        showToast('Clé supprimée', 'warn');
+        return;
+    }
+
+    if (!key.startsWith('sk-')) {
+        if (!confirm('La clé ne commence pas par "sk-". La sauvegarder quand même ?')) {
+            return;
+        }
+    }
+
+    try {
+        localStorage.setItem(API_KEY_STORAGE, key);
+        updateApiPanel();
+        showToast('Clé API enregistrée ✓', 'success');
+        input.blur();
+    } catch (e) {
+        showToast('Erreur lors de la sauvegarde', 'error');
+    }
+}
+
+function updateApiPanel() {
+    const panel = document.getElementById('api-panel');
+    const input = document.getElementById('api-key-input');
+    const statusLine = document.getElementById('api-status-line');
+    const statusText = document.getElementById('api-status-text');
+    const key = getApiKey();
+
+    if (!panel || !input || !statusLine || !statusText) return;
+
+    if (key) {
+        panel.classList.add('ok');
+        statusLine.classList.add('ok');
+        statusText.textContent = 'Clé API active · ' + key.slice(0, 8) + '…' + key.slice(-4);
+        // Afficher la clé masquée dans le champ
+        input.value = key;
+        input.placeholder = '';
+    } else {
+        panel.classList.remove('ok');
+        statusLine.classList.remove('ok');
+        statusText.textContent = 'Aucune clé API enregistrée';
+        input.value = '';
+        input.placeholder = 'Collez votre clé API ici (sk-...)';
+    }
+    updateGenerateBtn();
+}
+
+function updateGenerateBtn() {
+    const btn = document.getElementById('generate-btn');
+    if (!btn) return;
+    const hasImages = state.images.length > 0;
+    const hasKey = !!getApiKey();
+    btn.disabled = !hasImages || !hasKey || state.isRunning || state.isLoadingImages;
+
+    if (state.isLoadingImages) {
+        btn.textContent = 'Chargement des images… (' + state.images.length + ')';
+    } else if (state.isRunning) {
+        const total = state.queue.length;
+        const done = state.completed + state.failed;
+        btn.textContent = 'Création en cours… (' + done + '/' + total + ')';
+    } else if (!hasKey) {
+        btn.textContent = 'Ajoutez votre clé API';
+    } else if (!hasImages) {
+        btn.textContent = 'Ajoutez des images';
+    } else {
+        btn.textContent = 'Créer ' + state.images.length + ' vidéo' + (state.images.length > 1 ? 's' : '');
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// UTILITAIRES
+// ══════════════════════════════════════════════════════════════════
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)).then(waitWhilePaused); }
+function log(msg) { console.log('[Atelier] ' + msg); }
+function setStatus(text) {
+    const bar = document.getElementById('status-bar');
+    const txt = document.getElementById('status-text');
+    if (!bar || !txt) return;
+    if (text) { bar.classList.add('visible'); txt.textContent = text; }
+    else bar.classList.remove('visible');
+}
+function randomItem(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+}
+function formatEta(seconds) {
+    if (seconds < 60) return Math.round(seconds) + 's';
+    const m = Math.floor(seconds / 60);
+    const s = Math.round(seconds % 60);
+    return m + 'm' + (s > 0 ? ' ' + s + 's' : '');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// TRAITEMENT DES IMAGES
+// ══════════════════════════════════════════════════════════════════
+function fileToDataUri(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result);
+        reader.onerror = () => reject(new Error('Erreur lecture'));
+        reader.readAsDataURL(file);
+    });
+}
+
+function generateThumbnail(dataUri) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            try {
+                const canvas = document.createElement('canvas');
+                const ratio = img.height / img.width;
+                canvas.width = THUMBNAIL_MAX_WIDTH;
+                canvas.height = Math.round(THUMBNAIL_MAX_WIDTH * ratio);
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL('image/jpeg', 0.7));
+            } catch (e) { resolve(dataUri); }
+        };
+        img.onerror = () => resolve(dataUri);
+        img.src = dataUri;
+    });
+}
+
+async function processOneFile(file) {
+    if (!file.type.startsWith('image/')) return null;
+    if (file.size > MAX_IMAGE_SIZE) {
+        log('Image trop lourde ignorée : ' + file.name);
+        return null;
+    }
+    try {
+        const dataUri = await fileToDataUri(file);
+        const thumbnail = await generateThumbnail(dataUri);
+        return { file: file, dataUri: dataUri, thumbnail: thumbnail, id: Date.now() + Math.random() };
+    } catch (e) {
+        log('Erreur traitement ' + file.name + ' : ' + e.message);
+        return null;
+    }
+}
+
+async function handleFiles(files) {
+    const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (!imageFiles.length) return;
+
+    state.isLoadingImages = true;
+    updateGenerateBtn();
+    setStatus('Chargement de ' + imageFiles.length + ' image' + (imageFiles.length > 1 ? 's' : '') + '…');
+
+    const uploadZone = document.getElementById('upload-zone');
+    uploadZone.classList.add('loading');
+
+    const BATCH = 5;
+    let processed = 0;
+
+    for (let i = 0; i < imageFiles.length; i += BATCH) {
+        const batch = imageFiles.slice(i, i + BATCH);
+        const results = await Promise.allSettled(batch.map(f => processOneFile(f)));
+        for (const r of results) {
+            if (r.status === 'fulfilled' && r.value) {
+                state.images.push(r.value);
+                processed++;
+            }
+        }
+        renderImages();
+        setStatus('Chargement des images… ' + processed + '/' + imageFiles.length);
+    }
+
+    state.isLoadingImages = false;
+    uploadZone.classList.remove('loading');
+    setStatus(null);
+    updateGenerateBtn();
+}
+
+function removeImage(id) {
+    state.images = state.images.filter(img => img.id !== id);
+    renderImages();
+    updateGenerateBtn();
+}
+
+function renderImages() {
+    const grid = document.getElementById('images-grid');
+    grid.innerHTML = state.images.map(img => {
+        return '<div class="image-card">' +
+            '<img src="' + (img.thumbnail || img.dataUri) + '" alt="" loading="lazy">' +
+            '<button class="remove-btn" data-remove="' + img.id + '">✕</button>' +
+            '</div>';
+    }).join('');
+
+    grid.querySelectorAll('[data-remove]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            removeImage(parseFloat(btn.dataset.remove));
+        });
+    });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// RENDU — PRESETS
+// ══════════════════════════════════════════════════════════════════
+function renderPromptPresets() {
+    const container = document.getElementById('prompt-presets');
+    container.innerHTML = PROMPT_PRESETS.map((p, i) => {
+        return '<div class="prompt-preset" data-preset="' + i + '">' + esc(p.label) + '</div>';
+    }).join('');
+
+    container.querySelectorAll('.prompt-preset').forEach(el => {
+        el.addEventListener('click', () => {
+            const idx = parseInt(el.dataset.preset, 10);
+            const preset = PROMPT_PRESETS[idx];
+            if (!preset) return;
+            const ta = document.getElementById('main-prompt');
+            ta.value = preset.text;
+            state.mainPrompt = preset.text;
+            updateVisionDetect();
+            ta.focus();
+            showToast('Exemple appliqué', 'success', 1200);
+        });
+    });
+}
+
+function normalizeText(s) {
+    return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+function effectCardHtml(e) {
+    const badge = e.num
+        ? '<div class="style-num">' + e.num + '</div>'
+        : '<div class="style-emoji">' + e.emoji + '</div>';
+    return '<div class="style-card" data-effect="' + e.id + '" data-num="' + (e.num || '') + '"' +
+        ' data-search="' + esc(normalizeText(e.name + ' ' + e.desc)) + '">' +
+            badge +
+            '<div>' +
+                '<div class="style-name">' + esc(e.name) + '</div>' +
+                '<div class="style-desc">' + esc(e.desc) + '</div>' +
+            '</div>' +
+        '</div>';
+}
+
+function renderStyles() {
+    const container = document.getElementById('styles-grid');
+    let html = '';
+
+    html += '<input type="search" class="effect-search" id="effect-search" ' +
+        'placeholder="Chercher : 41, pluie, polar…" autocomplete="off" spellcheck="false">';
+    html += '<div class="effects-selected" id="effects-selected"></div>';
+    html += '<div class="effects-scroll" id="effects-scroll">';
+    html += '<div class="no-style-card" data-effect="none" id="no-style-card"></div>';
+
+    EFFECT_GROUPS.forEach(g => {
+        html += '<details class="effect-group" data-default-open="' + (g.open ? '1' : '0') + '"' + (g.open ? ' open' : '') + '>' +
+            '<summary><span>' + esc(g.name) + '</span><span class="group-count">' + g.ids.length + '</span></summary>' +
+            (g.note ? '<div class="style-category-desc">' + esc(g.note) + '</div>' : '') +
+            '<div class="styles-grid">' + g.ids.map(id => effectCardHtml(EFFECTS[id])).join('') + '</div>' +
+        '</details>';
+    });
+
+    html += '<div class="effects-empty" id="effects-empty" style="display:none;">Aucun effet ne correspond. Essayez un autre mot ou un numéro entre 1 et 400.</div>';
+    html += '</div>';
+
+    container.innerHTML = html;
+
+    container.addEventListener('click', onEffectClick);
+    document.getElementById('effect-search').addEventListener('input', e => filterEffects(e.target.value));
+
+    const total = Object.keys(EFFECTS).length;
+    const title = document.getElementById('effects-title');
+    if (title) title.textContent = '🎨 Effets visuels (' + total + ')';
+
+    updateEffectSelectionUI();
+}
+
+function onEffectClick(e) {
+    const el = e.target.closest('[data-effect]');
+    if (!el) return;
+    const id = el.dataset.effect;
+    if (id === 'none') {
+        state.selectedEffects = [];
+    } else {
+        const idx = state.selectedEffects.indexOf(id);
+        if (idx >= 0) {
+            state.selectedEffects.splice(idx, 1);
+        } else if (state.selectedEffects.length >= MAX_EFFECTS) {
+            showToast(MAX_EFFECTS + ' effets maximum : retirez-en un pour en ajouter un autre', 'warn', 2800);
+            return;
+        } else {
+            state.selectedEffects.push(id);
+        }
+    }
+    updateEffectSelectionUI();
+}
+
+function updateEffectSelectionUI() {
+    const container = document.getElementById('styles-grid');
+    if (!container) return;
+    const count = state.selectedEffects.length;
+
+    container.querySelectorAll('.style-card').forEach(card => {
+        card.classList.toggle('selected', state.selectedEffects.indexOf(card.dataset.effect) >= 0);
+    });
+
+    const none = document.getElementById('no-style-card');
+    if (none) {
+        none.classList.toggle('selected', count === 0);
+        none.textContent = count === 0
+            ? '✓ Aucun effet sélectionné — votre prompt seul gère les vidéos'
+            : '🚫 Retirer tous les effets (utiliser seulement mon prompt)';
+    }
+
+    const bar = document.getElementById('effects-selected');
+    if (bar) {
+        bar.innerHTML = count === 0
+            ? '<span class="effects-hint">Touchez jusqu\'à ' + MAX_EFFECTS + ' effets pour les combiner, par exemple un look, une scène et un mouvement de caméra.</span>'
+            : state.selectedEffects.map(id => {
+                const e = EFFECTS[id];
+                if (!e) return '';
+                return '<span class="effect-chip" data-effect="' + id + '">' +
+                    (e.num ? e.num + ' · ' : '') + esc(e.name) + ' ✕</span>';
+            }).join('');
+    }
+
+    const badge = document.getElementById('effects-badge');
+    if (badge) badge.textContent = count ? count + ' choisi' + (count > 1 ? 's' : '') : 'optionnel';
+}
+
+function filterEffects(query) {
+    const raw = String(query || '').trim();
+    const q = normalizeText(raw);
+    const isNumber = /^\d+$/.test(q);
+    let total = 0;
+
+    document.querySelectorAll('#styles-grid .effect-group').forEach(group => {
+        let visible = 0;
+        group.querySelectorAll('.style-card').forEach(card => {
+            let match = true;
+            if (q) match = isNumber ? card.dataset.num === q : card.dataset.search.indexOf(q) >= 0;
+            card.style.display = match ? '' : 'none';
+            if (match) visible++;
+        });
+        group.style.display = visible ? '' : 'none';
+        group.open = q ? visible > 0 : group.dataset.defaultOpen === '1';
+        total += visible;
+    });
+
+    const empty = document.getElementById('effects-empty');
+    if (empty) empty.style.display = total ? 'none' : 'block';
+}
+
+// ══════════════════════════════════════════════════════════════════
+// PERSONNAGES (fiches appelées avec @Nom) ET RÉPLIQUES
+// ══════════════════════════════════════════════════════════════════
+const CHARACTERS_STORAGE = 'atelier_characters_v1';
+const CHAR_PHOTO_MAX = 1024;
+const TAG_REGEX = /@([A-Za-zÀ-ÖØ-öø-ÿ0-9_-]+)/g;
+const NAME_REGEX = /^[A-Za-zÀ-ÖØ-öø-ÿ0-9_-]{1,30}$/;
+
+let characters = [];
+let charEditingId = null;
+let charFormPhoto = '';
+
+function loadCharacters() {
+    try {
+        const list = JSON.parse(localStorage.getItem(CHARACTERS_STORAGE) || '[]');
+        characters = Array.isArray(list) ? list : [];
+    } catch (e) { characters = []; }
+}
+
+function saveCharacters() {
+    try {
+        localStorage.setItem(CHARACTERS_STORAGE, JSON.stringify(characters));
+        return true;
+    } catch (e) {
+        showToast('Mémoire du navigateur pleine : retirez une photo ou un personnage', 'error', 3500);
+        return false;
+    }
+}
+
+function findCharacter(name) {
+    const n = normalizeText(name);
+    return characters.find(c => normalizeText(c.name) === n) || null;
+}
+
+function findTaggedCharacters(text) {
+    const found = [];
+    const unknown = [];
+    String(text || '').replace(TAG_REGEX, (m, name) => {
+        const c = findCharacter(name);
+        if (c) { if (found.indexOf(c) === -1) found.push(c); }
+        else if (unknown.indexOf(name) === -1) unknown.push(name);
+        return m;
+    });
+    return { found: found, unknown: unknown };
+}
+
+function replaceTags(text) {
+    return String(text || '').replace(TAG_REGEX, (m, name) => {
+        const c = findCharacter(name);
+        return c ? c.name : m;
+    });
+}
+
+// Répliques entre « … », “ … ” ou " … "
+function extractDialogue(text) {
+    const lines = [];
+    const re = /«\s*([^»]+?)\s*»|“([^”]+)”|"([^"]+)"/g;
+    let m;
+    while ((m = re.exec(String(text || ''))) !== null) {
+        const line = (m[1] || m[2] || m[3] || '').trim();
+        if (line) lines.push(line);
+    }
+    return lines;
+}
+
+function resizePhoto(dataUri, maxSize) {
+    return new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => {
+            try {
+                const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.round(img.width * scale);
+                canvas.height = Math.round(img.height * scale);
+                canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL('image/jpeg', 0.85));
+            } catch (e) { resolve(dataUri); }
+        };
+        img.onerror = () => resolve('');
+        img.src = dataUri;
+    });
+}
+
+function renderCharacters() {
+    const list = document.getElementById('char-list');
+    const badge = document.getElementById('characters-badge');
+    if (badge) badge.textContent = characters.length ? String(characters.length) : 'optionnel';
+    if (!list) return;
+
+    if (!characters.length) {
+        list.innerHTML = '<div class="char-empty">Aucun personnage pour l\'instant. Créez le premier ci-dessous.</div>';
+        return;
+    }
+
+    list.innerHTML = characters.map(c => {
+        const thumb = c.photo
+            ? '<img class="char-thumb" src="' + c.photo + '" alt="">'
+            : '<div class="char-thumb">' + esc(c.name.charAt(0).toUpperCase()) + '</div>';
+        return '<div class="char-card">' + thumb +
+            '<div class="char-info">' +
+                '<div class="char-tag">@' + esc(c.name) + '</div>' +
+                '<div class="char-desc">' + (c.desc ? esc(c.desc) : '<em>Sans description</em>') + '</div>' +
+                '<div class="char-actions">' +
+                    '<button type="button" class="char-btn" data-char-action="insert" data-char-id="' + c.id + '">Insérer @' + esc(c.name) + '</button>' +
+                    (c.photo ? '<button type="button" class="char-btn" data-char-action="animate" data-char-id="' + c.id + '">Animer sa photo</button>' : '') +
+                    '<button type="button" class="char-btn" data-char-action="edit" data-char-id="' + c.id + '">Modifier</button>' +
+                    '<button type="button" class="char-btn danger" data-char-action="delete" data-char-id="' + c.id + '">Supprimer</button>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+
+function onCharacterAction(e) {
+    const btn = e.target.closest('[data-char-action]');
+    if (!btn) return;
+    const c = characters.find(x => x.id === btn.dataset.charId);
+    if (!c) return;
+    const action = btn.dataset.charAction;
+
+    if (action === 'insert') {
+        insertIntoVision('@' + c.name);
+    } else if (action === 'animate') {
+        addCharacterPhotoToImages(c);
+    } else if (action === 'edit') {
+        startEditCharacter(c);
+    } else if (action === 'delete') {
+        if (!confirm('Supprimer la fiche @' + c.name + ' ?')) return;
+        const previous = characters;
+        characters = characters.filter(x => x.id !== c.id);
+        if (!saveCharacters()) { characters = previous; return; }
+        if (charEditingId === c.id) resetCharacterForm();
+        renderCharacters();
+        updateVisionDetect();
+        showToast('Fiche @' + c.name + ' supprimée', 'warn');
+    }
+}
+
+function insertIntoVision(text) {
+    const ta = document.getElementById('main-prompt');
+    if (!ta) return;
+    const start = typeof ta.selectionStart === 'number' ? ta.selectionStart : ta.value.length;
+    const end = typeof ta.selectionEnd === 'number' ? ta.selectionEnd : ta.value.length;
+    const before = ta.value.slice(0, start);
+    const after = ta.value.slice(end);
+    const sep = before && !/\s$/.test(before) ? ' ' : '';
+    ta.value = before + sep + text + ' ' + after;
+    state.mainPrompt = ta.value;
+    document.getElementById('section-prompt').classList.add('open');
+    const pos = (before + sep + text + ' ').length;
+    ta.focus();
+    try { ta.setSelectionRange(pos, pos); } catch (e) {}
+    updateVisionDetect();
+}
+
+function addCharacterPhotoToImages(c) {
+    if (!c.photo) return;
+    if (state.isRunning) {
+        showToast('Attendez la fin de la génération en cours', 'warn');
+        return;
+    }
+    state.images.push({ file: null, dataUri: c.photo, thumbnail: c.photo, id: Date.now() + Math.random() });
+    renderImages();
+    updateGenerateBtn();
+    const ta = document.getElementById('main-prompt');
+    const inVision = ta && findTaggedCharacters(ta.value).found.indexOf(c) >= 0;
+    showToast('Photo de @' + c.name + ' ajoutée aux images' +
+        (inVision ? '' : '. Ajoutez @' + c.name + ' dans votre vision pour sa description'), 'success', 3500);
+}
+
+function updateCharPhotoPreview() {
+    const img = document.getElementById('char-photo-preview');
+    const btn = document.getElementById('char-photo-btn');
+    const rm = document.getElementById('char-photo-remove');
+    if (!img || !btn || !rm) return;
+    if (charFormPhoto) {
+        img.src = charFormPhoto;
+        img.classList.remove('hidden');
+        rm.classList.remove('hidden');
+        btn.textContent = 'Changer la photo';
+    } else {
+        img.removeAttribute('src');
+        img.classList.add('hidden');
+        rm.classList.add('hidden');
+        btn.textContent = 'Choisir une photo';
+    }
+}
+
+function resetCharacterForm() {
+    charEditingId = null;
+    charFormPhoto = '';
+    document.getElementById('char-name').value = '';
+    document.getElementById('char-desc').value = '';
+    updateCharPhotoPreview();
+    document.getElementById('char-save-btn').textContent = 'Enregistrer le personnage';
+    document.getElementById('char-cancel-btn').classList.add('hidden');
+}
+
+function startEditCharacter(c) {
+    charEditingId = c.id;
+    charFormPhoto = c.photo || '';
+    document.getElementById('char-name').value = c.name;
+    document.getElementById('char-desc').value = c.desc || '';
+    updateCharPhotoPreview();
+    document.getElementById('char-save-btn').textContent = 'Mettre à jour @' + c.name;
+    document.getElementById('char-cancel-btn').classList.remove('hidden');
+    document.getElementById('char-name').focus();
+}
+
+async function onCharPhotoPicked(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file || !file.type.startsWith('image/')) return;
+    try {
+        const raw = await fileToDataUri(file);
+        charFormPhoto = await resizePhoto(raw, CHAR_PHOTO_MAX);
+        updateCharPhotoPreview();
+    } catch (err) {
+        showToast('Impossible de lire cette photo', 'error');
+    }
+}
+
+function saveCharacterFromForm() {
+    const nameInput = document.getElementById('char-name');
+    const name = nameInput.value.trim().replace(/^@/, '');
+    const desc = document.getElementById('char-desc').value.trim();
+
+    if (!NAME_REGEX.test(name)) {
+        showToast('Nom en un seul mot, sans espace (lettres, chiffres, - ou _)', 'error', 3200);
+        nameInput.focus();
+        return;
+    }
+    const existing = findCharacter(name);
+    if (existing && existing.id !== charEditingId) {
+        showToast('Une fiche @' + existing.name + ' existe déjà', 'error');
+        return;
+    }
+
+    const previous = characters;
+    const wasEditing = !!charEditingId;
+    if (wasEditing) {
+        characters = characters.map(x => x.id === charEditingId
+            ? { id: x.id, name: name, desc: desc, photo: charFormPhoto }
+            : x);
+    } else {
+        characters = characters.concat([{
+            id: 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+            name: name, desc: desc, photo: charFormPhoto
+        }]);
+    }
+    if (!saveCharacters()) { characters = previous; return; }
+
+    resetCharacterForm();
+    renderCharacters();
+    updateVisionDetect();
+    showToast(wasEditing ? 'Fiche @' + name + ' mise à jour' : 'Fiche @' + name + ' créée', 'success');
+}
+
+function updateVisionDetect() {
+    const box = document.getElementById('vision-detect');
+    const ta = document.getElementById('main-prompt');
+    if (!box || !ta) return;
+    const tags = findTaggedCharacters(ta.value);
+    const lines = extractDialogue(ta.value);
+    const out = [];
+    if (lines.length) {
+        out.push('<span class="ok">🗣️ ' + lines.length + ' réplique' + (lines.length > 1 ? 's détectées' : ' détectée') +
+            ' : le personnage bougera les lèvres (la voix n\'est pas garantie)</span>');
+    }
+    tags.found.forEach(c => out.push('<span class="ok">👤 @' + esc(c.name) + ' : fiche appliquée</span>'));
+    tags.unknown.forEach(n => out.push('<span class="warn">⚠️ @' + esc(n) + ' : aucune fiche à ce nom</span>'));
+    box.innerHTML = out.join('');
+}
+
+function initCharacters() {
+    loadCharacters();
+    renderCharacters();
+    document.getElementById('char-list').addEventListener('click', onCharacterAction);
+    document.getElementById('char-save-btn').addEventListener('click', saveCharacterFromForm);
+    document.getElementById('char-cancel-btn').addEventListener('click', resetCharacterForm);
+    document.getElementById('char-photo-btn').addEventListener('click', () => document.getElementById('char-photo-input').click());
+    document.getElementById('char-photo-input').addEventListener('change', onCharPhotoPicked);
+    document.getElementById('char-photo-remove').addEventListener('click', () => { charFormPhoto = ''; updateCharPhotoPreview(); });
+    document.getElementById('char-name').addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); saveCharacterFromForm(); }
+    });
+    updateVisionDetect();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// CONSTRUCTION DU PROMPT
+// ══════════════════════════════════════════════════════════════════
+function resolveSelectedEffects() {
+    const chosen = [];
+    state.selectedEffects.forEach(id => {
+        const e = EFFECTS[id];
+        if (!e) return;
+        chosen.push(e.random ? pickRandomEffect(e.random) : e);
+    });
+    return chosen;
+}
+
+function buildPrompt() {
+    const effects = resolveSelectedEffects();
+    const isStylize = effects.some(e => e.mode === 'style');
+    const isAction = !isStylize && effects.some(e => e.mode === 'action');
+    const vision = (state.mainPrompt || '').trim();
+    const tagged = findTaggedCharacters(vision).found;
+    const dialogue = extractDialogue(vision);
+    const visionText = replaceTags(vision);
+    // Une réplique devient l'action du personnage : pas d'action tirée au hasard
+    const owns = effects.map(e => e.owns).join('') + (dialogue.length ? 'a' : '');
+    const hasVoice = dialogue.length > 0 || effects.some(e => e.sound === 'v');
+    const hasMusic = effects.some(e => e.sound === 'm');
+    const hasUserPrompt = visionText.length > 0;
+
+    const parts = [];
+
+    if (isStylize) {
+        parts.push('Animate this image as the starting frame. Transform the entire image into the following artistic style:');
+    } else if (isAction) {
+        parts.push(
+            'Animate this image as the starting frame. ' +
+            'Keep the subject recognizable: same face, same identity, same clothing as in the input image. ' +
+            'The scene comes alive with the motion, camera work and visual elements described below, ' +
+            'while staying consistent with the source image.'
+        );
+    } else {
+        parts.push(
+            'Animate this exact image as the starting frame. ' +
+            'The subject must remain IDENTICAL to the input image: same face, same expression, same clothing, same pose, same identity. ' +
+            'This is a CONTINUATION of the source image, not a re-imagination. ' +
+            'Preserve the exact composition, framing, and layout of the original image. ' +
+            'The camera does NOT change the subject. Only subtle motion, breathing, light, and atmosphere are animated.'
+        );
+    }
+
+    effects.forEach(e => { if (e.prompt) parts.push(e.prompt); });
+    if (isStylize) {
+        parts.push('Maintain the same subject, pose, and composition as the source image, but reinterpret everything in this new style.');
+    }
+
+    tagged.forEach(c => {
+        parts.push('Recurring character ' + c.name + (c.desc ? ': ' + c.desc : '') +
+            '. Keep ' + c.name + '\'s face, hairstyle, body shape and outfit exactly the same in every frame');
+    });
+
+    if (dialogue.length) {
+        parts.push('Spoken dialogue: the character says the following words aloud, with clearly visible lip movements ' +
+            'matching each syllable and natural facial expressions, in the language they are written in: ' +
+            dialogue.map(l => '"' + l + '"').join(', then '));
+    }
+
+    if (hasUserPrompt) {
+        if (isStylize) {
+            parts.push('Additional artistic direction (applied on top of the style): ' + visionText);
+        } else if (isAction) {
+            parts.push('Artistic direction (highest priority, must not change the subject identity): ' + visionText);
+        } else {
+            parts.push('Artistic direction (highest priority, must not change the subject identity or composition): ' + visionText);
+        }
+    }
+
+    if (state.framing !== 'random' && FRAMING_PRESETS[state.framing]) {
+        parts.push(FRAMING_PRESETS[state.framing]);
+    }
+
+    if (state.intensity !== 'random' && INTENSITY_PRESETS[state.intensity]) {
+        parts.push(INTENSITY_PRESETS[state.intensity]);
+    } else {
+        parts.push('moderate movement, clear but controlled motion');
+    }
+
+    // Un effet qui gère l'action, la caméra ou la lumière désactive le tirage au hasard correspondant
+    if (owns.indexOf('a') === -1) parts.push(randomItem(RANDOM_ACTIONS));
+    if (owns.indexOf('c') === -1) parts.push(randomItem(RANDOM_CAMERA));
+    if (owns.indexOf('l') === -1) parts.push(randomItem(RANDOM_LIGHTING));
+
+    if (hasVoice) {
+        parts.push('Sound design: natural voice with realistic lip sync, soft room tone, no music');
+    } else if (hasMusic) {
+        parts.push('Sound design: music matching the mood and rhythm of the scene, no dialogue');
+    } else {
+        parts.push('Sound design: minimal foley, soft ambient textures, no music, no instruments, no dialogue');
+    }
+    parts.push('Portrait orientation 9:16 vertical, 24fps, no text, no subtitles, no watermarks, consistent character design with the source image');
+
+    const labelParts = effects.map(e => (e.num ? e.num + ' ' : '') + e.name)
+        .concat(tagged.map(c => '@' + c.name))
+        .concat(dialogue.length ? ['réplique'] : []);
+
+    return {
+        prompt: parts.join('. '),
+        label: labelParts.join(' + '),
+        negative: tagged.length
+            ? 'face changing between frames, identity drift, face morphing, different person, inconsistent outfit'
+            : ''
+    };
+}
+
+// ══════════════════════════════════════════════════════════════════
+// API AGNES
+// ══════════════════════════════════════════════════════════════════
+async function apiFetch(url, options = {}, label = 'API') {
+    for (let attempt = 0; attempt < 7; attempt++) {
+        if (state.stopRequested) throw new Error('Arrêt demandé');
+        try {
+            const res = await fetch(url, options);
+            if (res.status === 429) {
+                state.creationAttemptsSinceLastError = 0;
+                if (createIntervalMs < CREATE_INTERVAL_SAFE) {
+                    createIntervalMs = Math.min(createIntervalMs + 8000, CREATE_INTERVAL_MAX);
+                    log('429 détecté → intervalle porté à ' + (createIntervalMs / 1000) + 's');
+                }
+                const wait = [15, 30, 45, 60, 90, 120, 180][Math.min(attempt, 6)];
+                log(label + ' : 429, attente ' + wait + 's');
+                setStatus('L\'intelligence artificielle se prépare… (' + wait + 's)');
+                await sleep(wait * 1000);
+                continue;
+            }
+            if (res.status === 503) {
+                const wait = [5, 10, 15, 20, 30, 45][Math.min(attempt, 5)];
+                log(label + ' : 503, attente ' + wait + 's');
+                setStatus('Votre vidéo se prépare… (' + wait + 's)');
+                await sleep(wait * 1000);
+                continue;
+            }
+            if (res.ok && createIntervalMs > CREATE_INTERVAL_MIN) {
+                state.creationAttemptsSinceLastError++;
+                if (state.creationAttemptsSinceLastError >= 3) {
+                    createIntervalMs = Math.max(createIntervalMs - 4000, CREATE_INTERVAL_MIN);
+                    state.creationAttemptsSinceLastError = 0;
+                    log('3 succès consécutifs → intervalle ramené à ' + (createIntervalMs / 1000) + 's');
+                }
+            }
+            return res;
+        } catch (e) {
+            if (e.message === 'Arrêt demandé') throw e;
+            const wait = [3, 5, 8, 12, 20, 30][Math.min(attempt, 5)];
+            log(label + ' : réseau, retry ' + wait + 's');
+            setStatus('Connexion en cours… (' + wait + 's)');
+            await sleep(wait * 1000);
+        }
+    }
+    return fetch(url, options);
+}
+
+async function createVideoTask(imageDataUri, prompt, negativePrompt) {
+    const body = {
+        model: MODEL_VIDEO,
+        prompt: prompt,
+        image: imageDataUri,
+        num_frames: state.durationFrames,
+        frame_rate: FRAME_RATE
+    };
+    if (negativePrompt) body.negative_prompt = negativePrompt;
+
+    const res = await apiFetch(API_BASE + '/videos', {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + getApiKey(),
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+    }, 'Création');
+
+    if (!res.ok) {
+        const err = await res.text();
+        throw new Error('HTTP ' + res.status + ' — ' + err.slice(0, 200));
+    }
+
+    const data = await res.json();
+    const videoId = data.video_id || data.id || data.task_id;
+    if (!videoId) throw new Error('Pas de video_id retourné');
+    return videoId;
+}
+
+async function pollVideo(videoId, onProgress) {
+    const estimatedMs = estimateGenerationTime(state.durationFrames);
+    const estimatedSec = estimatedMs / 1000;
+
+    let remaining = Math.max(20, Math.floor(estimatedSec * 0.8));
+    while (remaining > 0) {
+        if (state.stopRequested) throw new Error('Arrêt demandé');
+        onProgress('Votre vidéo se prépare… — ' + remaining + 's');
+        await sleep(1000);
+        remaining--;
+    }
+
+    for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
+        if (state.stopRequested) throw new Error('Arrêt demandé');
+        if (attempt > 0) {
+            let r = POLL_INTERVAL_SEC;
+            while (r > 0) {
+                if (state.stopRequested) throw new Error('Arrêt demandé');
+                onProgress('L\'image prend vie… — ' + r + 's');
+                await sleep(1000);
+                r--;
+            }
+        }
+
+        const url = POLL_BASE + '?video_id=' + encodeURIComponent(videoId) + '&model_name=' + encodeURIComponent(MODEL_VIDEO);
+        const res = await apiFetch(url, {
+            method: 'GET',
+            headers: { 'Authorization': 'Bearer ' + getApiKey() }
+        }, 'Polling');
+
+        const d = await res.json();
+        const status = d.status || 'unknown';
+        const progress = d.progress || 0;
+        onProgress('Création en cours… — ' + progress + '%');
+
+        if (status === 'completed' || status === 'succeeded' || status === 'done') {
+            const videoUrl = (d.metadata && d.metadata.url) || d.url || (d.output && d.output.url) || d.remixed_from_video_id;
+            if (!videoUrl) throw new Error('Terminé mais pas d\'URL');
+            return videoUrl;
+        }
+        if (status === 'failed' || status === 'error' || status === 'cancelled') {
+            throw new Error('Échec (' + status + ')');
+        }
+    }
+    throw new Error('Délai maximal dépassé');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// FILE D'ATTENTE
+// ══════════════════════════════════════════════════════════════════
+function renderQueue() {
+    const queueEl = document.getElementById('queue');
+    if (!state.queue.length) { queueEl.style.display = 'none'; return; }
+    queueEl.style.display = 'block';
+
+    const total = state.queue.length;
+    const done = state.completed + state.failed;
+    const inProgress = state.queue.filter(q => q.status === 'processing').length;
+    const pending = total - done - inProgress;
+
+    const estGen = estimateGenerationTime(state.durationFrames) / 1000;
+    const remainingCreates = pending;
+    const eta = remainingCreates > 0
+        ? (remainingCreates * (createIntervalMs / 1000)) + estGen
+        : (inProgress * estGen / Math.max(inProgress, 1));
+
+    let html = '<div class="queue-summary">' +
+        '<span class="progress-text">Progression : ' + done + '/' + total + '</span>' +
+        '<span class="eta-text">' + (done < total ? '≈ ' + formatEta(eta) + ' restant' : 'Terminé') + '</span>' +
+        '</div>';
+
+    const visible = state.queue.slice(0, MAX_VISIBLE_QUEUE);
+    const hidden = state.queue.length - visible.length;
+
+    html += visible.map(item => {
+        let icon = '○', statusText = 'En file d\'attente', cls = 'pending';
+        if (item.status === 'creating') { icon = '◐'; statusText = 'Préparation…'; cls = 'creating'; }
+        else if (item.status === 'processing') { icon = '◐'; statusText = item.progress || 'En cours…'; cls = 'processing'; }
+        else if (item.status === 'done') { icon = '●'; statusText = 'Terminé'; cls = 'done'; }
+        else if (item.status === 'failed') { icon = '✕'; statusText = 'Échec'; cls = 'failed'; }
+
+        return '<div class="queue-item ' + cls + '">' +
+            '<div class="q-icon">' + icon + '</div>' +
+            '<div class="q-name">Image ' + (item.imageIndex + 1) + '</div>' +
+            '<div class="q-status">' + esc(statusText) + '</div>' +
+        '</div>';
+    }).join('');
+
+    if (hidden > 0) {
+        html += '<div class="queue-more">… et ' + hidden + ' autre' + (hidden > 1 ? 's' : '') + ' image' + (hidden > 1 ? 's' : '') + '</div>';
+    }
+
+    queueEl.innerHTML = html;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// GALERIE
+// ══════════════════════════════════════════════════════════════════
+function addToGallery(videoUrl, label) {
+    const galleryEl = document.getElementById('gallery');
+    const galleryGrid = document.getElementById('gallery-grid');
+    galleryEl.style.display = 'block';
+    const el = document.createElement('div');
+    el.className = 'gallery-item';
+    el.innerHTML = '<video controls preload="metadata" muted playsinline>' +
+        '<source src="' + videoUrl + '" type="video/mp4">' +
+        '</video>' +
+        '<div class="g-caption">' + esc(label) + '</div>' +
+        '<div class="g-actions">' +
+            '<button type="button" class="g-btn" data-save-url="' + esc(videoUrl) + '" data-save-label="' + esc(label) + '">💾 Enregistrer</button>' +
+        '</div>';
+    galleryGrid.appendChild(el);
+    libraryAdd(videoUrl, label);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// PIPELINE
+// ══════════════════════════════════════════════════════════════════
+async function createTaskOnly(item) {
+    item.status = 'creating';
+    item.progress = 'Préparation…';
+    renderQueue();
+
+    const built = buildPrompt();
+    const prompt = built.prompt;
+    item.prompt = prompt;
+    item.effectLabel = built.label;
+
+    log('[Image ' + (item.imageIndex + 1) + '] Création…');
+    const videoId = await createVideoTask(item.image.dataUri, prompt, built.negative);
+    item.videoId = videoId;
+    item.startTime = Date.now();
+    rememberPendingJob(videoId, 'Image ' + (item.imageIndex + 1) + (built.label ? ' · ' + built.label : ''));
+    item.status = 'processing';
+    item.progress = 'En cours…';
+    renderQueue();
+
+    log('[Image ' + (item.imageIndex + 1) + '] Tâche créée : ' + String(videoId).slice(0, 30) + '…');
+    return videoId;
+}
+
+async function pollTaskAndDisplay(item) {
+    try {
+        const videoUrl = await pollVideo(item.videoId, (prog) => {
+            item.progress = prog;
+            renderQueue();
+        });
+
+        const elapsed = Date.now() - item.startTime;
+        recordGenerationTime(state.durationFrames, elapsed);
+        log('[Image ' + (item.imageIndex + 1) + '] Terminée en ' + (elapsed / 1000).toFixed(1) + 's');
+
+        item.status = 'done';
+        item.videoUrl = videoUrl;
+        item.progress = 'Terminé';
+        state.completed++;
+        renderQueue();
+        updateGenerateBtn();
+
+        addToGallery(videoUrl, 'Image ' + (item.imageIndex + 1) + (item.effectLabel ? ' · ' + item.effectLabel : ''));
+        forgetPendingJob(item.videoId);
+    } catch (e) {
+        forgetPendingJob(item.videoId);
+        if (e.message === 'Arrêt demandé') {
+            item.status = 'failed';
+            item.progress = 'Arrêté';
+        } else {
+            log('[Image ' + (item.imageIndex + 1) + '] ' + e.message);
+            item.status = 'failed';
+            item.progress = 'Échec';
+            state.failed++;
+        }
+        renderQueue();
+        updateGenerateBtn();
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// WORKFLOW PRINCIPAL
+// ══════════════════════════════════════════════════════════════════
+async function startGeneration() {
+    if (state.isRunning || !state.images.length) return;
+    if (!getApiKey()) {
+        showToast('Ajoutez d\'abord votre clé API', 'error');
+        document.getElementById('api-key-input').focus();
+        return;
+    }
+
+    state.mainPrompt = document.getElementById('main-prompt').value.trim();
+
+    if (!state.mainPrompt && state.selectedEffects.length === 0) {
+        if (!confirm('Ni prompt ni effet sélectionné. Continuer avec un style aléatoire ?')) {
+            return;
+        }
+    }
+
+    state.isRunning = true;
+    state.stopRequested = false;
+    state.completed = 0;
+    state.failed = 0;
+    state.creationAttemptsSinceLastError = 0;
+
+    createIntervalMs = CREATE_INTERVAL_MIN;
+
+    state.queue = state.images.map((img, i) => ({
+        imageIndex: i,
+        image: img,
+        status: 'pending',
+        progress: null,
+        videoId: null,
+        videoUrl: null,
+        prompt: null,
+        startTime: null
+    }));
+
+    document.getElementById('gallery-grid').innerHTML = '';
+    document.getElementById('gallery').style.display = 'none';
+
+    document.getElementById('stop-btn').classList.add('visible');
+    document.getElementById('generate-btn').disabled = true;
+
+    // Activer l'anti-veille pendant la génération
+    await ensureWakeLockActive();
+
+    renderQueue();
+    updateGenerateBtn();
+
+    log('Démarrage — ' + state.images.length + ' vidéos');
+    log('Prompt principal : ' + (state.mainPrompt ? '"' + state.mainPrompt.slice(0, 60) + '…"' : '(vide)'));
+    log('Effets : ' + (state.selectedEffects.length
+        ? state.selectedEffects.map(id => EFFECTS[id] ? EFFECTS[id].name : id).join(' + ')
+        : 'aucun'));
+
+    const totalStart = Date.now();
+    const pollingTasks = [];
+
+    try {
+        for (let i = 0; i < state.queue.length; i++) {
+            if (state.stopRequested) break;
+
+            const item = state.queue[i];
+
+            try {
+                await createTaskOnly(item);
+                pollingTasks.push(pollTaskAndDisplay(item));
+            } catch (e) {
+                if (e.message === 'Arrêt demandé') break;
+                log('[Image ' + (i + 1) + '] Échec création : ' + e.message);
+                item.status = 'failed';
+                item.progress = 'Échec';
+                state.failed++;
+                renderQueue();
+                updateGenerateBtn();
+            }
+
+            if (i < state.queue.length - 1 && !state.stopRequested) {
+                const waitSec = Math.ceil(createIntervalMs / 1000);
+                for (let r = waitSec; r > 0; r--) {
+                    if (state.stopRequested) break;
+                    const nextNum = i + 2;
+                    setStatus('Respiration créative… — Image ' + nextNum + '/' + state.queue.length + ' dans ' + r + 's');
+                    await sleep(1000);
+                }
+            }
+        }
+
+        if (pollingTasks.length > 0) {
+            setStatus('Finalisation…');
+            await Promise.allSettled(pollingTasks);
+        }
+    } catch (e) {
+        log('Erreur globale : ' + e.message);
+    }
+
+    const totalElapsed = (Date.now() - totalStart) / 1000;
+    const summary = state.stopRequested
+        ? 'Arrêté — ' + state.completed + '/' + state.queue.length + ' vidéos'
+        : '✦ ' + state.completed + '/' + state.queue.length + ' vidéos créées en ' + formatEta(totalElapsed) + ' ✦';
+
+    log(summary);
+    setStatus(summary);
+    await sleep(4000);
+    setStatus(null);
+
+    state.isRunning = false;
+    state.stopRequested = false;
+    document.getElementById('stop-btn').classList.remove('visible');
+    updateGenerateBtn();
+
+    showToast(state.completed + ' vidéo' + (state.completed > 1 ? 's' : '') + ' créée' + (state.completed > 1 ? 's' : ''), 'success');
+}
+
+function stopGeneration() {
+    if (!state.isRunning) return;
+    state.stopRequested = true;
+    log('Arrêt demandé par l\'utilisateur');
+    setStatus('Arrêt en cours…');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// BIBLIOTHÈQUE — vidéos enregistrées dans l'appli (IndexedDB)
+// ══════════════════════════════════════════════════════════════════
+// Chaque vidéo terminée est téléchargée et gardée dans l'appli, pour
+// qu'elle reste disponible même si le lien du serveur expire ou si
+// l'appli est fermée. Si le serveur refuse le téléchargement direct,
+// seul le lien est gardé.
+const VIDEO_DB_NAME = 'atelier_videos';
+const VIDEO_DB_STORE = 'videos';
+const AUTOSAVE_PREF = 'atelier_autosave_phone';
+const VIDEO_FETCH_TIMEOUT_MS = 120000;
+
+let videoDbPromise = null;
+let libraryObjectUrls = [];
+let autoSaveEnabled = false;
+
+function isIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function openVideoDb() {
+    if (videoDbPromise) return videoDbPromise;
+    videoDbPromise = new Promise((resolve, reject) => {
+        if (!('indexedDB' in window)) { reject(new Error('IndexedDB indisponible')); return; }
+        const req = indexedDB.open(VIDEO_DB_NAME, 1);
+        req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains(VIDEO_DB_STORE)) {
+                db.createObjectStore(VIDEO_DB_STORE, { keyPath: 'id' });
+            }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error || new Error('Ouverture impossible'));
+    });
+    videoDbPromise.catch(() => { videoDbPromise = null; });
+    return videoDbPromise;
+}
+
+function dbRequest(mode, fn) {
+    return openVideoDb().then(db => new Promise((resolve, reject) => {
+        const tx = db.transaction(VIDEO_DB_STORE, mode);
+        const req = fn(tx.objectStore(VIDEO_DB_STORE));
+        tx.oncomplete = () => resolve(req ? req.result : undefined);
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error || new Error('Transaction annulée'));
+    }));
+}
+function dbGetAllVideos() { return dbRequest('readonly', s => s.getAll()).then(r => r || []); }
+function dbGetVideo(id) { return dbRequest('readonly', s => s.get(id)); }
+function dbPutVideo(rec) { return dbRequest('readwrite', s => s.put(rec)); }
+function dbDeleteVideo(id) { return dbRequest('readwrite', s => s.delete(id)); }
+
+async function fetchVideoBlob(url) {
+    const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), VIDEO_FETCH_TIMEOUT_MS) : null;
+    try {
+        const res = await fetch(url, ctrl ? { signal: ctrl.signal } : {});
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const blob = await res.blob();
+        if (!blob || !blob.size) throw new Error('Vidéo vide');
+        return blob.type ? blob : new Blob([blob], { type: 'video/mp4' });
+    } finally {
+        if (timer) clearTimeout(timer);
+    }
+}
+
+function videoFileName(rec) {
+    const d = new Date(rec.created || Date.now());
+    const p = n => String(n).padStart(2, '0');
+    const slug = normalizeText(rec.label || 'video').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+    return 'atelier-' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' +
+        p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + (slug ? '-' + slug : '') + '.mp4';
+}
+
+async function libraryAdd(videoUrl, label) {
+    try {
+        const all = await dbGetAllVideos();
+        if (all.some(r => r.url === videoUrl)) return;
+        const rec = {
+            id: 'v' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+            url: videoUrl, label: label || 'Vidéo', created: Date.now(), blob: null, copied: false
+        };
+        await dbPutVideo(rec);
+        if (navigator.storage && navigator.storage.persist) {
+            navigator.storage.persist().catch(() => {});
+        }
+        renderLibrary();
+        try {
+            rec.blob = await fetchVideoBlob(videoUrl);
+            await dbPutVideo(rec);
+            renderLibrary();
+        } catch (e) {
+            log('Vidéo gardée en lien seulement (' + e.message + ')');
+        }
+        if (autoSaveEnabled) {
+            await sleep(300);
+            saveVideoToPhone(rec, true);
+        }
+    } catch (e) {
+        log('Bibliothèque indisponible : ' + e.message);
+    }
+}
+
+function triggerDownload(href, fileName) {
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = fileName;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+}
+
+// Enregistre la vidéo sur le téléphone : feuille de partage (« Enregistrer
+// la vidéo » → galerie Photos sur iPhone, Galerie / Fichiers sur Android)
+// ou téléchargement direct (dossier Téléchargements, visible dans la galerie).
+async function saveVideoToPhone(rec, automatic) {
+    let blob = rec.blob;
+    if (!blob) {
+        try {
+            blob = await fetchVideoBlob(rec.url);
+            rec.blob = blob;
+            if (rec.id) dbPutVideo(rec).then(renderLibrary).catch(() => {});
+        } catch (e) {
+            blob = null;
+        }
+    }
+    const fileName = videoFileName(rec);
+
+    if (!blob) {
+        if (automatic) return false;
+        // Le serveur n'autorise pas la copie directe : on ouvre la vidéo,
+        // appui long dessus → « Télécharger la vidéo » / « Enregistrer ».
+        window.open(rec.url, '_blank', 'noopener');
+        showToast('Vidéo ouverte : appui long dessus puis « Télécharger »', 'warn', 4500);
+        return false;
+    }
+
+    if (!automatic && navigator.canShare && navigator.share) {
+        try {
+            const file = new File([blob], fileName, { type: blob.type || 'video/mp4' });
+            if (navigator.canShare({ files: [file] })) {
+                await navigator.share({ files: [file], title: rec.label || 'Atelier Vidéo' });
+                markCopied(rec);
+                return true;
+            }
+        } catch (e) {
+            if (e && e.name === 'AbortError') return false;
+            log('Partage impossible, téléchargement : ' + (e && e.message));
+        }
+    }
+
+    const objectUrl = URL.createObjectURL(blob);
+    triggerDownload(objectUrl, fileName);
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+    markCopied(rec);
+    showToast(automatic ? 'Vidéo copiée sur le téléphone' : 'Vidéo enregistrée sur le téléphone', 'success', 2200);
+    return true;
+}
+
+function markCopied(rec) {
+    if (!rec.id || rec.copied) return;
+    rec.copied = true;
+    dbPutVideo(rec).then(renderLibrary).catch(() => {});
+}
+
+async function renderLibrary() {
+    const wrap = document.getElementById('library');
+    const grid = document.getElementById('library-grid');
+    const badge = document.getElementById('library-badge');
+    if (!wrap || !grid) return;
+    let list = [];
+    try { list = await dbGetAllVideos(); } catch (e) { wrap.style.display = 'none'; return; }
+    list.sort((a, b) => b.created - a.created);
+
+    libraryObjectUrls.forEach(u => URL.revokeObjectURL(u));
+    libraryObjectUrls = [];
+
+    wrap.style.display = list.length ? 'block' : 'none';
+    if (badge) badge.textContent = String(list.length);
+
+    grid.innerHTML = list.map(rec => {
+        let src = rec.url;
+        if (rec.blob) {
+            src = URL.createObjectURL(rec.blob);
+            libraryObjectUrls.push(src);
+        }
+        const date = new Date(rec.created).toLocaleString('fr-FR', {
+            day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+        return '<div class="library-item">' +
+            '<video controls preload="metadata" muted playsinline src="' + esc(src) + '"></video>' +
+            '<div class="g-caption">' + esc(rec.label) +
+                '<span class="g-date">' + esc(date) + (rec.blob ? ' · dans l\'appli' : ' · lien en ligne') +
+                (rec.copied ? ' · ✓ copiée' : '') + '</span></div>' +
+            '<div class="g-actions">' +
+                '<button type="button" class="g-btn" data-lib-save="' + rec.id + '">💾 Enregistrer</button>' +
+                '<button type="button" class="g-btn danger" data-lib-delete="' + rec.id + '">🗑</button>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+
+async function onLibraryClick(e) {
+    const saveBtn = e.target.closest('[data-lib-save]');
+    const delBtn = e.target.closest('[data-lib-delete]');
+    if (saveBtn) {
+        const rec = await dbGetVideo(saveBtn.dataset.libSave).catch(() => null);
+        if (rec) saveVideoToPhone(rec, false);
+    } else if (delBtn) {
+        if (!confirm('Supprimer cette vidéo de l\'appli ? (les copies déjà enregistrées sur le téléphone restent)')) return;
+        await dbDeleteVideo(delBtn.dataset.libDelete).catch(() => {});
+        renderLibrary();
+        showToast('Vidéo supprimée de l\'appli', 'warn');
+    }
+}
+
+async function onGalleryClick(e) {
+    const btn = e.target.closest('[data-save-url]');
+    if (!btn) return;
+    const url = btn.dataset.saveUrl;
+    let rec = null;
+    try { rec = (await dbGetAllVideos()).find(r => r.url === url) || null; } catch (err) {}
+    saveVideoToPhone(rec || { url: url, label: btn.dataset.saveLabel, created: Date.now(), blob: null }, false);
+}
+
+async function saveAllToPhone() {
+    let list = [];
+    try { list = await dbGetAllVideos(); } catch (e) {}
+    if (!list.length) return;
+    list.sort((a, b) => a.created - b.created);
+    showToast('Copie de ' + list.length + ' vidéo' + (list.length > 1 ? 's' : '') + '…', 'success', 2000);
+    let missed = 0;
+    for (const rec of list) {
+        if (!(await saveVideoToPhone(rec, true))) missed++;
+        await sleep(800);
+    }
+    if (missed) {
+        showToast(missed + ' vidéo' + (missed > 1 ? 's' : '') + ' à enregistrer une par une (bouton « Enregistrer »)', 'warn', 4000);
+    }
+}
+
+function updateAutoSaveStatus() {
+    const el = document.getElementById('autosave-status');
+    const txt = document.getElementById('autosave-status-text');
+    const btn = document.getElementById('autosave-toggle-btn');
+    if (!el || !txt || !btn) return;
+    el.classList.toggle('active', autoSaveEnabled);
+    txt.textContent = autoSaveEnabled
+        ? '💾 Chaque vidéo est copiée automatiquement sur le téléphone'
+        : '💾 Vidéos gardées dans l\'appli · copie sur le téléphone avec « Enregistrer »';
+    btn.textContent = autoSaveEnabled ? 'Désactiver' : 'Copier automatiquement';
+}
+
+function toggleAutoSave() {
+    autoSaveEnabled = !autoSaveEnabled;
+    try { localStorage.setItem(AUTOSAVE_PREF, autoSaveEnabled ? '1' : '0'); } catch (e) {}
+    updateAutoSaveStatus();
+    showToast(autoSaveEnabled ? 'Copie automatique activée' : 'Copie automatique désactivée',
+        autoSaveEnabled ? 'success' : 'warn');
+}
+
+// ══════════════════════════════════════════════════════════════════
+// RÉCUPÉRATION — vidéos lancées avant une fermeture de l'appli
+// ══════════════════════════════════════════════════════════════════
+const PENDING_JOBS_KEY = 'atelier_pending_jobs_v1';
+const PENDING_JOB_MAX_AGE_MS = 24 * 3600 * 1000;
+
+function loadPendingJobs() {
+    try {
+        const list = JSON.parse(localStorage.getItem(PENDING_JOBS_KEY) || '[]');
+        return Array.isArray(list) ? list : [];
+    } catch (e) { return []; }
+}
+function savePendingJobs(list) {
+    try { localStorage.setItem(PENDING_JOBS_KEY, JSON.stringify(list)); } catch (e) {}
+}
+function rememberPendingJob(videoId, label) {
+    const list = loadPendingJobs().filter(j => j.videoId !== videoId);
+    list.push({ videoId: videoId, label: label, created: Date.now() });
+    savePendingJobs(list);
+}
+function forgetPendingJob(videoId) {
+    if (!videoId) return;
+    savePendingJobs(loadPendingJobs().filter(j => j.videoId !== videoId));
+}
+
+async function recoverPendingJobs() {
+    const jobs = loadPendingJobs().filter(j => Date.now() - j.created < PENDING_JOB_MAX_AGE_MS);
+    savePendingJobs(jobs);
+    if (!jobs.length || !getApiKey()) return;
+
+    showToast('Récupération de ' + jobs.length + ' vidéo' + (jobs.length > 1 ? 's' : '') + ' lancée' +
+        (jobs.length > 1 ? 's' : '') + ' avant la fermeture…', 'success', 3500);
+
+    await Promise.allSettled(jobs.map(async job => {
+        for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
+            if (attempt > 0) await sleep(POLL_INTERVAL_SEC * 1000);
+            let d;
+            try {
+                const url = POLL_BASE + '?video_id=' + encodeURIComponent(job.videoId) + '&model_name=' + encodeURIComponent(MODEL_VIDEO);
+                const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + getApiKey() } });
+                if (res.status === 429 || res.status === 503) continue;
+                if (res.status === 404) { forgetPendingJob(job.videoId); return; }
+                d = await res.json();
+            } catch (e) {
+                continue;
+            }
+            const status = d.status || 'unknown';
+            if (status === 'completed' || status === 'succeeded' || status === 'done') {
+                const videoUrl = (d.metadata && d.metadata.url) || d.url || (d.output && d.output.url) || d.remixed_from_video_id;
+                forgetPendingJob(job.videoId);
+                if (videoUrl) {
+                    await libraryAdd(videoUrl, job.label);
+                    showToast('Vidéo récupérée : ' + job.label, 'success', 2500);
+                }
+                return;
+            }
+            if (status === 'failed' || status === 'error' || status === 'cancelled') {
+                forgetPendingJob(job.videoId);
+                return;
+            }
+        }
+    }));
+}
+
+// ══════════════════════════════════════════════════════════════════
+// INSTALLATION SUR LE TÉLÉPHONE + FONCTIONNEMENT HORS LIGNE
+// ══════════════════════════════════════════════════════════════════
+let deferredInstallPrompt = null;
+
+function isStandalone() {
+    return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+        window.navigator.standalone === true;
+}
+
+function updateInstallStatus() {
+    const el = document.getElementById('install-status');
+    const txt = document.getElementById('install-status-text');
+    const btn = document.getElementById('install-btn');
+    if (!el || !txt || !btn) return;
+    if (isStandalone()) { el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    if (deferredInstallPrompt) {
+        txt.textContent = '📲 Installez l\'appli sur votre téléphone';
+        btn.classList.remove('hidden');
+    } else if (isIOS()) {
+        txt.textContent = '📲 Pour installer : bouton Partager ⬆️ puis « Sur l\'écran d\'accueil »';
+        btn.classList.add('hidden');
+    } else {
+        txt.textContent = '📲 Pour installer : menu ⋮ du navigateur puis « Installer l\'application »';
+        btn.classList.add('hidden');
+    }
+}
+
+window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    updateInstallStatus();
+});
+window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    updateInstallStatus();
+    showToast('Appli installée sur l\'écran d\'accueil', 'success');
+});
+
+async function promptInstall() {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    try { await deferredInstallPrompt.userChoice; } catch (e) {}
+    deferredInstallPrompt = null;
+    updateInstallStatus();
+}
+
+function registerServiceWorker() {
+    if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
+    navigator.serviceWorker.register('sw.js').catch(e => log('Service worker : ' + e.message));
+}
+
+// ══════════════════════════════════════════════════════════════════
+// INITIALISATION
+// ══════════════════════════════════════════════════════════════════
+(function init() {
+    // Bouton Enregistrer la clé
+    const saveBtn = document.getElementById('api-save-btn');
+    if (saveBtn) {
+        saveBtn.addEventListener('click', saveApiKey);
+    }
+
+    // Bouton Arrêter
+    const stopBtn = document.getElementById('stop-btn');
+    if (stopBtn) {
+        stopBtn.addEventListener('click', stopGeneration);
+    }
+
+    // Sauvegarder la clé avec Entrée
+    const apiInput = document.getElementById('api-key-input');
+    if (apiInput) {
+        apiInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveApiKey();
+            }
+        });
+    }
+
+    // Sections collapsibles
+    document.querySelectorAll('[data-toggle]').forEach(header => {
+        header.addEventListener('click', () => {
+            document.getElementById(header.dataset.toggle).classList.toggle('open');
+        });
+    });
+
+    // Upload
+    const uploadZone = document.getElementById('upload-zone');
+    const fileInput = document.getElementById('file-input');
+    if (uploadZone && fileInput) {
+        uploadZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', e => {
+            handleFiles(e.target.files);
+            fileInput.value = '';
+        });
+    }
+
+    // Prompt principal
+    const mainPrompt = document.getElementById('main-prompt');
+    if (mainPrompt) {
+        mainPrompt.addEventListener('input', e => {
+            state.mainPrompt = e.target.value;
+            updateVisionDetect();
+        });
+    }
+
+    // Sélecteurs
+    const durationSelect = document.getElementById('duration-select');
+    if (durationSelect) {
+        durationSelect.addEventListener('change', e => {
+            state.durationFrames = parseInt(e.target.value, 10);
+        });
+    }
+    const framingSelect = document.getElementById('framing-select');
+    if (framingSelect) {
+        framingSelect.addEventListener('change', e => { state.framing = e.target.value; });
+    }
+    const intensitySelect = document.getElementById('intensity-select');
+    if (intensitySelect) {
+        intensitySelect.addEventListener('change', e => { state.intensity = e.target.value; });
+    }
+
+    // Bouton Générer
+    const generateBtn = document.getElementById('generate-btn');
+    if (generateBtn) {
+        generateBtn.addEventListener('click', startGeneration);
+    }
+
+    // Bouton Wake Lock
+    const wakeBtn = document.getElementById('wake-toggle-btn');
+    if (wakeBtn) {
+        wakeBtn.addEventListener('click', toggleWakeLock);
+    }
+
+    // Restaurer la préférence anti-veille
+    try {
+        const saved = localStorage.getItem(WAKE_LOCK_PREF);
+        wakeLockEnabled = saved === '1';
+    } catch (e) {}
+
+    if (wakeLockEnabled) {
+        activateWakeLock().then(() => updateWakeStatus());
+    }
+
+    // Rendu initial
+    updateApiPanel();
+    updateTimingDisplay();
+    updateWakeStatus();
+    renderPromptPresets();
+    renderStyles();
+    initCharacters();
+    renderImages();
+    renderQueue();
+
+    // Enregistrement des vidéos (bibliothèque + copie sur le téléphone)
+    try {
+        const savedAuto = localStorage.getItem(AUTOSAVE_PREF);
+        autoSaveEnabled = savedAuto === null ? !isIOS() : savedAuto === '1';
+    } catch (e) { autoSaveEnabled = !isIOS(); }
+    document.getElementById('autosave-toggle-btn').addEventListener('click', toggleAutoSave);
+    document.getElementById('library-grid').addEventListener('click', onLibraryClick);
+    document.getElementById('gallery-grid').addEventListener('click', onGalleryClick);
+    document.getElementById('library-save-all').addEventListener('click', saveAllToPhone);
+    updateAutoSaveStatus();
+    renderLibrary();
+
+    // Installation sur le téléphone + hors ligne
+    document.getElementById('install-btn').addEventListener('click', promptInstall);
+    updateInstallStatus();
+    registerServiceWorker();
+
+    // Vidéos lancées avant une fermeture de l'appli
+    recoverPendingJobs();
+
+    log('Prêt.');
+})();
+</script>
+
+</body>
+</html>

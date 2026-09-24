@@ -1,0 +1,19 @@
+{
+  "name": "Atelier Vidéo — Vos images en mouvement",
+  "short_name": "Atelier Vidéo",
+  "description": "Vos images prolongées en vidéo, format portrait 9:16.",
+  "lang": "fr",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fafafa",
+  "theme_color": "#1a1a1a",
+  "categories": ["photo", "entertainment"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
