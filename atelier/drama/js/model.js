@@ -3,7 +3,7 @@
 // Personnage : @Nom unique dans le projet, description, image de référence, voix ElevenLabs.
 // Épisode : numéro, titre, script balisé (analysé à l'étape 2).
 
-import { tx, get, put, getAll, getByProject, newId, requestPersistentStorage } from './db.js';
+import { tx, get, put, getAll, getByIndex, getByProject, newId, requestPersistentStorage } from './db.js';
 import { parseScript } from './parser.js';
 
 export const FORMAT = { ratio: '9:16', width: 1080, height: 1920, fps: 30 };
@@ -21,6 +21,9 @@ export const ELEVEN_MODELS = [
 ];
 
 export class DramaError extends Error {}
+
+// Modèles d'image Agnes acceptés (voir agnes.js)
+export const IMAGE_MODEL_IDS = ['agnes-image-2.1-flash', 'agnes-image-2.5-flash', 'agnes-image-2.0-flash'];
 
 const now = () => Date.now();
 const clamp = (v, a, b, d) => { const n = Number(v); return Number.isFinite(n) ? Math.min(b, Math.max(a, n)) : d; };
@@ -76,6 +79,15 @@ export async function updateProject(id, patch) {
         p.name = clean.slice(0, 80);
     }
     if ('voiceModel' in patch && ELEVEN_MODELS.some(m => m.id === patch.voiceModel)) p.voiceModel = patch.voiceModel;
+    if (patch.imageSettings) {
+        const cur = p.imageSettings || {};
+        const n = patch.imageSettings;
+        p.imageSettings = {
+            model: IMAGE_MODEL_IDS.includes(n.model) ? n.model : (cur.model || IMAGE_MODEL_IDS[0]),
+            size: ['1K', '2K'].includes(n.size) ? n.size : (cur.size || '2K'),
+            refs: ['all', 'characters', 'none'].includes(n.refs) ? n.refs : (cur.refs || 'all')
+        };
+    }
     if ('language' in patch) p.language = String(patch.language || 'fr').slice(0, 8);
     p.updatedAt = now();
     return put('projects', p);
@@ -94,9 +106,9 @@ export async function setStyleLocked(id, locked) {
 }
 
 export async function deleteProject(id) {
-    await tx(['projects', 'characters', 'episodes', 'assets'], 'readwrite', s => {
+    await tx(['projects', 'characters', 'episodes', 'assets', 'shots'], 'readwrite', s => {
         s.projects.delete(id);
-        for (const name of ['characters', 'episodes', 'assets']) {
+        for (const name of ['characters', 'episodes', 'assets', 'shots']) {
             const req = s[name].index('projectId').openKeyCursor(IDBKeyRange.only(id));
             req.onsuccess = () => { const c = req.result; if (c) { s[name].delete(c.primaryKey); c.continue(); } };
         }
@@ -239,8 +251,22 @@ export async function refreshEpisodeAnalyses(projectId) {
 export async function deleteEpisode(id) {
     const e = await get('episodes', id);
     if (!e) return;
-    await tx('episodes', 'readwrite', s => s.delete(id));
+    const shots = await getByIndex('shots', 'episodeId', id);
+    await tx(['episodes', 'shots'], 'readwrite', s => {
+        s.episodes.delete(id);
+        shots.forEach(sh => s.shots.delete(sh.id));
+    });
+    await gcShotAssets(e.projectId);
     await touchProject(e.projectId);
+}
+
+// Supprime les images de plans qui ne sont plus retenues par aucun plan (versions comprises).
+export async function gcShotAssets(projectId) {
+    const [assets, shots] = await Promise.all([getByProject('assets', projectId), getByProject('shots', projectId)]);
+    const used = new Set(shots.flatMap(sh => sh.versions || []));
+    const orphans = assets.filter(a => a.kind === 'shot' && !used.has(a.id));
+    if (orphans.length) await tx('assets', 'readwrite', s => orphans.forEach(a => s.delete(a.id)));
+    return orphans.length;
 }
 
 // ─── Médias (images de référence) ─────────────────────────────────
@@ -292,15 +318,20 @@ const blobToDataUri = blob => new Promise((resolve, reject) => {
 });
 async function dataUriToBlob(uri) { return (await fetch(uri)).blob(); }
 
-export async function exportProject(id) {
+// includeImages : avec l'image retenue pour chaque plan (sans les anciennes versions,
+// pour garder un fichier raisonnable sur téléphone).
+export async function exportProject(id, { includeImages = true } = {}) {
     const project = await getProject(id);
     if (!project) throw new DramaError('Projet introuvable');
-    const [characters, episodes, assets] = await Promise.all([
-        listCharacters(id), listEpisodes(id), getByProject('assets', id)
+    const [characters, episodes, allAssets, allShots] = await Promise.all([
+        listCharacters(id), listEpisodes(id), getByProject('assets', id), getByProject('shots', id)
     ]);
+    const shots = includeImages ? allShots.filter(sh => sh.current).map(sh => ({ ...sh, versions: [sh.current] })) : [];
+    const kept = new Set(shots.map(sh => sh.current));
+    const assets = allAssets.filter(a => a.kind !== 'shot' || kept.has(a.id));
     return {
         format: EXPORT_FORMAT, version: EXPORT_VERSION, exportedAt: now(),
-        project, characters, episodes,
+        project, characters, episodes, shots,
         assets: await Promise.all(assets.map(async a => {
             const { blob, ...meta } = a;
             return { ...meta, dataUri: await blobToDataUri(blob) };
@@ -318,7 +349,8 @@ export async function importProject(data) {
     for (const a of data.assets || []) {
         assetMap[a.id] = newId('a');
         const { dataUri, ...meta } = a;
-        assets.push({ ...meta, id: assetMap[a.id], projectId: pid, blob: await dataUriToBlob(dataUri) });
+        // key : identité stable de l'image (sert au cache des images de plans après import)
+        assets.push({ ...meta, key: meta.key || a.id, id: assetMap[a.id], projectId: pid, blob: await dataUriToBlob(dataUri) });
     }
     const remap = id => (id && assetMap[id]) || null;
     const project = {
@@ -329,12 +361,24 @@ export async function importProject(data) {
     const characters = (data.characters || []).map(c => ({
         ...c, id: newId('c'), projectId: pid, refImageId: remap(c.refImageId), voice: cleanVoice(c.voice)
     }));
-    const episodes = (data.episodes || []).map(e => ({ ...e, id: newId('e'), projectId: pid }));
-    await tx(['projects', 'characters', 'episodes', 'assets'], 'readwrite', s => {
+    const episodeMap = {};
+    const episodes = (data.episodes || []).map(e => {
+        episodeMap[e.id] = newId('e');
+        return { ...e, id: episodeMap[e.id], projectId: pid };
+    });
+    assets.forEach(a => { if (a.episodeId) a.episodeId = episodeMap[a.episodeId] || null; });
+    const shots = (data.shots || []).filter(sh => episodeMap[sh.episodeId]).map(sh => {
+        const versions = (sh.versions || []).map(remap).filter(Boolean);
+        const eid = episodeMap[sh.episodeId];
+        return { ...sh, id: eid + ':' + sh.planId, projectId: pid, episodeId: eid,
+            versions, current: remap(sh.current) || versions[versions.length - 1] || null };
+    }).filter(sh => sh.current);
+    await tx(['projects', 'characters', 'episodes', 'assets', 'shots'], 'readwrite', s => {
         s.projects.put(project);
         characters.forEach(c => s.characters.put(c));
         episodes.forEach(e => s.episodes.put(e));
         assets.forEach(a => s.assets.put(a));
+        shots.forEach(sh => s.shots.put(sh));
     });
     requestPersistentStorage();
     return project;

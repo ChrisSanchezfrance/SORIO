@@ -51,22 +51,28 @@ Adresse une fois GitHub Pages activé : **https://chrissanchezfrance.github.io/S
 
 ---
 
-# Drama — séries en images animées et doublées (`atelier/drama/`)
+# Drama — séries en images animées et doublées (onglet « 🎬 Drama »)
 
-Module en cours de construction, étape par étape (cible : Android / Chrome). Accès : bouton « 🎬 Drama »
-en haut de l'Atelier, ou https://chrissanchezfrance.github.io/SORIO/atelier/drama/
+Drama est un **onglet de l'appli Atelier Vidéo** : en haut de l'appli, « 🎞️ Vidéos | 🎬 Drama ».
+Il se présente comme l'onglet Vidéos : un panneau en haut (série en cours, clés), puis des sections repliables.
+Cible : Android / Chrome. Code : `atelier/drama/`.
 
-| Étape | Contenu | État |
-|---|---|---|
-| 1 | Projet série : style verrouillé (texte, interdits, image de référence, graine), fiches personnages (@Nom, image de référence, voix ElevenLabs + réglages), épisodes (script balisé, autosauvegarde), export/import de la série | ✅ |
-| 2 | Parseur du script `[PLAN] [DECOR] [PERSOS] [IMAGE] [CAM] [VOIX] [SFX] [MUSIQUE]` → plans JSON : analyse en direct, erreurs par ligne avec suggestions, durée 2,5 s par défaut sans réplique (`duree: Ns` dans [CAM] pour l'imposer), JSON enregistré avec l'épisode | ✅ |
-| 3 | Génération d'images par plan (cache, régénération d'un plan) | à faire |
-| 4 | Doublage ElevenLabs multi-voix, durée du plan = durée audio | à faire |
-| 5 | Montage : zoom/pan/tremblement, transitions, sous-titres, musique importée avec ducking | à faire |
-| 6 | Export MP4 1080×1920 30 i/s + vignette EP.x | à faire |
-| 7 | Rendu en lot avec reprise sur erreur | à faire |
+| Étape | Section de l'onglet | Contenu | État |
+|---|---|---|---|
+| 1 | 🎨 Style · 🎭 Personnages · 📺 Épisodes · 💾 Sauvegarde | Série au style verrouillable (description, à éviter, image de référence), fiches @Nom (photo de référence, voix ElevenLabs + réglages), épisodes numérotés, export/import | ✅ |
+| 2 | 📝 Script | Script balisé `[PLAN] [DECOR] [PERSOS] [IMAGE] [CAM] [VOIX] [SFX] [MUSIQUE]` → plans JSON : analyse en direct, erreurs par ligne avec suggestions, 2,5 s par défaut sans réplique (`duree: Ns` dans [CAM]) | ✅ |
+| 3 | 🖼️ Images des plans | Une image 9:16 par plan avec Agnes (`agnes-image-2.1-flash`, 2K) : prompt = style + décor + fiches + [IMAGE], photos des personnages et image de style en références ; cache par empreinte, régénération d'un plan seul, 4 versions gardées, reprises automatiques (429, réseau), repli base64, pause en arrière-plan | ✅ |
+| 4 | 🎙️ Voix | Doublage ElevenLabs multi-voix, durée du plan = durée audio | à faire |
+| 5 | 🎞️ Montage | Zoom/pan/tremblement, transitions, sous-titres, musique importée avec ducking | à faire |
+| 6 | 📤 Export | MP4 1080×1920 30 i/s + vignette EP.x | à faire |
+| 7 | 📤 Export | Rendu en lot avec reprise sur erreur | à faire |
 
-Code : `js/db.js` (IndexedDB), `js/model.js` (règles métier), `js/parser.js` (script → plans, module pur), `js/elevenlabs.js`, `js/app.js` (écrans).
-Les données restent sur le téléphone ; la clé ElevenLabs est stockée localement.
+Clés : Agnes = celle de l'onglet Vidéos (partagée) ; ElevenLabs = saisie dans le panneau du haut de l'onglet Drama.
+Les données (séries, photos, scripts, images générées) restent sur le téléphone (IndexedDB).
 
-Tests (Chromium via Playwright, API simulées) : `node tests/drama/step1.test.mjs`, `node tests/drama/step2.parser.test.mjs` (Node seul), `node tests/drama/step2.ui.test.mjs`
+Code : `js/db.js` (IndexedDB), `js/model.js` (règles métier), `js/parser.js` (script → plans, pur),
+`js/images.js` (prompt, cache et génération des images), `js/agnes.js` / `js/elevenlabs.js` (API), `js/app.js` (onglet).
+
+Tests (Chromium via Playwright, API simulées ; `node <fichier>`) :
+`tests/drama/step1.test.mjs`, `step2.parser.test.mjs` (Node seul), `step2.ui.test.mjs`,
+`step3.prompt.test.mjs` (Node seul), `step3.images.test.mjs`, et `tests/atelier/videos.test.mjs` (onglet Vidéos).

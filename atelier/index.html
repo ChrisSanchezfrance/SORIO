@@ -491,14 +491,54 @@
     .app-status { background: #f3f3f3; color: var(--ink-dim); }
     .app-status.active { background: #e3f5e9; color: var(--success); }
 </style>
+<link rel="stylesheet" href="drama/drama.css">
 </head>
 <body>
 
 <header>
     <h1>Atelier Vidéo</h1>
     <p class="subtitle">Vos images prolongées en vidéo</p>
-    <a href="drama/" style="display:inline-block;margin-top:0.6rem;padding:0.45rem 0.9rem;border-radius:16px;background:#1a1a1a;color:#fff;font-size:0.8rem;font-weight:600;text-decoration:none;">🎬 Drama — séries en images</a>
+    <nav class="app-tabs" role="tablist" aria-label="Onglets de l'appli">
+        <button type="button" role="tab" data-app-tab="video" class="active" aria-selected="true">🎞️ Vidéos</button>
+        <button type="button" role="tab" data-app-tab="drama" aria-selected="false">🎬 Drama</button>
+    </nav>
 </header>
+
+<script>
+// Onglets de l'appli : 🎞️ Vidéos | 🎬 Drama — mémorisé, et le bouton Retour du téléphone revient à l'onglet précédent.
+(function () {
+    var KEY = 'atelier_tab';
+    function fromHash() { return location.hash === '#drama' ? 'drama' : location.hash === '#videos' ? 'video' : null; }
+    function apply(tab) {
+        document.body.dataset.tab = tab;
+        document.querySelectorAll('[data-app-tab]').forEach(function (b) {
+            var on = b.dataset.appTab === tab;
+            b.classList.toggle('active', on);
+            b.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        try { localStorage.setItem(KEY, tab); } catch (e) {}
+        window.dispatchEvent(new CustomEvent('atelier:tab', { detail: tab }));
+    }
+    var initial = fromHash();
+    if (!initial) {
+        try { initial = localStorage.getItem(KEY) === 'drama' ? 'drama' : 'video'; } catch (e) { initial = 'video'; }
+        history.replaceState(null, '', initial === 'drama' ? '#drama' : '#videos');
+    }
+    apply(initial);
+    window.addEventListener('hashchange', function () {
+        var t = fromHash();
+        if (t && t !== document.body.dataset.tab) { apply(t); window.scrollTo(0, 0); }
+    });
+    document.querySelectorAll('[data-app-tab]').forEach(function (b) {
+        b.addEventListener('click', function () {
+            var target = b.dataset.appTab === 'drama' ? '#drama' : '#videos';
+            if (location.hash !== target) location.hash = target;
+        });
+    });
+})();
+</script>
+
+<div id="tab-video">
 
 <div class="info-banner">
     <strong>Comment ça marche :</strong> Ajoutez vos images, écrivez votre vision (ou choisissez un effet),
@@ -703,6 +743,11 @@
     </div>
     <div class="gallery-grid" id="library-grid"></div>
 </div>
+
+</div><!-- /#tab-video -->
+
+<!-- Onglet 🎬 Drama : séries en images animées et doublées (atelier/drama/) -->
+<div id="drama-root" aria-live="polite"></div>
 
 <div class="status-bar" id="status-bar">
     <div class="spinner"></div>
@@ -3555,6 +3600,7 @@ function registerServiceWorker() {
     log('Prêt.');
 })();
 </script>
+<script type="module" src="drama/js/app.js"></script>
 
 </body>
 </html>

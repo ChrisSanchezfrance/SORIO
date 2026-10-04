@@ -54,3 +54,29 @@ export async function makePng(page, w, h, color) {
     }, [w, h, color]);
     return { name: color.replace('#', 'c') + '.png', mimeType: 'image/png', buffer: Buffer.from(b64, 'base64') };
 }
+
+// ─── Appli intégrée : onglet Drama de l'Atelier ───────────────────
+// Ouvre l'appli sur l'onglet Drama et attend son premier affichage.
+export async function openDrama(page, url) {
+    await page.goto(url + '/atelier/#drama');
+    await page.waitForSelector('#drama-root[data-ready="1"]');
+}
+
+// Exécute du code dans la page avec les modules Drama (M = modèle, IMG = images, DB = base).
+export function inApp(page, fn, arg) {
+    return page.evaluate(async ([src, arg]) => {
+        const M = await import('./drama/js/model.js');
+        const IMG = await import('./drama/js/images.js');
+        const DB = await import('./drama/js/db.js');
+        return (0, eval)('(' + src + ')')({ M, IMG, DB }, arg);
+    }, [fn.toString(), arg]);
+}
+
+// Touche un bouton qui ouvre le sélecteur de fichier, puis choisit le fichier.
+export async function choose(page, selector, file) {
+    const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click(selector)]);
+    await chooser.setFiles(file);
+}
+
+export const toastText = page => page.textContent('#toast-text');
+export const waitToast = (page, re) => page.waitForFunction(r => new RegExp(r).test(document.getElementById('toast-text').textContent), re.source);

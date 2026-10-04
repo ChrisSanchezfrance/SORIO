@@ -1,10 +1,11 @@
 // Drama — stockage local (IndexedDB)
-// Magasins : projets, personnages, épisodes, médias (images en Blob).
+// Magasins : projets, personnages, épisodes, médias (images en Blob) et
+// « shots » (image retenue pour chaque plan d'un épisode, avec ses versions).
 // Tout reste sur le téléphone ; rien n'est envoyé ailleurs.
 
 export const DB_NAME = 'drama_studio';
-export const DB_VERSION = 1;
-export const STORES = ['projects', 'characters', 'episodes', 'assets'];
+export const DB_VERSION = 2;
+export const STORES = ['projects', 'characters', 'episodes', 'assets', 'shots'];
 
 let dbPromise = null;
 
@@ -24,8 +25,21 @@ export function openDb() {
                     store.createIndex('projectId', 'projectId', { unique: false });
                 }
             }
+            // v2 : cache d'images par empreinte + image retenue par plan
+            const assets = req.transaction.objectStore('assets');
+            if (!assets.indexNames.contains('hash')) assets.createIndex('hash', 'hash', { unique: false });
+            if (!db.objectStoreNames.contains('shots')) {
+                const shots = db.createObjectStore('shots', { keyPath: 'id' });
+                shots.createIndex('projectId', 'projectId', { unique: false });
+                shots.createIndex('episodeId', 'episodeId', { unique: false });
+            }
         };
-        req.onsuccess = () => resolve(req.result);
+        req.onsuccess = () => {
+            const db = req.result;
+            // une autre fenêtre de l'appli a une version plus récente : on se ferme proprement
+            db.onversionchange = () => { db.close(); dbPromise = null; };
+            resolve(db);
+        };
         req.onerror = () => reject(req.error || new Error('Ouverture de la base impossible'));
         req.onblocked = () => reject(new Error('Base bloquée : fermez les autres onglets de l\'appli'));
     });
@@ -55,8 +69,9 @@ export const get = (store, id) => tx(store, 'readonly', s => s.get(id));
 export const put = (store, value) => tx(store, 'readwrite', s => s.put(value)).then(() => value);
 export const del = (store, id) => tx(store, 'readwrite', s => s.delete(id));
 export const getAll = (store) => tx(store, 'readonly', s => s.getAll());
-export const getByProject = (store, projectId) =>
-    tx(store, 'readonly', s => s.index('projectId').getAll(projectId));
+export const getByIndex = (store, index, value) =>
+    tx(store, 'readonly', s => s.index(index).getAll(value));
+export const getByProject = (store, projectId) => getByIndex(store, 'projectId', projectId);
 
 export function newId(prefix) {
     return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
