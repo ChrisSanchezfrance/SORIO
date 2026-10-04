@@ -1,11 +1,12 @@
 // Drama — onglet « 🎬 Drama » de l'appli Atelier Vidéo.
 // Même présentation que l'onglet Vidéos : un panneau en haut (série en cours, clés),
-// puis des sections repliables : Style, Personnages, Épisodes, Script, Images, Voix, Montage, Sauvegarde.
+// puis des sections repliables : Style, Personnages, Épisodes, Script, Images, Voix, Montage, Export, Sauvegarde.
 import * as M from './model.js';
 import * as EL from './elevenlabs.js';
 import * as IMG from './images.js';
 import * as VO from './voices.js';
 import * as PL from './player.js';
+import * as EX from './export.js';
 import { requiredSounds, SUB_SIZES } from './montage.js';
 import { parseScript } from './parser.js';
 import { IMAGE_MODELS, IMAGE_SIZES, getAgnesKey } from './agnes.js';
@@ -23,6 +24,7 @@ const SECTIONS = [
     ['images', '🖼️ Images des plans'],
     ['voices', '🎙️ Voix et durées'],
     ['montage', '🎞️ Montage'],
+    ['export', '📤 Export'],
     ['backup', '💾 Sauvegarde et gestion']
 ];
 
@@ -37,7 +39,10 @@ const S = {
     vjob: null,          // génération des voix en cours (même forme)
     player: null,        // écoute de l'épisode : { ctx, timer }
     preview: null,       // aperçu du montage (player.js)
-    montageTl: null      // timeline de l'épisode affiché dans le Montage
+    montageTl: null,     // timeline de l'épisode affiché dans le Montage
+    xjob: null,          // export en cours : { eid, ctrl, running, phase, done, total, started }
+    codecs: null,        // codecs d'export disponibles sur cet appareil
+    exportUrl: null      // { name, url } de l'aperçu du MP4 exporté
 };
 
 // ─── Utilitaires ──────────────────────────────────────────────────
@@ -108,7 +113,7 @@ function isOpen(k, ctx) {
     if (k in st) return !!st[k];
     if (k === 'style') return !ctx.project.style.locked;
     if (k === 'chars') return ctx.chars.length === 0;
-    return k === 'episodes' || k === 'script' || k === 'images' || k === 'voices' || k === 'montage';
+    return k === 'episodes' || k === 'script' || k === 'images' || k === 'voices' || k === 'montage' || k === 'export';
 }
 function setOpen(k, v) { const st = openState(); st[k] = v; lsSet(OPEN_KEY, JSON.stringify(st)); }
 function openSection(k) {
@@ -313,7 +318,7 @@ async function buildEpisodes(ctx) {
         return '<div class="d-ep' + (e.id === S.eid ? ' current' : '') + '" data-action="select-episode" data-eid="' + e.id + '">' +
             '<div class="d-ep-num">EP.' + e.number + '</div>' +
             '<div class="d-ep-main"><div class="d-ep-title">' + esc(e.title) + '</div>' +
-            '<div class="d-ep-sub">' + plural(n, 'plan') + ' · ' + state + (imgs ? ' · 🖼️ ' + imgs.ready + '/' + imgs.total : '') + (vox && vox.total ? ' · 🎙️ ' + vox.ready + '/' + vox.total : '') + '</div></div>' +
+            '<div class="d-ep-sub">' + plural(n, 'plan') + ' · ' + state + (imgs ? ' · 🖼️ ' + imgs.ready + '/' + imgs.total : '') + (vox && vox.total ? ' · 🎙️ ' + vox.ready + '/' + vox.total : '') + (e.exportInfo ? ' · 📤 MP4' : '') + '</div></div>' +
             (e.id === S.eid ? '<div class="d-ep-check">✓</div>' : '') + '</div>';
     }));
     return {
@@ -893,6 +898,140 @@ function attachPreview() {
     S.preview.attach(canvas, S.montageTl);
 }
 
+// ─── Section Export ───────────────────────────────────────────────
+const fmtSize = b => b >= 1e6 ? (b / 1e6).toFixed(1).replace('.', ',') + ' Mo' : Math.max(1, Math.round(b / 1e3)) + ' Ko';
+const seriesSlug = name => M.normalizeName(name).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'serie';
+
+async function buildExport(ctx) {
+    const e = ctx.episode;
+    if (!e) return { badge: '—', badgeClass: '', html: '<div class="char-empty">Créez un épisode dans « 📺 Épisodes ».</div>' };
+    const a = e.analysis;
+    if (!a || !a.ok || !a.plans.length) return { badge: 'EP.' + e.number, badgeClass: '', html: '<div class="char-empty">L\'export est possible dès que le script de l\'épisode est prêt (sans erreur).</div>' };
+    const tl = await PL.loadEpisodeTimeline(ctx.project, ctx.chars, e);
+    const hash = EX.timelineHash(tl);
+    if (!S.codecs) S.codecs = await EX.pickCodecs().catch(err => ({ error: err.message }));
+    const cd = S.codecs;
+    const info = e.exportInfo;
+    const file = info ? await EX.getExportFile(info.file) : null;
+    const upToDate = !!(file && info.tlHash === hash);
+    const job = S.xjob && S.xjob.eid === e.id && S.xjob.running ? S.xjob : null;
+    const busy = !!(S.xjob && S.xjob.running);
+    const miss = tl.missing;
+    const warn = [miss.images.length ? plural(miss.images.length, 'image') + ' manquante' + (miss.images.length > 1 ? 's' : '') + ' (fond sombre)' : '',
+        miss.voices.length ? plural(miss.voices.length, 'réplique') + ' sans voix (sous-titre seul)' : '',
+        miss.music.length ? plural(miss.music.length, 'musique') + ' à importer' : '',
+        miss.sfx.length ? plural(miss.sfx.length, 'bruitage') + ' à importer' : ''].filter(Boolean);
+
+    if (file && (!S.exportUrl || S.exportUrl.name !== info.file + ':' + info.createdAt)) {
+        if (S.exportUrl) URL.revokeObjectURL(S.exportUrl.url);
+        S.exportUrl = { name: info.file + ':' + info.createdAt, url: URL.createObjectURL(file) };
+    }
+    const thumbUrl = e.thumb ? await assetUrl(e.thumb.assetId) : '';
+    const planOpts = tl.plans.map(p => '<option value="' + p.id + '"' + ((e.thumb ? e.thumb.planId : (tl.plans.find(x => x.imageAssetId) || {}).id) === p.id ? ' selected' : '') + '>' +
+        p.id + ' — ' + esc(String((a.plans[p.index] || {}).image || '').slice(0, 40)) + '</option>').join('');
+
+    return {
+        badge: upToDate ? 'EP.' + e.number + ' · ✅ MP4' : file ? 'EP.' + e.number + ' · à refaire' : 'EP.' + e.number,
+        badgeClass: upToDate ? 'ok' : '',
+        html:
+            '<div class="api-hint" style="margin:0 0 0.6rem">MP4 vertical 1080×1920, 30 images/s, ' + fmtClock(tl.duration) + ' — fabriqué sur le téléphone.</div>' +
+            (cd.error ? '<div class="lock-banner"><span>⚠️ ' + esc(cd.error) + '</span></div>'
+                : '<div class="wake-status ' + (cd.compatible ? 'active' : 'warn') + '"><span>' + (cd.compatible
+                    ? '🎬 Format : ' + cd.video.label + ' + ' + cd.audio.label + ' — accepté par TikTok, YouTube, Instagram, Facebook et Snapchat'
+                    : '🎬 Format : ' + cd.video.label + ' + ' + cd.audio.label + ' — ce téléphone ne produit pas le H.264 ; YouTube l\'accepte, d\'autres réseaux peuvent le refuser') + '</span></div>') +
+            (warn.length ? '<div class="lock-banner"><span>⚠️ À compléter pour un épisode fini : ' + warn.join(' · ') + '. L\'export reste possible.</span></div>' : '') +
+            (job
+                ? '<div class="d-xprog"><div class="d-xbar"><div class="d-xfill" id="d-xfill" style="width:' + exportPercent(job) + '%"></div></div>' +
+                  '<div class="api-hint" id="d-xtext">' + esc(exportText(job)) + '</div></div>' +
+                  '<button type="button" class="btn-stop visible" data-action="stop-export">⏹ Arrêter l\'export</button>' +
+                  '<div class="api-hint">Gardez l\'appli ouverte : l\'export se met en pause si vous la quittez et reprend au retour.</div>'
+                : '<button type="button" class="btn-primary" data-action="start-export"' + (cd.error || busy ? ' disabled' : '') + '>' +
+                  (file ? (upToDate ? '📤 Exporter à nouveau' : '📤 Mettre l\'export à jour') : '📤 Exporter l\'épisode en MP4') + '</button>') +
+            (file
+                ? '<div class="d-export">' +
+                    '<div class="d-export-top"><b>' + esc(seriesSlug(ctx.project.name) + '-ep' + e.number + '.mp4') + '</b>' +
+                        '<span class="d-chip ' + (upToDate ? 'ok' : 'warn') + '">' + (upToDate ? '✅ à jour' : '⚠️ montage modifié depuis l\'export') + '</span></div>' +
+                    '<div class="d-shot-text">' + fmtSize(file.size) + ' · ' + fmtClock(info.duration) + ' · ' + esc(info.codecs) + ' · ' + fmtDate(info.createdAt) + '</div>' +
+                    '<video class="d-export-video" controls playsinline preload="metadata" src="' + S.exportUrl.url + '"></video>' +
+                    '<div class="char-actions"><button type="button" class="char-btn" data-action="save-export">💾 Enregistrer sur le téléphone</button>' +
+                    '<button type="button" class="char-btn danger" data-action="delete-export"' + (busy ? ' disabled' : '') + '>🗑 Supprimer</button></div>' +
+                  '</div>'
+                : '') +
+            '<div class="control-label" style="margin:1rem 0 0.5rem">Vignette « EP.' + e.number + ' »</div>' +
+            '<div class="d-thumb-row">' +
+                (thumbUrl ? '<img class="d-thumb" src="' + thumbUrl + '" data-asset="' + e.thumb.assetId + '" data-action="zoom-shot" alt="Vignette EP.' + e.number + '">' : '<div class="d-thumb empty">EP.' + e.number + '</div>') +
+                '<div class="d-thumb-ctrl">' +
+                    '<label class="control-label" for="d-thumb-plan">Image du plan</label><select id="d-thumb-plan">' + planOpts + '</select>' +
+                    '<div class="char-actions"><button type="button" class="char-btn" data-action="make-thumb">🖼️ ' + (thumbUrl ? 'Refaire' : 'Créer') + ' la vignette</button>' +
+                    (thumbUrl ? '<button type="button" class="char-btn" data-action="save-thumb">💾 Enregistrer</button>' : '') + '</div>' +
+                '</div>' +
+            '</div>'
+    };
+}
+
+function exportPercent(job) {
+    if (job.phase === 'son') return 3;
+    if (job.phase === 'fin') return 100;
+    return Math.round(5 + 94 * (job.done / Math.max(1, job.total)));
+}
+function exportText(job) {
+    if (job.phase === 'son') return '🎧 Mixage du son…';
+    if (job.phase === 'fin') return '📦 Finalisation du fichier…';
+    if (job.phase !== 'images') return 'Préparation…';
+    const elapsed = (Date.now() - job.imagesStart) / 1000;
+    const rate = job.done / Math.max(0.1, elapsed);
+    const left = rate > 0 ? (job.total - job.done) / rate : 0;
+    return '🎞️ Image ' + job.done + '/' + job.total + (job.done > 30 ? ' · encore ~' + fmtClock(left) : '');
+}
+
+async function startExport() {
+    if (S.xjob && S.xjob.running) return;
+    const ctx = await loadCtx();
+    const e = ctx.episode;
+    if (!e || !e.analysis || !e.analysis.ok) { toast('Corrigez d\'abord le script', 'warn'); return; }
+    if (S.preview) S.preview.pause();
+    stopPlayback();
+    const tl = await PL.loadEpisodeTimeline(ctx.project, ctx.chars, e);
+    const ctrl = new AbortController();
+    const job = S.xjob = { eid: e.id, ctrl, running: true, phase: 'prep', done: 0, total: 1, started: Date.now(), imagesStart: 0 };
+    if (typeof window.ensureWakeLockActive === 'function') window.ensureWakeLockActive();
+    await refresh('export');
+    const fileName = e.id + '.mp4';
+    try {
+        if (e.exportInfo) await EX.deleteExportFile(e.exportInfo.file);
+        const res = await EX.exportEpisode({ tl, fileName, signal: ctrl.signal, onProgress: p => {
+            if (p.phase === 'images' && job.phase !== 'images') job.imagesStart = Date.now();
+            job.phase = p.phase; job.done = p.done; job.total = p.total;
+            const fill = $('#d-xfill'), txt = $('#d-xtext');
+            if (fill) fill.style.width = exportPercent(job) + '%';
+            if (txt) txt.textContent = exportText(job);
+        }});
+        await M.updateEpisode(e.id, { exportInfo: {
+            file: fileName, size: res.file.size, duration: tl.duration, codecs: res.codecs, compatible: res.compatible,
+            frames: res.frames, tlHash: EX.timelineHash(tl), createdAt: Date.now()
+        }});
+        toast('EP.' + e.number + ' exporté : ' + fmtSize(res.file.size), 'success', 3500);
+    } catch (err) {
+        if (err.name === 'AbortError') {
+            await M.updateEpisode(e.id, { exportInfo: null });
+            toast('Export arrêté', 'warn');
+        } else fail(err);
+    } finally {
+        job.running = false;
+        await refresh('export', 'episodes');
+    }
+}
+
+async function shareOrDownload(blob, name, type) {
+    const file = new File([blob], name, { type });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: name }); return; }
+        catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    download(file, name);
+    toast('Fichier enregistré : ' + name);
+}
+
 // ─── Section Sauvegarde ───────────────────────────────────────────
 async function buildBackup() {
     return {
@@ -910,7 +1049,7 @@ async function buildBackup() {
 }
 
 // ─── Rendu ────────────────────────────────────────────────────────
-const BUILDERS = { style: buildStyle, chars: buildChars, episodes: buildEpisodes, script: buildScript, images: buildImages, voices: buildVoices, montage: buildMontage, backup: buildBackup };
+const BUILDERS = { style: buildStyle, chars: buildChars, episodes: buildEpisodes, script: buildScript, images: buildImages, voices: buildVoices, montage: buildMontage, export: buildExport, backup: buildBackup };
 
 function setBadge(k, { badge, badgeClass }) {
     const b = $('#d-badge-' + k);
@@ -949,6 +1088,7 @@ async function refresh(...keys) {
     if (!$('#d-sec-style')) return renderAll();
     // le montage dépend du script, des images, des voix, des fiches et du style
     if (!keys.includes('montage') && keys.some(k => ['script', 'images', 'voices', 'chars', 'style', 'episodes'].includes(k))) keys.push('montage');
+    if (!keys.includes('export') && keys.includes('montage')) keys.push('export');
     const ctx = await loadCtx();
     if (!ctx.project) return renderAll();
     for (const k of keys) {
@@ -1119,7 +1259,10 @@ const actions = {
     async 'delete-episode'() {
         if (!confirm('Supprimer cet épisode, son script et ses images ?')) return;
         if (S.job && S.job.running && S.job.eid === S.eid) S.job.ctrl.abort();
+        if (S.xjob && S.xjob.running && S.xjob.eid === S.eid) S.xjob.ctrl.abort();
         S.pendingScript = null;
+        const gone = (await M.listEpisodes(S.pid)).find(x => x.id === S.eid);
+        if (gone && gone.exportInfo) await EX.deleteExportFile(gone.exportInfo.file);
         await M.deleteEpisode(S.eid);
         S.eid = null;
         toast('Épisode supprimé', 'warn');
@@ -1177,6 +1320,43 @@ const actions = {
     },
     async 'play-episode'() { await playEpisode(); },
     async 'stop-play'() { stopPlayback(); await refresh('voices'); },
+    async 'start-export'() { await startExport(); },
+    async 'stop-export'() {
+        if (!S.xjob) return;
+        S.xjob.ctrl.abort();
+        const txt = $('#d-xtext');
+        if (txt) txt.textContent = 'Arrêt…';
+    },
+    async 'save-export'() {
+        const ctx = await loadCtx();
+        const info = ctx.episode && ctx.episode.exportInfo;
+        const file = info && await EX.getExportFile(info.file);
+        if (!file) { toast('Fichier introuvable : exportez à nouveau', 'warn'); return; }
+        await shareOrDownload(file, seriesSlug(ctx.project.name) + '-ep' + ctx.episode.number + '.mp4', 'video/mp4');
+    },
+    async 'delete-export'() {
+        if (!confirm('Supprimer le MP4 exporté de cet épisode ? (le montage reste intact)')) return;
+        const ctx = await loadCtx();
+        if (ctx.episode.exportInfo) await EX.deleteExportFile(ctx.episode.exportInfo.file);
+        await M.updateEpisode(ctx.episode.id, { exportInfo: null });
+        if (S.exportUrl) { URL.revokeObjectURL(S.exportUrl.url); S.exportUrl = null; }
+        await refresh('export', 'episodes');
+    },
+    async 'make-thumb'() {
+        const ctx = await loadCtx();
+        const e = ctx.episode;
+        const tl = await PL.loadEpisodeTimeline(ctx.project, ctx.chars, e);
+        const { blob, planId } = await EX.renderThumbnail(tl, $('#d-thumb-plan').value, { series: ctx.project.name, episode: e.number, title: e.title });
+        const asset = await M.saveThumbAsset(ctx.project.id, e.id, blob, planId);
+        await M.updateEpisode(e.id, { thumb: { assetId: asset.id, planId } });
+        toast('Vignette EP.' + e.number + ' créée');
+        await refresh('export');
+    },
+    async 'save-thumb'() {
+        const ctx = await loadCtx();
+        const a = ctx.episode.thumb && await M.getAsset(ctx.episode.thumb.assetId);
+        if (a) await shareOrDownload(a.blob, seriesSlug(ctx.project.name) + '-ep' + ctx.episode.number + '-vignette.jpg', 'image/jpeg');
+    },
     async 'preview-play'() {
         if (!S.preview) return;
         if (S.preview.playing) S.preview.pause();
@@ -1246,6 +1426,8 @@ const actions = {
         const p = await M.getProject(S.pid);
         if (!confirm('Supprimer définitivement « ' + p.name + ' », ses personnages, ses épisodes et ses images ?')) return;
         if (S.job && S.job.running && S.job.pid === p.id) S.job.ctrl.abort();
+        if (S.xjob && S.xjob.running) S.xjob.ctrl.abort();
+        for (const ep of await M.listEpisodes(p.id)) if (ep.exportInfo) await EX.deleteExportFile(ep.exportInfo.file);
         await M.deleteProject(p.id);
         S.pid = null; S.eid = null;
         toast('Série supprimée', 'warn');
@@ -1338,7 +1520,7 @@ root.addEventListener('focusout', ev => { if (ev.target.id === 'd-script') flush
 // Retour sur l'onglet Drama : la clé Agnes a pu changer dans l'onglet Vidéos.
 window.addEventListener('atelier:tab', ev => {
     if (ev.detail !== 'drama') { stopPlayback(); if (S.preview) S.preview.pause(); return; }
-    if ((S.job && S.job.running) || (S.vjob && S.vjob.running)) return;
+    if ((S.job && S.job.running) || (S.vjob && S.vjob.running) || (S.xjob && S.xjob.running)) return;
     if ($('#d-char-name')) { try { S.charDraft = readCharForm(); } catch (e) {} }   // fiche en cours de saisie gardée
     renderAll().catch(fail);
 });

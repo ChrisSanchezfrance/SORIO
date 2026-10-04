@@ -160,3 +160,16 @@ body:not([data-tab="drama"]) #drama-root { display: none; }
 #drama-root .d-sound-main { flex: 1 1 10rem; min-width: 0; }
 #drama-root .d-sound .char-actions { margin-top: 0; }
 #drama-root #d-body-montage .queue-summary { margin-top: 0; }
+
+/* Export */
+#drama-root #d-body-export .wake-status { margin: 0 0 0.6rem; }
+#drama-root .d-xprog { margin: 0.6rem 0; }
+#drama-root .d-xbar { height: 10px; border-radius: 6px; background: var(--border); overflow: hidden; }
+#drama-root .d-xfill { height: 100%; background: var(--ink); transition: width 0.3s; }
+#drama-root .d-export { border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); padding: 0.7rem; margin: 0.6rem 0; }
+#drama-root .d-export-top { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; font-size: 0.85rem; word-break: break-all; }
+#drama-root .d-export-video { display: block; width: min(100%, 260px); aspect-ratio: 9 / 16; margin: 0.6rem auto; border-radius: 8px; background: #000; }
+#drama-root .d-thumb-row { display: flex; gap: 0.8rem; align-items: flex-start; flex-wrap: wrap; }
+#drama-root .d-thumb { width: 108px; aspect-ratio: 9 / 16; border-radius: 8px; object-fit: cover; background: var(--border); cursor: zoom-in; }
+#drama-root .d-thumb.empty { display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--ink-dim); cursor: default; }
+#drama-root .d-thumb-ctrl { flex: 1 1 12rem; min-width: 0; }

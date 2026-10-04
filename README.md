@@ -64,7 +64,7 @@ Cible : Android / Chrome. Code : `atelier/drama/`.
 | 3 | 🖼️ Images des plans | Une image 9:16 par plan avec Agnes (`agnes-image-2.1-flash`, 2K) : prompt = style + décor + fiches + [IMAGE], photos des personnages et image de style en références ; cache par empreinte, régénération d'un plan seul, 4 versions gardées, reprises automatiques (429, réseau), repli base64, pause en arrière-plan | ✅ |
 | 4 | 🎙️ Voix et durées | Doublage ElevenLabs : une prise par réplique avec la voix et les réglages de la fiche, horodatage des mots (pour les sous-titres) ; durée du plan = 0,4 s + répliques (0,35 s entre elles) + 0,5 s, 2,5 s sans réplique ; cache, « autre prise », 4 versions, écoute de l'épisode, reprises (429, réseau), crédits épuisés signalés, pause en arrière-plan | ✅ |
 | 5 | 🎞️ Montage | Aperçu en temps réel (9:16) : zoom, panoramiques, tremblement, transitions (fondu, fondu au noir/blanc, glissés, flash), sous-titres incrustés calés sur les mots (3 tailles) ; mixage voix + bruitages + musique en boucle avec fondus et baisse sous les voix ; bibliothèque sonore de la série (musiques et bruitages importés, appelés par leur nom dans le script) | ✅ |
-| 6 | 📤 Export | MP4 1080×1920 30 i/s + vignette EP.x | à faire |
+| 6 | 📤 Export | MP4 1080×1920, 30 i/s, son stéréo 48 kHz, fabriqué sur le téléphone (WebCodecs + mp4-muxer, écrit au fil de l'eau dans le stockage privé) : H.264 + AAC si l'appareil les produit, sinon VP9/AV1 + Opus ; progression et temps restant, pause en arrière-plan, arrêt sans fichier incomplet, export « à refaire » si le montage change ; vignette « EP.x » 1080×1920 tirée du plan choisi ; enregistrement sur le téléphone | ✅ |
 | 7 | 📤 Export | Rendu en lot avec reprise sur erreur | à faire |
 
 Clés : Agnes = celle de l'onglet Vidéos (partagée) ; ElevenLabs = saisie dans le panneau du haut de l'onglet Drama.
@@ -72,10 +72,10 @@ Les données (séries, photos, scripts, images générées) restent sur le tél�
 
 Code : `js/db.js` (IndexedDB), `js/model.js` (règles métier), `js/parser.js` (script → plans, pur),
 `js/images.js` (prompt, cache et génération des images), `js/voices.js` (doublage et minutage), `js/jobs.js` (pause, reprises),
-`js/montage.js` (timeline, caméra, sous-titres, musique — pur), `js/render.js` (dessin d'une image), `js/mix.js` (mixage), `js/player.js` (aperçu),
+`js/montage.js` (timeline, caméra, sous-titres, musique — pur), `js/render.js` (dessin d'une image), `js/mix.js` (mixage), `js/player.js` (aperçu), `js/export.js` (MP4 et vignette), `vendor/mp4-muxer.mjs` (MIT),
 `js/agnes.js` / `js/elevenlabs.js` (API), `js/app.js` (onglet).
 
 Tests (Chromium via Playwright, API simulées ; `node <fichier>`) :
 `tests/drama/step1.test.mjs`, `step2.parser.test.mjs` (Node seul), `step2.ui.test.mjs`,
-`step3.prompt.test.mjs` (Node seul), `step3.images.test.mjs`, `step4.timing.test.mjs` (Node seul), `step4.voices.test.mjs`, `step5.montage.test.mjs` (Node seul), `step5.preview.test.mjs`,
+`step3.prompt.test.mjs` (Node seul), `step3.images.test.mjs`, `step4.timing.test.mjs` (Node seul), `step4.voices.test.mjs`, `step5.montage.test.mjs` (Node seul), `step5.preview.test.mjs`, `step6.export.test.mjs` (relit le MP4 produit),
 et `tests/atelier/videos.test.mjs` (onglet Vidéos).

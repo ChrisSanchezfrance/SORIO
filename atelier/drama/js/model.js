@@ -215,6 +215,12 @@ export async function updateEpisode(id, patch) {
     if (!e) throw new DramaError('Épisode introuvable');
     if ('title' in patch) e.title = String(patch.title || '').trim().slice(0, 120) || 'Épisode ' + e.number;
     if ('script' in patch) e.script = String(patch.script || '');
+    // étape 6 : dernier export MP4 (fichier dans le stockage privé de l'appli) et vignette
+    if ('exportInfo' in patch) e.exportInfo = patch.exportInfo || null;
+    if ('thumb' in patch) {
+        if (e.thumb && e.thumb.assetId && (!patch.thumb || patch.thumb.assetId !== e.thumb.assetId)) await deleteAsset(e.thumb.assetId);
+        e.thumb = patch.thumb || null;
+    }
     if ('number' in patch) {
         const n = Math.floor(Number(patch.number));
         if (!(n >= 1 && n <= 9999)) throw new DramaError('Numéro d\'épisode invalide');
@@ -263,8 +269,9 @@ export async function deleteEpisode(id) {
     const e = await get('episodes', id);
     if (!e) return;
     const [shots, takes] = await Promise.all([getByIndex('shots', 'episodeId', id), getByIndex('takes', 'episodeId', id)]);
-    await tx(['episodes', 'shots', 'takes'], 'readwrite', s => {
+    await tx(['episodes', 'shots', 'takes', 'assets'], 'readwrite', s => {
         s.episodes.delete(id);
+        if (e.thumb && e.thumb.assetId) s.assets.delete(e.thumb.assetId);
         shots.forEach(sh => s.shots.delete(sh.id));
         takes.forEach(t => s.takes.delete(t.id));
     });
@@ -319,6 +326,12 @@ export async function saveImageAsset(projectId, fileOrBlob, kind = 'ref') {
     if (!blob) throw new DramaError('Conversion de l\'image impossible');
     const asset = { id: newId('a'), projectId, kind, mime: 'image/jpeg', width: w, height: h, blob, createdAt: now() };
     return put('assets', asset);
+}
+
+export async function saveThumbAsset(projectId, episodeId, blob, planId) {
+    const asset = { id: newId('a'), projectId, kind: 'thumb', episodeId, planId, mime: blob.type || 'image/jpeg', width: 1080, height: 1920, blob, createdAt: now() };
+    await put('assets', asset);
+    return asset;
 }
 
 // ─── Bibliothèque sonore de la série (musiques et bruitages importés) ─
@@ -414,7 +427,9 @@ export async function importProject(data) {
     const episodeMap = {};
     const episodes = (data.episodes || []).map(e => {
         episodeMap[e.id] = newId('e');
-        return { ...e, id: episodeMap[e.id], projectId: pid };
+        // le MP4 exporté reste sur l'appareil d'origine : à refaire après import ; la vignette suit
+        const thumb = e.thumb && remap(e.thumb.assetId) ? { ...e.thumb, assetId: remap(e.thumb.assetId) } : null;
+        return { ...e, id: episodeMap[e.id], projectId: pid, exportInfo: null, thumb };
     });
     assets.forEach(a => { if (a.episodeId) a.episodeId = episodeMap[a.episodeId] || null; });
     const remapMedia = (list, idOf) => (list || []).filter(x => episodeMap[x.episodeId]).map(x => {
