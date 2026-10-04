@@ -2,7 +2,7 @@
 // Rend l'appli installable et permet de l'ouvrir sans réseau.
 // Seuls les fichiers de l'appli sont mis en cache : les appels à l'API
 // et les vidéos passent toujours directement par le réseau.
-const CACHE = 'atelier-video-v6';
+const CACHE = 'atelier-video-v7';
 const APP_FILES = [
     './',
     './index.html',
@@ -22,7 +22,11 @@ const APP_FILES = [
     './drama/js/agnes.js',
     './drama/js/images.js',
     './drama/js/jobs.js',
-    './drama/js/voices.js'
+    './drama/js/voices.js',
+    './drama/js/montage.js',
+    './drama/js/render.js',
+    './drama/js/mix.js',
+    './drama/js/player.js'
 ];
 
 self.addEventListener('install', event => {

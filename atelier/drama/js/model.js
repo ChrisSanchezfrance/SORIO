@@ -79,6 +79,16 @@ export async function updateProject(id, patch) {
         p.name = clean.slice(0, 80);
     }
     if ('voiceModel' in patch && ELEVEN_MODELS.some(m => m.id === patch.voiceModel)) p.voiceModel = patch.voiceModel;
+    if (patch.montage) {
+        const cur = { subtitles: true, subSize: 'M', musicVolume: 0.8, duck: 0.25, ...(p.montage || {}) };
+        const n = patch.montage;
+        p.montage = {
+            subtitles: 'subtitles' in n ? !!n.subtitles : cur.subtitles,
+            subSize: ['S', 'M', 'L'].includes(n.subSize) ? n.subSize : cur.subSize,
+            musicVolume: clamp(n.musicVolume ?? cur.musicVolume, 0, 1, cur.musicVolume),
+            duck: clamp(n.duck ?? cur.duck, 0, 1, cur.duck)
+        };
+    }
     if (patch.imageSettings) {
         const cur = p.imageSettings || {};
         const n = patch.imageSettings;
@@ -309,6 +319,39 @@ export async function saveImageAsset(projectId, fileOrBlob, kind = 'ref') {
     if (!blob) throw new DramaError('Conversion de l\'image impossible');
     const asset = { id: newId('a'), projectId, kind, mime: 'image/jpeg', width: w, height: h, blob, createdAt: now() };
     return put('assets', asset);
+}
+
+// ─── Bibliothèque sonore de la série (musiques et bruitages importés) ─
+// Chaque son porte le nom utilisé dans le script : [MUSIQUE] tension → music « tension »,
+// [SFX] porte-claque → sfx « porte-claque ». Importer à nouveau un nom remplace l'ancien son.
+export const SOUND_KINDS = ['music', 'sfx'];
+
+export async function listLibrary(projectId) {
+    const all = await getByProject('assets', projectId);
+    return all.filter(a => SOUND_KINDS.includes(a.kind)).sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+}
+
+export async function libraryIndex(projectId) {
+    const idx = { music: {}, sfx: {} };
+    for (const a of await listLibrary(projectId)) idx[a.kind][a.name] = { assetId: a.id, duration: a.duration, label: a.label };
+    return idx;
+}
+
+export async function saveLibrarySound(projectId, kind, name, file, duration, label = '') {
+    if (!SOUND_KINDS.includes(kind)) throw new DramaError('Type de son inconnu');
+    if (!file || !/^audio\//.test(file.type || '')) throw new DramaError('Choisissez un fichier audio (MP3, M4A, WAV…)');
+    if (!(duration > 0)) throw new DramaError('Fichier audio illisible');
+    const clean = String(name || '').trim();
+    if (!clean) throw new DramaError('Nom du son manquant');
+    const old = (await listLibrary(projectId)).filter(a => a.kind === kind && a.name === clean);
+    const asset = {
+        id: newId('a'), projectId, kind, name: clean, label: String(label || clean).slice(0, 80),
+        fileName: String(file.name || '').slice(0, 120), mime: file.type, duration: Math.round(duration * 1000) / 1000,
+        blob: file, createdAt: now()
+    };
+    await tx('assets', 'readwrite', st => { old.forEach(a => st.delete(a.id)); st.put(asset); });
+    await touchProject(projectId);
+    return asset;
 }
 
 // ─── Sauvegarde / restauration d'un projet (fichier .json) ────────

@@ -1,10 +1,12 @@
 // Drama — onglet « 🎬 Drama » de l'appli Atelier Vidéo.
 // Même présentation que l'onglet Vidéos : un panneau en haut (série en cours, clés),
-// puis des sections repliables : Style, Personnages, Épisodes, Script, Images, Voix, Sauvegarde.
+// puis des sections repliables : Style, Personnages, Épisodes, Script, Images, Voix, Montage, Sauvegarde.
 import * as M from './model.js';
 import * as EL from './elevenlabs.js';
 import * as IMG from './images.js';
 import * as VO from './voices.js';
+import * as PL from './player.js';
+import { requiredSounds, SUB_SIZES } from './montage.js';
 import { parseScript } from './parser.js';
 import { IMAGE_MODELS, IMAGE_SIZES, getAgnesKey } from './agnes.js';
 
@@ -20,6 +22,7 @@ const SECTIONS = [
     ['script', '📝 Script'],
     ['images', '🖼️ Images des plans'],
     ['voices', '🎙️ Voix et durées'],
+    ['montage', '🎞️ Montage'],
     ['backup', '💾 Sauvegarde et gestion']
 ];
 
@@ -32,7 +35,9 @@ const S = {
     imagesTimer: null,
     job: null,           // génération d'images en cours : { pid, eid, ctrl, states: Map, line, running }
     vjob: null,          // génération des voix en cours (même forme)
-    player: null         // écoute de l'épisode : { ctx, timer }
+    player: null,        // écoute de l'épisode : { ctx, timer }
+    preview: null,       // aperçu du montage (player.js)
+    montageTl: null      // timeline de l'épisode affiché dans le Montage
 };
 
 // ─── Utilitaires ──────────────────────────────────────────────────
@@ -103,7 +108,7 @@ function isOpen(k, ctx) {
     if (k in st) return !!st[k];
     if (k === 'style') return !ctx.project.style.locked;
     if (k === 'chars') return ctx.chars.length === 0;
-    return k === 'episodes' || k === 'script' || k === 'images' || k === 'voices';
+    return k === 'episodes' || k === 'script' || k === 'images' || k === 'voices' || k === 'montage';
 }
 function setOpen(k, v) { const st = openState(); st[k] = v; lsSet(OPEN_KEY, JSON.stringify(st)); }
 function openSection(k) {
@@ -803,6 +808,91 @@ function stopPlayback() {
     S.player = null;
 }
 
+// ─── Section Montage ──────────────────────────────────────────────
+async function buildMontage(ctx) {
+    const e = ctx.episode;
+    S.montageTl = null;
+    if (!e) return { badge: '—', badgeClass: '', html: '<div class="char-empty">Créez un épisode dans « 📺 Épisodes ».</div>' };
+    const a = e.analysis;
+    if (!a || !a.ok || !a.plans.length) {
+        return { badge: 'EP.' + e.number, badgeClass: '', html: '<div class="char-empty">Le montage s\'affiche dès que le script de l\'épisode est prêt (sans erreur).</div>' };
+    }
+    const tl = S.montageTl = await PL.loadEpisodeTimeline(ctx.project, ctx.chars, e);
+    const st = tl.settings;
+    const need = requiredSounds(a);
+    const lib = await M.listLibrary(ctx.project.id);
+    const libBy = (kind, name) => lib.find(x => x.kind === kind && x.name === name);
+    const miss = tl.missing;
+    const nImg = tl.plans.length - miss.images.length, nVox = tl.voices.length - miss.voices.length;
+    const nMus = need.music.length - miss.music.length, nSfx = need.sfx.length - miss.sfx.length;
+    const complete = !miss.images.length && !miss.voices.length && !miss.music.length && !miss.sfx.length;
+    const t = S.preview && S.preview.tl ? Math.min(S.preview.t, tl.duration) : 0;
+
+    const soundRow = (kind, item) => {
+        const x = libBy(kind, item.name);
+        return '<div class="d-sound">' +
+            '<div class="d-sound-main"><b>' + (kind === 'music' ? '🎵 ' : '🔊 ') + esc(item.label) + '</b>' +
+                '<div class="d-shot-text">' + (x ? '✅ ' + esc(x.fileName || 'importé') + ' · ' + fmtTenth(x.duration) : '⚠️ à importer') + '</div></div>' +
+            '<div class="char-actions">' +
+                (x ? '<button type="button" class="char-btn" data-action="lib-play" data-asset="' + x.id + '">▶</button>' : '') +
+                '<button type="button" class="char-btn" data-action="lib-import" data-kind="' + kind + '" data-name="' + esc(item.name) + '" data-label="' + esc(item.label) + '">' + (x ? 'Remplacer' : 'Importer') + '</button>' +
+                (x ? '<button type="button" class="char-btn danger" data-action="lib-delete" data-asset="' + x.id + '">🗑</button>' : '') +
+            '</div></div>';
+    };
+    const extra = lib.filter(x => !need[x.kind === 'music' ? 'music' : 'sfx'].some(n => n.name === x.name));
+
+    return {
+        badge: 'EP.' + e.number + ' · ' + fmtClock(tl.duration), badgeClass: complete ? 'ok' : '',
+        html:
+            '<div class="queue-summary"><span class="progress-text">🖼️ ' + nImg + '/' + tl.plans.length + ' · 🎙️ ' + nVox + '/' + tl.voices.length +
+                (need.music.length ? ' · 🎵 ' + nMus + '/' + need.music.length : '') + (need.sfx.length ? ' · 🔊 ' + nSfx + '/' + need.sfx.length : '') + '</span>' +
+                '<span class="eta-text">⏱ ' + fmtClock(tl.duration) + '</span></div>' +
+            (complete ? '' : '<div class="api-hint" style="margin:0 0 0.6rem">L\'aperçu fonctionne déjà : ' +
+                [miss.images.length ? plural(miss.images.length, 'image') + ' à générer (fond sombre)' : '',
+                 miss.voices.length ? plural(miss.voices.length, 'réplique') + ' sans voix (durée estimée, sous-titre affiché)' : '',
+                 miss.music.length ? plural(miss.music.length, 'musique') + ' à importer' : '',
+                 miss.sfx.length ? plural(miss.sfx.length, 'bruitage') + ' à importer' : ''].filter(Boolean).join(' · ') + '.</div>') +
+            '<div class="d-player"><canvas id="d-canvas" width="540" height="960" aria-label="Aperçu du montage"></canvas></div>' +
+            '<div class="d-controls">' +
+                '<button type="button" class="api-save-btn" id="d-preview-btn" data-action="preview-play">▶ Lire l\'aperçu</button>' +
+                '<input type="range" id="d-seek" min="0" max="' + tl.duration + '" step="0.01" value="' + t + '" aria-label="Position dans l\'épisode">' +
+                '<div class="d-time"><span id="d-time">' + fmtTenth(t) + ' / ' + fmtTenth(tl.duration) + '</span><span id="d-plan-label"></span></div>' +
+            '</div>' +
+            '<div class="control-label" style="margin:1rem 0 0.5rem">Réglages du montage (toute la série)</div>' +
+            '<div class="d-grid2">' +
+                '<div class="control-row"><label class="control-label" for="d-sub-on">Sous-titres</label><select id="d-sub-on">' +
+                    '<option value="1"' + (st.subtitles ? ' selected' : '') + '>Incrustés</option><option value="0"' + (st.subtitles ? '' : ' selected') + '>Sans</option></select></div>' +
+                '<div class="control-row"><label class="control-label" for="d-sub-size">Taille</label><select id="d-sub-size">' +
+                    Object.keys(SUB_SIZES).map(k => '<option value="' + k + '"' + (k === st.subSize ? ' selected' : '') + '>' + { S: 'Petite', M: 'Moyenne', L: 'Grande' }[k] + '</option>').join('') + '</select></div>' +
+            '</div>' +
+            '<div class="control-row"><div class="d-slider"><span>Volume de la musique</span><span id="d-music-vol-val">' + Math.round(st.musicVolume * 100) + ' %</span></div>' +
+                '<input type="range" id="d-music-vol" min="0" max="1" step="0.05" value="' + st.musicVolume + '"></div>' +
+            '<div class="control-row"><div class="d-slider"><span>Musique pendant les voix</span><span id="d-duck-val">' + Math.round(st.duck * 100) + ' %</span></div>' +
+                '<input type="range" id="d-duck" min="0" max="1" step="0.05" value="' + st.duck + '"></div>' +
+            '<div class="control-label" style="margin:1rem 0 0.5rem">Bibliothèque sonore de la série</div>' +
+            (need.music.length || need.sfx.length
+                ? need.music.map(m => soundRow('music', m)).join('') + need.sfx.map(x => soundRow('sfx', x)).join('')
+                : '<div class="char-empty">Le script n\'appelle ni [MUSIQUE] ni [SFX].</div>') +
+            (extra.length ? '<div class="api-hint">Autres sons de la série : ' + extra.map(x => esc(x.label) + ' <button type="button" class="char-btn danger" data-action="lib-delete" data-asset="' + x.id + '">🗑</button>').join(' ') + '</div>' : '') +
+            '<div class="api-hint">Un son importé porte le nom utilisé dans le script ([MUSIQUE] tension, [SFX] porte-claque) et sert à tous les épisodes de la série. La musique boucle si elle est plus courte que la scène.</div>'
+    };
+}
+
+function updatePreviewUI(st) {
+    const seek = $('#d-seek'), time = $('#d-time'), btn = $('#d-preview-btn'), lbl = $('#d-plan-label');
+    if (seek && document.activeElement !== seek) seek.value = st.t;
+    if (time) time.textContent = fmtTenth(st.t) + ' / ' + fmtTenth(st.duration);
+    if (btn) btn.textContent = st.loading ? '⏳ Préparation du son…' : st.playing ? '⏸ Pause' : '▶ Lire l\'aperçu';
+    if (lbl && st.plan) lbl.textContent = st.plan;
+}
+
+function attachPreview() {
+    const canvas = $('#d-canvas');
+    if (!canvas || !S.montageTl) { if (S.preview) S.preview.pause(); return; }
+    if (!S.preview) S.preview = new PL.Player(updatePreviewUI);
+    S.preview.attach(canvas, S.montageTl);
+}
+
 // ─── Section Sauvegarde ───────────────────────────────────────────
 async function buildBackup() {
     return {
@@ -820,7 +910,7 @@ async function buildBackup() {
 }
 
 // ─── Rendu ────────────────────────────────────────────────────────
-const BUILDERS = { style: buildStyle, chars: buildChars, episodes: buildEpisodes, script: buildScript, images: buildImages, voices: buildVoices, backup: buildBackup };
+const BUILDERS = { style: buildStyle, chars: buildChars, episodes: buildEpisodes, script: buildScript, images: buildImages, voices: buildVoices, montage: buildMontage, backup: buildBackup };
 
 function setBadge(k, { badge, badgeClass }) {
     const b = $('#d-badge-' + k);
@@ -849,6 +939,7 @@ async function renderAll() {
     root.innerHTML = html;
     for (const k in parts) setBadge(k, parts[k]);
     if (ctx.episode) renderAnalysis(ctx.episode.analysis || parseScript(ctx.episode.script, ctx.chars));
+    attachPreview();
     pruneAssetUrls();
     root.dataset.ready = '1';
 }
@@ -856,6 +947,8 @@ async function renderAll() {
 // Met à jour seulement certaines sections (sans toucher au script en cours d'écriture).
 async function refresh(...keys) {
     if (!$('#d-sec-style')) return renderAll();
+    // le montage dépend du script, des images, des voix, des fiches et du style
+    if (!keys.includes('montage') && keys.some(k => ['script', 'images', 'voices', 'chars', 'style', 'episodes'].includes(k))) keys.push('montage');
     const ctx = await loadCtx();
     if (!ctx.project) return renderAll();
     for (const k of keys) {
@@ -865,6 +958,7 @@ async function refresh(...keys) {
         body.innerHTML = part.html;
         setBadge(k, part);
         if (k === 'script' && ctx.episode) renderAnalysis(ctx.episode.analysis || parseScript(ctx.episode.script, ctx.chars));
+        if (k === 'montage') attachPreview();
     }
     pruneAssetUrls();
 }
@@ -1083,6 +1177,36 @@ const actions = {
     },
     async 'play-episode'() { await playEpisode(); },
     async 'stop-play'() { stopPlayback(); await refresh('voices'); },
+    async 'preview-play'() {
+        if (!S.preview) return;
+        if (S.preview.playing) S.preview.pause();
+        else { stopPlayback(); await S.preview.play(); }
+    },
+    async 'lib-import'(el) {
+        const file = await pickFile('audio/*');
+        if (!file) return;
+        let duration;
+        try { duration = await PL.audioFileDuration(file); } catch (e) { throw new M.DramaError('Fichier audio illisible'); }
+        await M.saveLibrarySound(S.pid, el.dataset.kind, el.dataset.name, file, duration, el.dataset.label);
+        toast((el.dataset.kind === 'music' ? 'Musique' : 'Bruitage') + ' « ' + el.dataset.label + ' » importé');
+        await refresh('montage');
+    },
+    async 'lib-play'(el) {
+        const a = await M.getAsset(el.dataset.asset);
+        if (!a) return;
+        stopPlayback();
+        if (S.preview) S.preview.pause();
+        const url = URL.createObjectURL(a.blob);
+        const audio = new Audio(url);
+        audio.addEventListener('ended', () => URL.revokeObjectURL(url), { once: true });
+        S.player = { audio };
+        await audio.play();
+    },
+    async 'lib-delete'(el) {
+        if (!confirm('Retirer ce son de la série ?')) return;
+        await M.deleteAsset(el.dataset.asset);
+        await refresh('montage');
+    },
     async 'open-eleven'() {
         S.elevenForm = true;
         const f = root.querySelector('.d-eleven-form');
@@ -1163,6 +1287,8 @@ root.addEventListener('click', async ev => {
 
 root.addEventListener('input', ev => {
     const t = ev.target;
+    if (t.id === 'd-seek' && S.preview) { S.preview.seek(parseFloat(t.value)); return; }
+    if (t.id === 'd-music-vol' || t.id === 'd-duck') { const o = $('#' + t.id + '-val'); if (o) o.textContent = Math.round(t.value * 100) + ' %'; return; }
     if (t.id === 'd-script') scheduleScriptSave();
     else if (t.type === 'range') { const out = $('#' + t.id + '-val'); if (out) out.textContent = t.value; }
     else if (t.id === 'd-eleven-key') { const b = root.querySelector('[data-action="test-eleven"]'); if (b) b.disabled = true; }
@@ -1192,6 +1318,12 @@ root.addEventListener('change', async ev => {
             }
             await refresh('episodes', 'images', 'voices');
             setBadge('script', scriptBadge((await M.listEpisodes(S.pid)).find(x => x.id === S.eid)));
+        } else if (['d-sub-on', 'd-sub-size', 'd-music-vol', 'd-duck'].includes(t.id)) {
+            await M.updateProject(S.pid, { montage: {
+                subtitles: $('#d-sub-on').value === '1', subSize: $('#d-sub-size').value,
+                musicVolume: parseFloat($('#d-music-vol').value), duck: parseFloat($('#d-duck').value)
+            }});
+            await refresh('montage');
         } else if (t.id === 'd-img-model' || t.id === 'd-img-size' || t.id === 'd-img-refs') {
             await M.updateProject(S.pid, { imageSettings: {
                 model: $('#d-img-model').value, size: $('#d-img-size').value, refs: $('#d-img-refs').value
@@ -1205,7 +1337,7 @@ root.addEventListener('focusout', ev => { if (ev.target.id === 'd-script') flush
 
 // Retour sur l'onglet Drama : la clé Agnes a pu changer dans l'onglet Vidéos.
 window.addEventListener('atelier:tab', ev => {
-    if (ev.detail !== 'drama') { stopPlayback(); return; }
+    if (ev.detail !== 'drama') { stopPlayback(); if (S.preview) S.preview.pause(); return; }
     if ((S.job && S.job.running) || (S.vjob && S.vjob.running)) return;
     if ($('#d-char-name')) { try { S.charDraft = readCharForm(); } catch (e) {} }   // fiche en cours de saisie gardée
     renderAll().catch(fail);
