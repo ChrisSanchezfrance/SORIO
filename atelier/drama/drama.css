@@ -125,3 +125,34 @@ input[type=range] { width: 100%; accent-color: var(--ink); }
 .toast.success { background: var(--success); }
 .toast.error { background: var(--error); }
 .toast.warn { background: var(--warn); }
+
+/* Étape 2 : analyse du script */
+.an-head { font-weight: 600; font-size: 0.9rem; margin-bottom: 0.3rem; }
+.an-head.ok { color: var(--success); }
+.an-head.bad { color: var(--error); }
+.an-stats { font-size: 0.75rem; color: var(--ink-dim); margin-bottom: 0.7rem; line-height: 1.45; }
+.an-stats .ok { color: var(--success); }
+.an-stats .off { color: #8a6510; }
+.issues { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.8rem; }
+.issue {
+    text-align: left; border: none; border-radius: 6px; padding: 0.45rem 0.6rem;
+    font-family: inherit; font-size: 0.75rem; line-height: 1.35; cursor: pointer;
+}
+.issue.error { background: #fbe9e7; color: #8e2a1f; }
+.issue.warning { background: #fdf5e3; color: #8a6510; }
+.issue-line { font-weight: 700; margin-right: 0.4rem; font-family: ui-monospace, Menlo, monospace; }
+.plan-card {
+    border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2);
+    padding: 0.6rem 0.7rem; margin-bottom: 0.45rem; font-size: 0.78rem; line-height: 1.4; cursor: pointer;
+}
+.plan-top { display: flex; gap: 0.3rem; align-items: baseline; margin-bottom: 0.15rem; }
+.plan-dur { margin-left: auto; font-size: 0.7rem; color: var(--ink-dim); white-space: nowrap; }
+.plan-meta { color: var(--ink-dim); font-size: 0.72rem; }
+.plan-img { margin: 0.1rem 0; }
+.plan-voice { margin-top: 0.15rem; }
+.json-box summary { cursor: pointer; font-size: 0.8rem; font-weight: 600; margin-top: 0.4rem; }
+pre.json {
+    max-height: 50vh; overflow: auto; background: #1a1a1a; color: #e6e6e6; border-radius: 8px;
+    padding: 0.7rem; font-size: 0.68rem; line-height: 1.4;
+}
+details.hint summary { cursor: pointer; }

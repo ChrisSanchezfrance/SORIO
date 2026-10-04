@@ -3,44 +3,8 @@
 // au rechargement, à l'export puis à l'import.
 // Lancer : node tests/drama/step1.test.mjs
 import { loadPlaywright, startServer, check, done, makePng } from './helpers.mjs';
+import { SCRIPT_5_PLANS } from './fixtures.mjs';
 
-const SCRIPT_5_PLANS = `[PLAN] 1
-[DECOR] Toit d'immeuble, nuit, pluie
-[PERSOS] @Lina
-[IMAGE] Lina seule au bord du toit, ville néon en contrebas
-[CAM] zoom-in lent
-[MUSIQUE] tension
-
-[PLAN] 2
-[DECOR] Toit d'immeuble, nuit, pluie
-[PERSOS] @Lina @Marc
-[IMAGE] Marc surgit derrière elle, essoufflé
-[CAM] pan-gauche ; transition: fondu
-[VOIX] @Marc: « Lina, attends ! »
-[SFX] porte-claque @0.2s
-
-[PLAN] 3
-[DECOR] Toit d'immeuble, nuit, pluie
-[PERSOS] @Lina
-[IMAGE] Gros plan sur Lina, larmes et pluie mêlées
-[CAM] tremblement léger
-[VOIX] @Lina: « Tu m'as menti. »
-
-[PLAN] 4
-[DECOR] Toit d'immeuble, nuit, pluie
-[PERSOS] @Marc
-[IMAGE] Marc baisse les yeux, la main tendue
-[CAM] zoom-out lent
-[VOIX] @Marc (chuchoté): « Je voulais te protéger. »
-
-[PLAN] 5
-[DECOR] Toit d'immeuble, nuit, éclair
-[PERSOS] @Lina @Marc
-[IMAGE] Un éclair illumine les deux silhouettes face à face
-[CAM] fixe ; transition: fondu au noir
-[SFX] tonnerre @0.0s
-[MUSIQUE] stop
-`;
 
 const VOICES = { voices: [
     { voice_id: 'voice_lina', name: 'Lina FR', category: 'cloned', preview_url: 'https://example.invalid/lina.mp3', labels: { gender: 'female', accent: 'french' } },

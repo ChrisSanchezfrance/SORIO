@@ -1,6 +1,7 @@
 // Drama — interface (étape 1 : projets série, style verrouillé, personnages, épisodes)
 import * as M from './model.js';
 import * as EL from './elevenlabs.js';
+import { parseScript } from './parser.js';
 
 const view = document.getElementById('view');
 let objectUrls = [];
@@ -15,6 +16,10 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmtDate = t => new Date(t).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const $ = sel => view.querySelector(sel);
+function fmtDuration(sec) {
+    const s = Math.round(sec);
+    return s < 60 ? s + ' s' : Math.floor(s / 60) + ' min ' + String(s % 60).padStart(2, '0');
+}
 
 let toastTimer = null;
 function toast(msg, type = 'success', ms = 2500) {
@@ -120,7 +125,7 @@ let charFormImageId;       // undefined = inchangé ; null = retirée ; 'a…' =
 async function renderProject(pid) {
     const p = await M.getProject(pid);
     if (!p) { toast('Série introuvable', 'error'); go('#/'); return; }
-    const [chars, eps] = await Promise.all([M.listCharacters(pid), M.listEpisodes(pid)]);
+    const [chars, eps] = await Promise.all([M.listCharacters(pid), M.refreshEpisodeAnalyses(pid)]);
     const styleRef = p.style.refImageId ? await assetUrl(p.style.refImageId) : '';
     const locked = p.style.locked;
     const dis = locked ? ' disabled' : '';
@@ -139,11 +144,16 @@ async function renderProject(pid) {
     }));
 
     const epCards = eps.map(e => {
-        const lines = e.script ? e.script.split('\n').filter(l => /^\s*\[PLAN\]/i.test(l)).length : 0;
+        const a = e.analysis;
+        const n = a ? a.stats.plans : 0;
+        const state = !a || !e.script.trim() ? '📝 brouillon'
+            : a.ok ? '✅ prêt · ~' + fmtDuration(a.stats.estimatedSeconds)
+            : '❌ ' + a.errors.length + ' erreur' + (a.errors.length > 1 ? 's' : '');
         return '<div class="card" data-go="#/p/' + pid + '/e/' + e.id + '">' +
             '<div class="thumb">EP.' + e.number + '</div>' +
             '<div class="card-main"><div class="card-title">' + esc(e.title) + '</div>' +
-            '<div class="card-sub">' + lines + ' plan' + (lines > 1 ? 's' : '') + ' · ' + esc(e.status) + ' · ' + fmtDate(e.updatedAt) + '</div></div></div>';
+            '<div class="card-sub">' + n + ' plan' + (n > 1 ? 's' : '') + ' · ' + state + '</div>' +
+            '<div class="card-sub">' + fmtDate(e.updatedAt) + '</div></div></div>';
     });
 
     view.innerHTML =
@@ -283,8 +293,11 @@ const PLAN_TEMPLATE =
 [MUSIQUE] tension
 `;
 
+let episodeChars = [];
+
 async function renderEpisode(pid, eid) {
-    const [p, e, chars] = await Promise.all([M.getProject(pid), M.listEpisodes(pid).then(l => l.find(x => x.id === eid)), M.listCharacters(pid)]);
+    const [p, e, chars] = await Promise.all([M.getProject(pid), M.refreshEpisodeAnalyses(pid).then(l => l.find(x => x.id === eid)), M.listCharacters(pid)]);
+    episodeChars = chars;
     if (!p || !e) { toast('Épisode introuvable', 'error'); go(p ? '#/p/' + pid : '#/'); return; }
     view.innerHTML =
         '<div class="panel"><a href="#/p/' + pid + '" class="back-link">← ' + esc(p.name) + '</a>' +
@@ -301,11 +314,97 @@ async function renderEpisode(pid, eid) {
             '</div>' +
             '<textarea class="script" id="ep-script" spellcheck="false" placeholder="' + esc(PLAN_TEMPLATE) + '">' + esc(e.script) + '</textarea>' +
             '<div class="save-state" id="save-state">Enregistré</div>' +
-            '<div class="hint">Balises : [PLAN] [DECOR] [PERSOS] [IMAGE] [CAM] [VOIX] [SFX] [MUSIQUE]. L\'analyse du script en liste de plans arrive à l\'étape suivante.</div>' +
+            '<details class="hint"><summary>Aide sur les balises</summary>' + SYNTAX_HELP + '</details>' +
         '</div>' +
+        '<div class="panel" id="analysis"></div>' +
         '<button class="btn danger block" data-action="delete-episode">Supprimer cet épisode</button>';
     view.dataset.pid = pid;
     view.dataset.eid = eid;
+    renderAnalysis(e.analysis || parseScript(e.script, chars));
+}
+
+const SYNTAX_HELP =
+    '<div style="margin-top:0.4rem;line-height:1.6">' +
+    '<b>[PLAN]</b> 12 — numéro facultatif<br>' +
+    '<b>[DECOR]</b> lieu, moment (repris du plan précédent si absent)<br>' +
+    '<b>[PERSOS]</b> @Lina @Marc<br>' +
+    '<b>[IMAGE]</b> ce que l\'on voit (obligatoire, peut continuer à la ligne)<br>' +
+    '<b>[CAM]</b> fixe, zoom-in, zoom-out, pan-gauche/droite/haut/bas, tremblement + lent, rapide, léger, fort ; ' +
+    'combinables avec « + » ; <code>transition: fondu | fondu au noir | fondu au blanc | glisse-gauche | glisse-droite | flash | coupe</code> ; ' +
+    '<code>duree: 4s</code><br>' +
+    '<b>[VOIX]</b> @Lina (chuchoté): « réplique » — plusieurs lignes possibles<br>' +
+    '<b>[SFX]</b> porte-claque @1.2s vol: 0.6<br>' +
+    '<b>[MUSIQUE]</b> tension vol: 0.5 | continue | stop<br>' +
+    'Plan sans réplique : 2,5 s par défaut. # ou // : commentaire.</div>';
+
+const MOVE_LABELS = { 'fixe': 'fixe', 'zoom-in': 'zoom avant', 'zoom-out': 'zoom arrière', 'pan-gauche': 'pan ←', 'pan-droite': 'pan →',
+    'pan-haut': 'pan ↑', 'pan-bas': 'pan ↓', 'tremblement': 'tremblement' };
+const TRANS_LABELS = { 'coupe': 'coupe', 'fondu': 'fondu', 'fondu-noir': 'fondu au noir', 'fondu-blanc': 'fondu au blanc',
+    'glisse-gauche': 'glisse ←', 'glisse-droite': 'glisse →', 'flash': 'flash' };
+
+let lastAnalysis = null;
+
+function renderAnalysis(a) {
+    lastAnalysis = a;
+    const box = $('#analysis');
+    if (!box || !a) return;
+    const st = a.stats;
+    const t = st.target;
+    const inTarget = st.estimatedSeconds >= t.min && st.estimatedSeconds <= t.max;
+    const head = a.errors.length
+        ? '<div class="an-head bad">❌ ' + a.errors.length + ' erreur' + (a.errors.length > 1 ? 's' : '') + ' à corriger</div>'
+        : st.plans
+            ? '<div class="an-head ok">✅ ' + st.plans + ' plan' + (st.plans > 1 ? 's' : '') + ' prêt' + (st.plans > 1 ? 's' : '') + '</div>'
+            : '<div class="an-head">Script vide</div>';
+    const issues = a.errors.concat(a.warnings).sort((x, y) => x.line - y.line).map(i =>
+        '<button class="issue ' + i.severity + '" data-action="goto-line" data-line="' + i.line + '">' +
+        '<span class="issue-line">L.' + i.line + '</span>' + (i.severity === 'error' ? '❌ ' : '⚠️ ') + esc(i.message) + '</button>').join('');
+    const plans = a.plans.map(p => {
+        const cam = p.cam.moves.map(m => MOVE_LABELS[m.type] + (m.speed !== 'normal' ? ' ' + m.speed : '') +
+            (m.intensity !== 'normal' ? ' ' + (m.intensity === 'leger' ? 'léger' : m.intensity) : '')).join(' + ');
+        const dur = p.duration.mode === 'audio' ? '~' + p.duration.estimate + ' s (voix)'
+            : p.duration.seconds + ' s' + (p.duration.mode === 'fixed' ? ' (imposée)' : ' (défaut)');
+        const music = p.musique.action === 'start' ? '🎵 ' + esc(p.musique.label || p.musique.track) + ' ▶'
+            : p.musique.action === 'stop' ? '🎵 stop' : '';
+        return '<div class="plan-card" data-action="goto-line" data-line="' + p.line + '">' +
+            '<div class="plan-top"><b>' + p.id + '</b>' + (p.title ? ' · ' + esc(p.title) : '') +
+                '<span class="plan-dur">⏱ ' + dur + '</span></div>' +
+            '<div class="plan-meta">📍 ' + (p.decor ? esc(p.decor) + (p.decorInherited ? ' <i>(repris)</i>' : '') : '<i>sans décor</i>') +
+                (p.persos.length ? ' · 👤 ' + p.persos.map(n => '@' + esc(n)).join(' ') : '') + '</div>' +
+            '<div class="plan-img">🖼️ ' + esc(p.image || '—') + '</div>' +
+            '<div class="plan-meta">🎥 ' + cam + (p.cam.transition.type !== 'coupe' ? ' · ↪ ' + TRANS_LABELS[p.cam.transition.type] + ' ' + p.cam.transition.duration + ' s' : '') +
+                (music ? ' · ' + music : '') + '</div>' +
+            p.voix.map(v => '<div class="plan-voice">🗣️ <b>@' + esc(v.perso) + '</b>' + (v.ton ? ' <i>(' + esc(v.ton) + ')</i>' : '') +
+                (v.horsChamp ? ' <i>hors champ</i>' : '') + ' : « ' + esc(v.texte) + ' »</div>').join('') +
+            p.sfx.map(x => '<div class="plan-meta">🔊 ' + esc(x.label || x.name) + ' à ' + x.at + ' s' + (x.volume !== 1 ? ' · vol ' + x.volume : '') + '</div>').join('') +
+        '</div>';
+    }).join('');
+    box.innerHTML =
+        '<div class="section-title" style="margin-bottom:0.6rem">🧩 Plans (analyse du script)</div>' + head +
+        (st.plans ? '<div class="an-stats">' + st.voix + ' réplique' + (st.voix > 1 ? 's' : '') + ' · ' + st.sfx + ' son' + (st.sfx > 1 ? 's' : '') +
+            ' · ' + st.characters.length + ' personnage' + (st.characters.length > 1 ? 's' : '') +
+            ' · durée estimée ~' + fmtDuration(st.estimatedSeconds) +
+            ' <span class="' + (inTarget ? 'ok' : 'off') + '">(objectif 3–6 min' + (inTarget ? ' ✓' : '') + ')</span>' +
+            (st.tracks.length ? '<br>Musiques à importer : ' + st.tracks.map(esc).join(', ') : '') + '</div>' : '') +
+        (issues ? '<div class="issues">' + issues + '</div>' : '') +
+        plans +
+        (st.plans ? '<details class="json-box"><summary>JSON des plans</summary>' +
+            '<div class="btns" style="margin:0.5rem 0"><button class="btn small light" data-action="copy-json">Copier</button>' +
+            '<button class="btn small light" data-action="download-json">Télécharger</button></div>' +
+            '<pre class="json">' + esc(JSON.stringify(a.plans, null, 2)) + '</pre></details>' : '');
+}
+
+function gotoLine(line) {
+    const ta = $('#ep-script');
+    if (!ta) return;
+    const lines = ta.value.split('\n');
+    const n = Math.max(1, Math.min(line, lines.length));
+    const start = lines.slice(0, n - 1).reduce((s, l) => s + l.length + 1, 0);
+    ta.focus({ preventScroll: true });
+    ta.setSelectionRange(start, start + lines[n - 1].length);
+    const lh = parseFloat(getComputedStyle(ta).lineHeight) || 18;
+    ta.scrollTop = Math.max(0, (n - 3) * lh);
+    ta.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function scheduleScriptSave() {
@@ -316,7 +415,7 @@ function scheduleScriptSave() {
     if (state) state.textContent = 'Modification…';
     pendingScriptSave = { eid, script: ta.value };
     clearTimeout(scriptSaveTimer);
-    scriptSaveTimer = setTimeout(flushScriptSave, 600);
+    scriptSaveTimer = setTimeout(flushScriptSave, 500);
 }
 async function flushScriptSave() {
     clearTimeout(scriptSaveTimer);
@@ -324,9 +423,12 @@ async function flushScriptSave() {
     pendingScriptSave = null;
     if (!job) return;
     try {
-        await M.updateEpisode(job.eid, { script: job.script });
+        const e = await M.saveEpisodeScript(job.eid, job.script);
         const state = $('#save-state');
-        if (state && view.dataset.eid === job.eid) state.textContent = 'Enregistré ✓';
+        if (state && view.dataset.eid === job.eid) {
+            state.textContent = 'Enregistré ✓';
+            renderAnalysis(e.analysis);
+        }
     } catch (e) { fail(e); }
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushScriptSave(); });
@@ -481,6 +583,20 @@ const actions = {
         await M.deleteEpisode(view.dataset.eid);
         toast('Épisode supprimé', 'warn');
         go('#/p/' + view.dataset.pid);
+    },
+    async 'goto-line'(el) { gotoLine(parseInt(el.dataset.line, 10)); },
+    async 'copy-json'() {
+        await navigator.clipboard.writeText(JSON.stringify(lastAnalysis.plans, null, 2));
+        toast('JSON copié');
+    },
+    async 'download-json'() {
+        const ep = (await M.listEpisodes(view.dataset.pid)).find(x => x.id === view.dataset.eid);
+        const blob = new Blob([JSON.stringify({ episode: ep.number, title: ep.title, ...lastAnalysis }, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'ep' + ep.number + '-plans.json';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 60000);
     },
     async 'insert-tag'(el) { insertAtCursor($('#ep-script'), el.dataset.tag + ' '); },
     async 'insert-template'() {

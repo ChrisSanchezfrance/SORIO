@@ -59,14 +59,14 @@ en haut de l'Atelier, ou https://chrissanchezfrance.github.io/SORIO/atelier/dram
 | Étape | Contenu | État |
 |---|---|---|
 | 1 | Projet série : style verrouillé (texte, interdits, image de référence, graine), fiches personnages (@Nom, image de référence, voix ElevenLabs + réglages), épisodes (script balisé, autosauvegarde), export/import de la série | ✅ |
-| 2 | Parseur du script `[PLAN] [DECOR] [PERSOS] [IMAGE] [CAM] [VOIX] [SFX] [MUSIQUE]` → plans JSON | à faire |
+| 2 | Parseur du script `[PLAN] [DECOR] [PERSOS] [IMAGE] [CAM] [VOIX] [SFX] [MUSIQUE]` → plans JSON : analyse en direct, erreurs par ligne avec suggestions, durée 2,5 s par défaut sans réplique (`duree: Ns` dans [CAM] pour l'imposer), JSON enregistré avec l'épisode | ✅ |
 | 3 | Génération d'images par plan (cache, régénération d'un plan) | à faire |
 | 4 | Doublage ElevenLabs multi-voix, durée du plan = durée audio | à faire |
 | 5 | Montage : zoom/pan/tremblement, transitions, sous-titres, musique importée avec ducking | à faire |
 | 6 | Export MP4 1080×1920 30 i/s + vignette EP.x | à faire |
 | 7 | Rendu en lot avec reprise sur erreur | à faire |
 
-Code : `js/db.js` (IndexedDB), `js/model.js` (règles métier), `js/elevenlabs.js`, `js/app.js` (écrans).
+Code : `js/db.js` (IndexedDB), `js/model.js` (règles métier), `js/parser.js` (script → plans, module pur), `js/elevenlabs.js`, `js/app.js` (écrans).
 Les données restent sur le téléphone ; la clé ElevenLabs est stockée localement.
 
-Tests (Chromium via Playwright, API ElevenLabs simulée) : `node tests/drama/step1.test.mjs`
+Tests (Chromium via Playwright, API simulées) : `node tests/drama/step1.test.mjs`, `node tests/drama/step2.parser.test.mjs` (Node seul), `node tests/drama/step2.ui.test.mjs`

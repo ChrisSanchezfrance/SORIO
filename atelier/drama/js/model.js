@@ -4,6 +4,7 @@
 // Épisode : numéro, titre, script balisé (analysé à l'étape 2).
 
 import { tx, get, put, getAll, getByProject, newId, requestPersistentStorage } from './db.js';
+import { parseScript } from './parser.js';
 
 export const FORMAT = { ratio: '9:16', width: 1080, height: 1920, fps: 30 };
 export const NAME_REGEX = /^[A-Za-zÀ-ÖØ-öø-ÿ0-9_-]{1,30}$/;
@@ -202,6 +203,37 @@ export async function updateEpisode(id, patch) {
     await put('episodes', e);
     await touchProject(e.projectId);
     return e;
+}
+
+// Enregistre le script et son analyse (liste de plans JSON utilisée par les étapes suivantes).
+const statusOf = (script, analysis) => !String(script).trim() ? 'brouillon' : analysis.ok ? 'prêt' : 'à corriger';
+
+export async function saveEpisodeScript(id, script) {
+    const e = await get('episodes', id);
+    if (!e) throw new DramaError('Épisode introuvable');
+    e.script = String(script || '');
+    e.analysis = parseScript(e.script, await listCharacters(e.projectId));
+    e.status = statusOf(e.script, e.analysis);
+    e.updatedAt = now();
+    await put('episodes', e);
+    await touchProject(e.projectId);
+    return e;
+}
+
+// Ré-analyse si les fiches personnages ont changé depuis (renommage, suppression, vitesse de voix).
+export async function refreshEpisodeAnalyses(projectId) {
+    const [eps, chars] = await Promise.all([listEpisodes(projectId), listCharacters(projectId)]);
+    const out = [];
+    for (const e of eps) {
+        const analysis = parseScript(e.script, chars);
+        if (!e.analysis || e.analysis.hash !== analysis.hash || e.analysis.version !== analysis.version) {
+            e.analysis = analysis;
+            e.status = statusOf(e.script, analysis);
+            await put('episodes', e);
+        }
+        out.push(e);
+    }
+    return out;
 }
 
 export async function deleteEpisode(id) {
