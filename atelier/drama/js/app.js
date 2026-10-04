@@ -1,9 +1,10 @@
 // Drama — onglet « 🎬 Drama » de l'appli Atelier Vidéo.
 // Même présentation que l'onglet Vidéos : un panneau en haut (série en cours, clés),
-// puis des sections repliables : Style, Personnages, Épisodes, Script, Images, Sauvegarde.
+// puis des sections repliables : Style, Personnages, Épisodes, Script, Images, Voix, Sauvegarde.
 import * as M from './model.js';
 import * as EL from './elevenlabs.js';
 import * as IMG from './images.js';
+import * as VO from './voices.js';
 import { parseScript } from './parser.js';
 import { IMAGE_MODELS, IMAGE_SIZES, getAgnesKey } from './agnes.js';
 
@@ -18,6 +19,7 @@ const SECTIONS = [
     ['episodes', '📺 Épisodes'],
     ['script', '📝 Script'],
     ['images', '🖼️ Images des plans'],
+    ['voices', '🎙️ Voix et durées'],
     ['backup', '💾 Sauvegarde et gestion']
 ];
 
@@ -28,7 +30,9 @@ const S = {
     editingCharId: null, charImageId: undefined, charDraft: null,
     scriptTimer: null, pendingScript: null, lastAnalysis: null,
     imagesTimer: null,
-    job: null            // génération d'images en cours : { pid, eid, ctrl, states: Map, line, running }
+    job: null,           // génération d'images en cours : { pid, eid, ctrl, states: Map, line, running }
+    vjob: null,          // génération des voix en cours (même forme)
+    player: null         // écoute de l'épisode : { ctx, timer }
 };
 
 // ─── Utilitaires ──────────────────────────────────────────────────
@@ -99,7 +103,7 @@ function isOpen(k, ctx) {
     if (k in st) return !!st[k];
     if (k === 'style') return !ctx.project.style.locked;
     if (k === 'chars') return ctx.chars.length === 0;
-    return k === 'episodes' || k === 'script' || k === 'images';
+    return k === 'episodes' || k === 'script' || k === 'images' || k === 'voices';
 }
 function setOpen(k, v) { const st = openState(); st[k] = v; lsSet(OPEN_KEY, JSON.stringify(st)); }
 function openSection(k) {
@@ -300,10 +304,11 @@ async function buildEpisodes(ctx) {
             : a.ok ? '✅ prêt · ~' + fmtDuration(a.stats.estimatedSeconds)
             : '❌ ' + plural(a.errors.length, 'erreur');
         const imgs = a && a.ok ? await IMG.readyCount(ctx.project, ctx.chars, e) : null;
+        const vox = a && a.ok ? await VO.voiceReadyCount(ctx.project, ctx.chars, e) : null;
         return '<div class="d-ep' + (e.id === S.eid ? ' current' : '') + '" data-action="select-episode" data-eid="' + e.id + '">' +
             '<div class="d-ep-num">EP.' + e.number + '</div>' +
             '<div class="d-ep-main"><div class="d-ep-title">' + esc(e.title) + '</div>' +
-            '<div class="d-ep-sub">' + plural(n, 'plan') + ' · ' + state + (imgs ? ' · 🖼️ ' + imgs.ready + '/' + imgs.total : '') + '</div></div>' +
+            '<div class="d-ep-sub">' + plural(n, 'plan') + ' · ' + state + (imgs ? ' · 🖼️ ' + imgs.ready + '/' + imgs.total : '') + (vox && vox.total ? ' · 🎙️ ' + vox.ready + '/' + vox.total : '') + '</div></div>' +
             (e.id === S.eid ? '<div class="d-ep-check">✓</div>' : '') + '</div>';
     }));
     return {
@@ -454,7 +459,7 @@ async function flushScript() {
         setBadge('script', scriptBadge(e));
         if (!(S.job && S.job.running)) {
             clearTimeout(S.imagesTimer);
-            S.imagesTimer = setTimeout(() => refresh('episodes', 'images').catch(fail), 900);
+            S.imagesTimer = setTimeout(() => refresh('episodes', 'images', 'voices').catch(fail), 900);
         }
     } catch (e) { fail(e); }
 }
@@ -614,6 +619,190 @@ function showZoom(src) {
     document.body.appendChild(ov);
 }
 
+// ─── Section Voix et durées ───────────────────────────────────────
+const VOICE_CHIPS = {
+    ok: ['ok', '✅ prête'], cached: ['soft', '♻️ en cache'], stale: ['warn', '♻️ à refaire (texte ou voix modifiés)'],
+    missing: ['', '○ à générer'], queued: ['', '⏳ en attente'], running: ['run', '🎙️ synthèse…'],
+    waiting: ['warn', '⏸ nouvel essai'], error: ['bad', '❌'], stopped: ['', '⏹ arrêté']
+};
+const fmtClock = s => Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0');
+// m:ss.d — moments des plans, au dixième de seconde
+const fmtTenth = s => { const d = Math.round(s * 10) / 10; return Math.floor(d / 60) + ':' + (d % 60).toFixed(1).padStart(4, '0'); };
+
+async function buildVoices(ctx) {
+    const e = ctx.episode;
+    if (!e) return { badge: '—', badgeClass: '', html: '<div class="char-empty">Créez un épisode dans « 📺 Épisodes ».</div>' };
+    const a = e.analysis;
+    if (!a || !a.plans.length) return { badge: 'EP.' + e.number, badgeClass: '', html: '<div class="char-empty">Écrivez le script de l\'épisode : chaque [VOIX] sera doublée.</div>' };
+
+    const { states, timing } = await VO.voiceStates(ctx.project, ctx.chars, e);
+    const job = S.vjob && S.vjob.eid === e.id ? S.vjob : null;
+    const running = !!(S.vjob && S.vjob.running);
+    const key = EL.getKey();
+    const ready = states.filter(s => s.state === 'ok').length;
+    const todo = states.filter(s => s.state !== 'ok' && s.state !== 'error').length;
+    const blocked = [...new Set(states.filter(s => s.state === 'error').map(s => s.req.error))];
+    const byPlan = new Map();
+    states.forEach(s => { if (!byPlan.has(s.line.planId)) byPlan.set(s.line.planId, []); byPlan.get(s.line.planId).push(s); });
+    const target = a.stats.target;
+    const inTarget = timing.total >= target.min && timing.total <= target.max;
+    const model = M.ELEVEN_MODELS.find(m => m.id === ctx.project.voiceModel) || M.ELEVEN_MODELS[0];
+    const playing = S.player && S.player.ctx;
+
+    const plans = await Promise.all(timing.plans.map(async tp => {
+        const lines = await Promise.all((byPlan.get(tp.id) || []).map(async s => {
+            const live = job && job.states.get(s.line.id);
+            const chipKey = live && live.state !== 'ok' ? live.state : s.state;
+            const [cls, label] = VOICE_CHIPS[chipKey] || VOICE_CHIPS.missing;
+            const msg = live && live.state === 'error' ? live.message : s.state === 'error' ? s.req.error : '';
+            const extra = msg ? ' ' + esc(msg)
+                : live && live.state === 'waiting' ? ' dans <span data-vleft="' + s.line.id + '">' + (live.left || '') + '</span> s' : '';
+            const t = s.take;
+            const vi = t && t.current ? t.versions.indexOf(t.current) : -1;
+            const versions = t && t.versions.length > 1
+                ? '<button type="button" class="char-btn" data-action="take-version" data-line="' + s.line.id + '" data-dir="-1"' + (vi <= 0 || running ? ' disabled' : '') + '>◀</button>' +
+                  '<span class="d-ver">v' + (vi + 1) + '/' + t.versions.length + '</span>' +
+                  '<button type="button" class="char-btn" data-action="take-version" data-line="' + s.line.id + '" data-dir="1"' + (vi >= t.versions.length - 1 || running ? ' disabled' : '') + '>▶</button>'
+                : '';
+            return '<div class="d-line" data-line="' + s.line.id + '">' +
+                '<div class="d-line-top"><b>@' + esc(s.line.perso) + '</b>' + (s.line.ton ? ' <i>(' + esc(s.line.ton) + ')</i>' : '') +
+                    ' <span class="d-chip ' + cls + '" data-vchip="' + s.line.id + '">' + label + extra + '</span>' +
+                    (s.duration != null ? '<span class="d-line-dur">' + s.duration.toFixed(1) + ' s</span>' : '') + '</div>' +
+                '<div class="d-shot-text">« ' + esc(s.line.texte) + ' »' + (s.req.voiceName ? ' — 🎙️ ' + esc(s.req.voiceName) : '') + '</div>' +
+                '<div class="char-actions">' +
+                    (s.state === 'ok' ? '<button type="button" class="char-btn" data-action="play-line" data-line="' + s.line.id + '">▶ Écouter</button>' : '') +
+                    (s.state !== 'error' ? '<button type="button" class="char-btn" data-action="regen-line" data-line="' + s.line.id + '"' + (running || !a.ok || !key ? ' disabled' : '') + '>' +
+                        (t && t.current ? '↻ Autre prise' : '🎙️ Générer') + '</button>' : '') + versions +
+                '</div></div>';
+        }));
+        const modeLabel = tp.mode === 'audio' ? 'durée des voix' : tp.mode === 'estimate' ? 'estimation' : tp.mode === 'fixed' ? 'imposée' : 'sans réplique';
+        return '<div class="d-vplan">' +
+            '<div class="d-vplan-top"><b>' + tp.id + '</b><span class="d-vplan-time">' + fmtTenth(tp.start) + ' → ' + fmtTenth(tp.start + tp.duration) + '</span>' +
+                '<span class="d-chip' + (tp.mode === 'audio' || tp.mode === 'default' ? ' ok' : tp.mode === 'estimate' ? '' : ' soft') + '">⏱ ' + tp.duration.toFixed(1) + ' s · ' + modeLabel + '</span></div>' +
+            (tp.overflow ? '<div class="d-shot-text" style="color:#8a6510">⚠️ Les répliques dépassent la durée imposée.</div>' : '') +
+            lines.join('') + '</div>';
+    }));
+
+    const genLabel = !todo ? '✅ Toutes les voix sont prêtes'
+        : '🎙️ Générer ' + (todo === states.length ? 'les ' + plural(todo, 'réplique') : plural(todo, 'réplique') + ' manquante' + (todo > 1 ? 's' : ''));
+    return {
+        badge: 'EP.' + e.number + ' · ' + (states.length ? ready + '/' + states.length : 'sans réplique'),
+        badgeClass: states.length && ready === states.length ? 'ok' : '',
+        html:
+            '<div class="api-hint" style="margin:0 0 0.6rem">Modèle : ' + esc(model.name) + ' · voix et réglages de chaque fiche (section Personnages).</div>' +
+            (!key ? '<div class="lock-banner"><span>⚠️ Ajoutez votre clé ElevenLabs en haut de l\'onglet Drama pour générer les voix.</span><button type="button" class="char-btn" data-action="open-eleven">Ajouter la clé</button></div>' : '') +
+            (!a.ok ? '<div class="lock-banner"><span>❌ Corrigez le script (' + plural(a.errors.length, 'erreur') + ') avant de générer les voix.</span></div>' : '') +
+            blocked.map(b => '<div class="lock-banner"><span>⚠️ ' + esc(b) + '</span></div>').join('') +
+            '<div class="queue-summary"><span class="progress-text">🎙️ ' + ready + '/' + plural(states.length, 'réplique') + ' prête' + (ready > 1 ? 's' : '') + '</span>' +
+                '<span class="eta-text">⏱ Épisode : ' + fmtClock(timing.total) + (timing.complete ? '' : ' (estimation)') +
+                ' <span class="' + (inTarget ? 'd-ok' : 'd-off') + '">objectif 3–6 min' + (inTarget ? ' ✓' : '') + '</span></span></div>' +
+            (job ? '<div class="api-hint" id="d-vjob-line">' + esc(job.line) + '</div>' : '') +
+            (running
+                ? '<button type="button" class="btn-stop visible" data-action="stop-voices">⏹ Arrêter le doublage</button>'
+                : '<button type="button" class="btn-primary" data-action="gen-voices"' + (!todo || !a.ok || !key ? ' disabled' : '') + '>' + genLabel + '</button>') +
+            (ready ? (playing
+                ? '<button type="button" class="api-save-btn" data-action="stop-play">⏹ Arrêter l\'écoute <span id="d-play-clock"></span></button>'
+                : '<button type="button" class="api-save-btn" data-action="play-episode">▶ Écouter l\'épisode (voix et durées)</button>') : '') +
+            '<div class="d-vplans">' + plans.join('') + '</div>' +
+            '<div class="api-hint">Une prise n\'est refaite que si le texte, la voix ou ses réglages changent ; « Autre prise » en propose une nouvelle (les 4 dernières sont gardées). Le ton entre parenthèses est indicatif : il n\'est pas transmis à ElevenLabs.</div>'
+    };
+}
+
+async function startVoices(lineIds, force) {
+    if (S.vjob && S.vjob.running) return;
+    const ctx = await loadCtx();
+    const e = ctx.episode;
+    if (!e || !e.analysis || !e.analysis.ok) { toast('Corrigez d\'abord le script', 'warn'); return; }
+    const ctrl = new AbortController();
+    const states = new Map();
+    const targets = lineIds || VO.episodeLines(e.analysis).map(l => l.id);
+    targets.forEach(id => states.set(id, { state: 'queued' }));
+    const job = S.vjob = { pid: ctx.project.id, eid: e.id, ctrl, states, running: true, line: 'Préparation…' };
+    if (typeof window.ensureWakeLockActive === 'function') window.ensureWakeLockActive();
+    await refresh('voices');
+    let done = 0;
+    try {
+        const summary = await VO.generateEpisodeVoices({
+            project: ctx.project, characters: ctx.chars, episode: e, lineIds, force, signal: ctrl.signal,
+            onUpdate: (lid, st) => {
+                job.states.set(lid, st);
+                if (st.state === 'ok' || st.state === 'error') done++;
+                if (st.state === 'waiting') {
+                    job.line = 'Nouvel essai dans ' + st.left + ' s (' + st.message + ')';
+                    const left = root.querySelector('[data-vleft="' + lid + '"]');
+                    if (left) {
+                        left.textContent = st.left;
+                        const ln = $('#d-vjob-line');
+                        if (ln) ln.textContent = job.line;
+                        return;
+                    }
+                } else {
+                    job.line = st.state === 'running' ? 'Réplique ' + lid + ' en cours… (' + done + '/' + targets.length + ')' : done + '/' + targets.length + ' traitée' + (done > 1 ? 's' : '');
+                }
+                clearTimeout(S.voicesTimer);
+                S.voicesTimer = setTimeout(() => refresh('episodes', 'voices').catch(fail), 120);
+            }
+        });
+        const parts = [];
+        if (summary.generated) parts.push(plural(summary.generated, 'réplique') + ' doublée' + (summary.generated > 1 ? 's' : ''));
+        if (summary.reused) parts.push(summary.reused + ' reprise' + (summary.reused > 1 ? 's' : '') + ' du cache');
+        if (summary.failed) parts.push(summary.failed + ' en échec');
+        if (summary.blocked) toast(summary.blocked, 'error', 4500);
+        else if (summary.stopped) toast('Doublage arrêté', 'warn');
+        else toast(parts.join(' · ') || 'Voix déjà à jour', summary.failed ? 'warn' : 'success', 3500);
+        job.line = summary.stopped ? 'Arrêté' : (summary.blocked || parts.join(' · ') || 'Voix déjà à jour');
+    } catch (err) {
+        fail(err);
+        job.line = err.message;
+    } finally {
+        job.running = false;
+        clearTimeout(S.voicesTimer);
+        await refresh('episodes', 'voices');
+    }
+}
+
+// Écoute de l'épisode : toutes les prises placées à leur moment, silences compris.
+async function playEpisode() {
+    stopPlayback();
+    const ctx = await loadCtx();
+    const e = ctx.episode;
+    if (!e) return;
+    const { states, timing } = await VO.voiceStates(ctx.project, ctx.chars, e);
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const ac = new Ctx();
+    const t0 = ac.currentTime + 0.15;
+    const byLine = new Map(states.filter(s => s.state === 'ok').map(s => [s.line.id, s]));
+    for (const tp of timing.plans) {
+        for (const l of tp.lines) {
+            const s = byLine.get(l.id);
+            if (!s) continue;
+            const asset = await M.getAsset(s.take.current);
+            const buf = await ac.decodeAudioData(await asset.blob.arrayBuffer());
+            const src = ac.createBufferSource();
+            src.buffer = buf;
+            src.connect(ac.destination);
+            src.start(t0 + tp.start + l.start);
+        }
+    }
+    const player = S.player = { ctx: ac, total: timing.total, timer: null };
+    await refresh('voices');
+    player.timer = setInterval(() => {
+        const el = $('#d-play-clock');
+        const pos = Math.max(0, ac.currentTime - t0);
+        if (el) el.textContent = fmtClock(Math.min(pos, player.total)) + ' / ' + fmtClock(player.total);
+        if (pos > player.total + 0.3) { stopPlayback(); refresh('voices').catch(fail); }
+    }, 250);
+}
+
+function stopPlayback() {
+    const p = S.player;
+    if (!p) return;
+    if (p.timer) clearInterval(p.timer);
+    if (p.ctx) p.ctx.close().catch(() => {});
+    if (p.audio) p.audio.pause();
+    S.player = null;
+}
+
 // ─── Section Sauvegarde ───────────────────────────────────────────
 async function buildBackup() {
     return {
@@ -631,7 +820,7 @@ async function buildBackup() {
 }
 
 // ─── Rendu ────────────────────────────────────────────────────────
-const BUILDERS = { style: buildStyle, chars: buildChars, episodes: buildEpisodes, script: buildScript, images: buildImages, backup: buildBackup };
+const BUILDERS = { style: buildStyle, chars: buildChars, episodes: buildEpisodes, script: buildScript, images: buildImages, voices: buildVoices, backup: buildBackup };
 
 function setBadge(k, { badge, badgeClass }) {
     const b = $('#d-badge-' + k);
@@ -772,7 +961,7 @@ const actions = {
         await M.deleteCharacter(c.id);
         if (S.editingCharId === c.id) { await discardCharImage(); resetCharForm(); }
         toast('Fiche @' + c.name + ' supprimée', 'warn');
-        await refresh('chars', 'episodes', 'script', 'images');
+        await refresh('chars', 'episodes', 'script', 'images', 'voices');
     },
     async 'pick-char-image'() {
         const file = await pickFile('image/*');
@@ -814,13 +1003,13 @@ const actions = {
         S.charImageId = undefined;
         resetCharForm();
         toast(wasEditing ? 'Fiche @' + c.name + ' mise à jour' : 'Fiche @' + c.name + ' créée');
-        await refresh('chars', 'episodes', 'script', 'images');
+        await refresh('chars', 'episodes', 'script', 'images', 'voices');
     },
     async 'select-episode'(el) {
         await flushScript();
         S.eid = el.dataset.eid;
         lsSet(CUR_EPISODE + S.pid, S.eid);
-        await refresh('episodes', 'script', 'images');
+        await refresh('episodes', 'script', 'images', 'voices');
         openSection('script');
         $('#d-sec-script').scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
@@ -829,7 +1018,7 @@ const actions = {
         const e = await M.createEpisode(S.pid);
         S.eid = e.id;
         lsSet(CUR_EPISODE + S.pid, e.id);
-        await refresh('episodes', 'script', 'images');
+        await refresh('episodes', 'script', 'images', 'voices');
         openSection('script');
         $('#d-sec-script').scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
@@ -840,7 +1029,7 @@ const actions = {
         await M.deleteEpisode(S.eid);
         S.eid = null;
         toast('Épisode supprimé', 'warn');
-        await refresh('episodes', 'script', 'images');
+        await refresh('episodes', 'script', 'images', 'voices');
     },
     async 'insert-tag'(el) { insertAtCursor($('#d-script'), el.dataset.tag + ' '); },
     async 'insert-template'() {
@@ -861,6 +1050,45 @@ const actions = {
             'ep' + e.number + '-plans.json');
     },
     async 'gen-images'() { await startImages(null, false); },
+    async 'gen-voices'() { await startVoices(null, false); },
+    async 'regen-line'(el) {
+        const t = await VO.getTake(S.eid, el.dataset.line);
+        await startVoices([el.dataset.line], !!(t && t.current));
+    },
+    async 'stop-voices'() {
+        if (!S.vjob) return;
+        S.vjob.ctrl.abort();
+        S.vjob.line = 'Arrêt…';
+        const ln = $('#d-vjob-line');
+        if (ln) ln.textContent = 'Arrêt…';
+    },
+    async 'take-version'(el) {
+        const t = await VO.getTake(S.eid, el.dataset.line);
+        if (!t) return;
+        const i = t.versions.indexOf(t.current) + parseInt(el.dataset.dir, 10);
+        if (i < 0 || i >= t.versions.length) return;
+        await VO.selectTakeVersion(S.eid, el.dataset.line, t.versions[i]);
+        await refresh('voices', 'episodes');
+    },
+    async 'play-line'(el) {
+        const t = await VO.getTake(S.eid, el.dataset.line);
+        const a = t && await M.getAsset(t.current);
+        if (!a) return;
+        stopPlayback();
+        const url = URL.createObjectURL(a.blob);
+        const audio = new Audio(url);
+        audio.addEventListener('ended', () => URL.revokeObjectURL(url), { once: true });
+        S.player = { audio };
+        await audio.play();
+    },
+    async 'play-episode'() { await playEpisode(); },
+    async 'stop-play'() { stopPlayback(); await refresh('voices'); },
+    async 'open-eleven'() {
+        S.elevenForm = true;
+        const f = root.querySelector('.d-eleven-form');
+        if (f) f.classList.remove('hidden');
+        $('#d-top').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    },
     async 'regen-plan'(el) {
         const sh = await IMG.getShot(S.eid, el.dataset.plan);
         await startImages([el.dataset.plan], !!(sh && sh.current));
@@ -950,6 +1178,7 @@ root.addEventListener('change', async ev => {
         } else if (t.id === 'd-voice-model') {
             await M.updateProject(S.pid, { voiceModel: t.value });
             toast('Modèle de voix enregistré');
+            await refresh('episodes', 'voices');
         } else if (t.id === 'd-ep-title') {
             await M.updateEpisode(S.eid, { title: t.value });
             await refresh('episodes');
@@ -961,7 +1190,7 @@ root.addEventListener('change', async ev => {
                 t.value = cur.number;
                 return;
             }
-            await refresh('episodes', 'images');
+            await refresh('episodes', 'images', 'voices');
             setBadge('script', scriptBadge((await M.listEpisodes(S.pid)).find(x => x.id === S.eid)));
         } else if (t.id === 'd-img-model' || t.id === 'd-img-size' || t.id === 'd-img-refs') {
             await M.updateProject(S.pid, { imageSettings: {
@@ -976,7 +1205,8 @@ root.addEventListener('focusout', ev => { if (ev.target.id === 'd-script') flush
 
 // Retour sur l'onglet Drama : la clé Agnes a pu changer dans l'onglet Vidéos.
 window.addEventListener('atelier:tab', ev => {
-    if (ev.detail !== 'drama' || (S.job && S.job.running)) return;
+    if (ev.detail !== 'drama') { stopPlayback(); return; }
+    if ((S.job && S.job.running) || (S.vjob && S.vjob.running)) return;
     if ($('#d-char-name')) { try { S.charDraft = readCharForm(); } catch (e) {} }   // fiche en cours de saisie gardée
     renderAll().catch(fail);
 });

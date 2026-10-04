@@ -1,11 +1,12 @@
 // Drama — stockage local (IndexedDB)
-// Magasins : projets, personnages, épisodes, médias (images en Blob) et
-// « shots » (image retenue pour chaque plan d'un épisode, avec ses versions).
+// Magasins : projets, personnages, épisodes, médias (images et sons en Blob),
+// « shots » (image retenue pour chaque plan d'un épisode, avec ses versions) et
+// « takes » (prise de voix retenue pour chaque réplique, avec ses versions).
 // Tout reste sur le téléphone ; rien n'est envoyé ailleurs.
 
 export const DB_NAME = 'drama_studio';
-export const DB_VERSION = 2;
-export const STORES = ['projects', 'characters', 'episodes', 'assets', 'shots'];
+export const DB_VERSION = 3;
+export const STORES = ['projects', 'characters', 'episodes', 'assets', 'shots', 'takes'];
 
 let dbPromise = null;
 
@@ -28,10 +29,13 @@ export function openDb() {
             // v2 : cache d'images par empreinte + image retenue par plan
             const assets = req.transaction.objectStore('assets');
             if (!assets.indexNames.contains('hash')) assets.createIndex('hash', 'hash', { unique: false });
-            if (!db.objectStoreNames.contains('shots')) {
-                const shots = db.createObjectStore('shots', { keyPath: 'id' });
-                shots.createIndex('projectId', 'projectId', { unique: false });
-                shots.createIndex('episodeId', 'episodeId', { unique: false });
+            // v2 : images des plans ; v3 : prises de voix des répliques
+            for (const name of ['shots', 'takes']) {
+                if (!db.objectStoreNames.contains(name)) {
+                    const store = db.createObjectStore(name, { keyPath: 'id' });
+                    store.createIndex('projectId', 'projectId', { unique: false });
+                    store.createIndex('episodeId', 'episodeId', { unique: false });
+                }
             }
         };
         req.onsuccess = () => {

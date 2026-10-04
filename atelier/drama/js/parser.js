@@ -21,9 +21,10 @@ export const DEFAULT_TRANSITION_SECONDS = 0.5;
 export const EPISODE_TARGET = { min: 180, max: 360 };   // 3 à 6 minutes
 
 // Estimation (avant doublage) : débit parlé et marges autour des répliques.
+// Les mêmes marges servent au calcul exact une fois les voix générées (étape 4).
 const WORDS_PER_SECOND = 2.6;
-const GAP_BETWEEN_LINES = 0.35;
-const PLAN_LEAD = 0.4, PLAN_TAIL = 0.5, MIN_VOICED_PLAN = 1.5;
+export const GAP_BETWEEN_LINES = 0.35;
+export const PLAN_LEAD = 0.4, PLAN_TAIL = 0.5, MIN_VOICED_PLAN = 1.5;
 
 export const TAGS = ['PLAN', 'DECOR', 'PERSOS', 'IMAGE', 'CAM', 'VOIX', 'SFX', 'MUSIQUE'];
 const TAG_ALIASES = {

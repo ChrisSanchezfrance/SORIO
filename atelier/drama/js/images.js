@@ -13,6 +13,7 @@ import { hashString, fold } from './parser.js';
 import { get, put, getByIndex, newId } from './db.js';
 import { gcShotAssets, getAsset } from './model.js';
 import { generateImage, AgnesError } from './agnes.js';
+import { RETRY_WAITS, waitVisible, pausableWait, blobToDataUri, b64ToBlob } from './jobs.js';
 
 export const SHOT_W = 1242, SHOT_H = 2208;   // 1080×1920 + 15 % de marge pour les zooms et panoramiques
 export const MAX_REFS = 4;
@@ -23,7 +24,6 @@ export const REF_MODES = [
     { id: 'characters', name: 'Personnages seulement' },
     { id: 'none', name: 'Aucune (texte seul)' }
 ];
-const RETRY_WAITS = [10, 20, 40, 60, 90];     // secondes, erreurs temporaires et 429
 const TRANSFER_KEY = 'drama_agnes_transfer';  // 'b64' si les URL d'images ne sont pas téléchargeables
 
 const sentence = s => { const t = String(s || '').trim(); return /[.!?…»"]$/.test(t) ? t : t + '.'; };
@@ -94,8 +94,8 @@ export async function getShots(episodeId) {
     return new Map(list.map(sh => [sh.planId, sh]));
 }
 
-export async function findCachedAsset(projectId, hash) {
-    const list = (await getByIndex('assets', 'hash', hash)).filter(a => a.projectId === projectId && a.kind === 'shot');
+export async function findCachedAsset(projectId, hash, kind = 'shot') {
+    const list = (await getByIndex('assets', 'hash', hash)).filter(a => a.projectId === projectId && a.kind === kind);
     return list.sort((a, b) => b.createdAt - a.createdAt)[0] || null;
 }
 
@@ -157,52 +157,6 @@ export async function readyCount(project, characters, episode) {
 }
 
 // ─── Génération ───────────────────────────────────────────────────
-const isHidden = () => typeof document !== 'undefined' && document.visibilityState === 'hidden';
-
-// Attend que l'appli soit au premier plan (pause en arrière-plan, comme l'onglet Vidéos).
-function waitVisible(signal) {
-    if (!isHidden()) return Promise.resolve();
-    return new Promise((resolve, reject) => {
-        const done = () => { cleanup(); resolve(); };
-        const abort = () => { cleanup(); reject(new DOMException('Arrêt demandé', 'AbortError')); };
-        const onVis = () => { if (!isHidden()) done(); };
-        const cleanup = () => {
-            document.removeEventListener('visibilitychange', onVis);
-            if (signal) signal.removeEventListener('abort', abort);
-        };
-        document.addEventListener('visibilitychange', onVis);
-        if (signal) signal.addEventListener('abort', abort, { once: true });
-    });
-}
-
-// Attente qui ne s'écoule que lorsque l'appli est visible.
-async function pausableWait(seconds, signal, onTick) {
-    let left = seconds;
-    while (left > 0) {
-        if (signal && signal.aborted) throw new DOMException('Arrêt demandé', 'AbortError');
-        await waitVisible(signal);
-        if (onTick) onTick(Math.ceil(left));
-        await new Promise(r => setTimeout(r, 250));
-        left -= 0.25;
-    }
-}
-
-const blobToDataUri = blob => new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result);
-    r.onerror = () => reject(r.error);
-    r.readAsDataURL(blob);
-});
-
-function b64ToBlob(b64) {
-    const m = /^data:([^;]+);base64,(.*)$/s.exec(b64);
-    const mime = m ? m[1] : 'image/png';
-    const bin = atob(m ? m[2] : b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return new Blob([bytes], { type: mime });
-}
-
 async function fetchImageBlob(url, signal) {
     const res = await fetch(url, { signal });
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -242,7 +196,7 @@ async function requestImage(req, refsData, signal, onStatus) {
             onStatus({ state: 'running' });
             const out = await generateImage({ model: req.model, prompt: req.prompt, size: req.size, ratio: req.ratio,
                 images: refsData, base64, signal });
-            if (out.b64) return b64ToBlob(out.b64);
+            if (out.b64) return b64ToBlob(out.b64, 'image/png');
             try {
                 return await fetchImageBlob(out.url, signal);
             } catch (e) {

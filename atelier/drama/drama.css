@@ -129,3 +129,17 @@ body:not([data-tab="drama"]) #drama-root { display: none; }
     display: flex; align-items: center; justify-content: center; cursor: zoom-out;
 }
 .d-overlay img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+/* Voix et durées */
+#drama-root .d-vplans { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.8rem 0; }
+#drama-root .d-vplan { border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); padding: 0.6rem 0.7rem; }
+#drama-root .d-vplan-top { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; font-size: 0.85rem; }
+#drama-root .d-vplan-time { font-size: 0.72rem; color: var(--ink-dim); font-family: ui-monospace, Menlo, monospace; }
+#drama-root .d-vplan-top .d-chip { margin-left: auto; }
+#drama-root .d-line { border-top: 1px dashed var(--border); margin-top: 0.5rem; padding-top: 0.45rem; }
+#drama-root .d-line-top { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; font-size: 0.8rem; }
+#drama-root .d-line-dur { margin-left: auto; font-size: 0.72rem; color: var(--ink-dim); }
+#drama-root .d-ok { color: var(--success); }
+#drama-root .d-off { color: #8a6510; }
+#drama-root #d-body-voices .queue-summary { margin-top: 0.4rem; }
+#drama-root #d-body-voices .api-save-btn { margin-top: 0.2rem; }
