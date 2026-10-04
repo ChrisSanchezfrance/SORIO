@@ -165,26 +165,34 @@ export function envelopeAt(pts, t) {
 
 // ─── Timeline ─────────────────────────────────────────────────────
 // timing : computeTiming() de l'étape 4 ; shots : { planId: assetId } ; takes : { lineId: { assetId, words } } ;
-// library : { music: { nom: { assetId, duration } }, sfx: { nom: { assetId, duration } } }.
-export function buildTimeline({ analysis, timing, shots = {}, takes = {}, library = { music: {}, sfx: {} }, settings = {} }) {
+// library : { music: { nom: { assetId, duration } }, sfx: { nom: { assetId, duration } } } ;
+// clips (étape 8) : { planId: { assetId, duration, audio } } plans animés par Agnes (audio : son du clip utilisé).
+export function buildTimeline({ analysis, timing, shots = {}, takes = {}, library = { music: {}, sfx: {} }, settings = {}, clips = {} }) {
     const s = { ...DEFAULT_MONTAGE, ...settings };
     const plans = analysis.plans.map((p, i) => {
         const tp = timing.plans[i];
         const tr = { ...p.cam.transition };
         tr.duration = r3(Math.min(tr.duration, tp.duration / 2));
-        return {
+        const plan = {
             id: p.id, index: i, start: tp.start, duration: tp.duration, end: r3(tp.start + tp.duration),
             imageAssetId: shots[p.id] || null, moves: p.cam.moves, transition: tr, seed: i * 7.3 + 1,
             musique: p.musique, sfx: p.sfx, decor: p.decor
         };
+        // plan animé : le clip remplace l'image (sans zoom ni panoramique)
+        if (clips[p.id]) plan.clip = { assetId: clips[p.id].assetId, duration: clips[p.id].duration };
+        return plan;
     });
+    // son des clips dont la voix est celle d'Agnes (coupé à la fin du plan)
+    const clipAudio = plans.filter(p => p.clip && clips[p.id].audio)
+        .map(p => ({ planId: p.id, assetId: p.clip.assetId, start: p.start, duration: p.duration }));
     const voices = [];
     timing.plans.forEach((tp, i) => tp.lines.forEach((l, j) => {
         const take = takes[l.id];
         const v = analysis.plans[i].voix[j];
+        const agnes = !!(l.agnes && clips[tp.id] && clips[tp.id].audio);     // dite par Agnes dans le clip
         voices.push({
-            lineId: l.id, perso: v.perso, text: v.texte, assetId: take ? take.assetId : null,
-            start: r3(tp.start + l.start), duration: l.duration ?? l.estimate, words: take ? take.words : null
+            lineId: l.id, perso: v.perso, text: v.texte, assetId: take && !agnes ? take.assetId : null, agnes,
+            start: r3(tp.start + l.start), duration: l.duration ?? l.estimate, words: take && !agnes ? take.words : null
         });
     }));
     const sfx = plans.flatMap(p => p.sfx.map(x => ({
@@ -194,14 +202,14 @@ export function buildTimeline({ analysis, timing, shots = {}, takes = {}, librar
     const music = musicSegments(plans, timing.total).map(m => ({
         ...m, assetId: (library.music[m.track] && library.music[m.track].assetId) || null
     }));
-    const ducks = duckIntervals(voices.filter(v => v.assetId));
+    const ducks = duckIntervals(voices.filter(v => v.assetId || v.agnes));
     return {
         width: W, height: H, fps: FPS, duration: timing.total, settings: s,
-        plans, voices, sfx, music, ducks,
+        plans, voices, sfx, music, ducks, clipAudio,
         cues: s.subtitles ? buildCues(voices) : [],
         missing: {
             images: plans.filter(p => !p.imageAssetId).map(p => p.id),
-            voices: voices.filter(v => !v.assetId).map(v => v.lineId),
+            voices: voices.filter(v => !v.assetId && !v.agnes).map(v => v.lineId),
             music: [...new Set(music.filter(m => !m.assetId).map(m => m.track))],
             sfx: [...new Set(sfx.filter(x => !x.assetId).map(x => x.name))]
         }
@@ -247,8 +255,8 @@ export function videoSegments(tl, codecKey = '') {
         const t0 = i0 / FPS, t1 = i1 / FPS;
         const sig = {
             codecKey, i0, i1,
-            plan: { img: p.imageAssetId, moves: p.moves, tr: p.transition, seed: p.seed, start: p.start, duration: p.duration },
-            prev: prev && p.transition.type !== 'coupe' ? { img: prev.imageAssetId, moves: prev.moves, seed: prev.seed, duration: prev.duration } : null,
+            plan: { img: p.imageAssetId, moves: p.moves, tr: p.transition, seed: p.seed, start: p.start, duration: p.duration, ...(p.clip ? { clip: p.clip } : {}) },
+            prev: prev && p.transition.type !== 'coupe' ? { img: prev.imageAssetId, moves: prev.moves, seed: prev.seed, duration: prev.duration, ...(prev.clip ? { clip: prev.clip } : {}) } : null,
             cues: tl.settings.subtitles ? tl.cues.filter(c => c.end > t0 && c.start < t1) : []
         };
         // la taille des sous-titres ne compte que pour les plans qui en affichent

@@ -1,6 +1,6 @@
 // Drama — onglet « 🎬 Drama » de l'appli Atelier Vidéo.
 // Même présentation que l'onglet Vidéos : un panneau en haut (série en cours, clés),
-// puis des sections repliables : Style, Personnages, Épisodes, Script, Images, Voix, Montage, Export, Rendu en lot, Sauvegarde.
+// puis des sections repliables : Style, Personnages, Épisodes, Script, Images, Voix, Animation, Montage, Export, Rendu en lot, Sauvegarde.
 import * as M from './model.js';
 import * as EL from './elevenlabs.js';
 import * as IMG from './images.js';
@@ -9,6 +9,7 @@ import * as PL from './player.js';
 import * as EX from './export.js';
 import * as BT from './batch.js';
 import * as MIC from './mic.js';
+import * as CL from './clips.js';
 import { requiredSounds, SUB_SIZES } from './montage.js';
 import { parseScript } from './parser.js';
 import { IMAGE_MODELS, IMAGE_SIZES, getAgnesKey } from './agnes.js';
@@ -25,6 +26,7 @@ const SECTIONS = [
     ['script', '📝 Script'],
     ['images', '🖼️ Images des plans'],
     ['voices', '🎙️ Voix et durées'],
+    ['clips', '🎬 Animation des plans (Agnes)'],
     ['montage', '🎞️ Montage'],
     ['export', '📤 Export'],
     ['batch', '🗂️ Rendu en lot'],
@@ -40,6 +42,7 @@ const S = {
     imagesTimer: null,
     job: null,           // génération d'images en cours : { pid, eid, ctrl, states: Map, line, running }
     vjob: null,          // génération des voix en cours (même forme)
+    cjob: null,          // animation des plans par Agnes en cours (même forme)
     player: null,        // écoute de l'épisode : { ctx, timer }
     preview: null,       // aperçu du montage (player.js)
     montageTl: null,     // timeline de l'épisode affiché dans le Montage
@@ -81,7 +84,7 @@ async function assetUrl(id) {
     return u;
 }
 function pruneAssetUrls() {
-    const used = new Set([...root.querySelectorAll('img[data-asset]')].map(i => i.dataset.asset));
+    const used = new Set([...root.querySelectorAll('img[data-asset], video[data-asset]')].map(i => i.dataset.asset));
     for (const [id, u] of assetUrls) if (!used.has(id)) { URL.revokeObjectURL(u); assetUrls.delete(id); }
 }
 
@@ -119,7 +122,7 @@ function isOpen(k, ctx) {
     if (k in st) return !!st[k];
     if (k === 'style') return !ctx.project.style.locked;
     if (k === 'chars') return ctx.chars.length === 0;
-    return k === 'episodes' || k === 'script' || k === 'images' || k === 'voices' || k === 'montage' || k === 'export';
+    return k === 'episodes' || k === 'script' || k === 'images' || k === 'voices' || k === 'clips' || k === 'montage' || k === 'export';
 }
 function setOpen(k, v) { const st = openState(); st[k] = v; lsSet(OPEN_KEY, JSON.stringify(st)); }
 function openSection(k) {
@@ -640,7 +643,8 @@ function showZoom(src) {
 const VOICE_CHIPS = {
     ok: ['ok', '✅ prête'], cached: ['soft', '♻️ en cache'], stale: ['warn', '♻️ à refaire (texte ou voix modifiés)'],
     missing: ['', '○ à générer'], queued: ['', '⏳ en attente'], running: ['run', '🎙️ synthèse…'],
-    waiting: ['warn', '⏸ nouvel essai'], error: ['bad', '❌'], stopped: ['', '⏹ arrêté']
+    waiting: ['warn', '⏸ nouvel essai'], error: ['bad', '❌'], stopped: ['', '⏹ arrêté'],
+    agnes: ['ok', '🎬 dite par Agnes dans le clip']
 };
 const fmtClock = s => Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0');
 // m:ss.d — moments des plans, au dixième de seconde
@@ -656,8 +660,8 @@ async function buildVoices(ctx) {
     const job = S.vjob && S.vjob.eid === e.id ? S.vjob : null;
     const running = !!(S.vjob && S.vjob.running);
     const key = EL.getKey();
-    const ready = states.filter(s => s.state === 'ok').length;
-    const todo = states.filter(s => s.state !== 'ok' && s.state !== 'error').length;
+    const ready = states.filter(s => s.state === 'ok' || s.state === 'agnes').length;
+    const todo = states.filter(s => !['ok', 'error', 'agnes'].includes(s.state)).length;
     const blocked = [...new Set(states.filter(s => s.state === 'error').map(s => s.req.error))];
     const byPlan = new Map();
     states.forEach(s => { if (!byPlan.has(s.line.planId)) byPlan.set(s.line.planId, []); byPlan.get(s.line.planId).push(s); });
@@ -665,6 +669,7 @@ async function buildVoices(ctx) {
     const inTarget = timing.total >= target.min && timing.total <= target.max;
     const model = M.ELEVEN_MODELS.find(m => m.id === ctx.project.voiceModel) || M.ELEVEN_MODELS[0];
     const playing = S.player && S.player.ctx;
+    const hasOwn = states.some(s => s.state === 'ok');
 
     const plans = await Promise.all(timing.plans.map(async tp => {
         const lines = await Promise.all((byPlan.get(tp.id) || []).map(async s => {
@@ -672,7 +677,7 @@ async function buildVoices(ctx) {
             const chipKey = live && live.state !== 'ok' ? live.state : s.state;
             const [cls, label0] = VOICE_CHIPS[chipKey] || VOICE_CHIPS.missing;
             const label = chipKey === 'ok' && s.micro ? '✅ enregistrée au micro' : label0;
-            const msg = live && live.state === 'error' ? live.message : s.state === 'error' ? s.req.error + ' — ou enregistrez-la au micro' : '';
+            const msg = live && live.state === 'error' ? live.message : s.state === 'agnes' ? '' : s.state === 'error' ? s.req.error + ' — ou enregistrez-la au micro' : '';
             const extra = msg ? ' ' + esc(msg)
                 : live && live.state === 'waiting' ? ' dans <span data-vleft="' + s.line.id + '">' + (live.left || '') + '</span> s' : '';
             const t = s.take;
@@ -695,14 +700,14 @@ async function buildVoices(ctx) {
                 '<div class="char-actions">' +
                     (s.state === 'ok' ? '<button type="button" class="char-btn" data-action="play-line" data-line="' + s.line.id + '">▶ Écouter</button>' : '') +
                     (S.rec ? '' : '<button type="button" class="char-btn" data-action="rec-start" data-line="' + s.line.id + '"' + (running ? ' disabled' : '') + '>🎤 ' + (s.micro ? 'Réenregistrer' : 'Enregistrer') + '</button>') +
-                    (s.state !== 'error' ? '<button type="button" class="char-btn" data-action="regen-line" data-line="' + s.line.id + '"' + (running || !a.ok || !key ? ' disabled' : '') + '>' +
+                    (s.state !== 'error' && s.state !== 'agnes' ? '<button type="button" class="char-btn" data-action="regen-line" data-line="' + s.line.id + '"' + (running || !a.ok || !key ? ' disabled' : '') + '>' +
                         (t && t.current ? '↻ Autre prise' : '🎙️ Générer') + '</button>' : '') + versions +
                 '</div></div>';
         }));
-        const modeLabel = tp.mode === 'audio' ? 'durée des voix' : tp.mode === 'estimate' ? 'estimation' : tp.mode === 'fixed' ? 'imposée' : 'sans réplique';
+        const modeLabel = tp.mode === 'audio' ? 'durée des voix' : tp.mode === 'estimate' ? 'estimation' : tp.mode === 'fixed' ? 'imposée' : tp.mode === 'clip' ? 'durée du clip' : 'sans réplique';
         return '<div class="d-vplan">' +
             '<div class="d-vplan-top"><b>' + tp.id + '</b><span class="d-vplan-time">' + fmtTenth(tp.start) + ' → ' + fmtTenth(tp.start + tp.duration) + '</span>' +
-                '<span class="d-chip' + (tp.mode === 'audio' || tp.mode === 'default' ? ' ok' : tp.mode === 'estimate' ? '' : ' soft') + '">⏱ ' + tp.duration.toFixed(1) + ' s · ' + modeLabel + '</span></div>' +
+                '<span class="d-chip' + (tp.mode === 'audio' || tp.mode === 'default' || tp.mode === 'clip' ? ' ok' : tp.mode === 'estimate' ? '' : ' soft') + '">⏱ ' + tp.duration.toFixed(1) + ' s · ' + modeLabel + '</span></div>' +
             (tp.overflow ? '<div class="d-shot-text" style="color:#8a6510">⚠️ Les répliques dépassent la durée imposée.</div>' : '') +
             lines.join('') + '</div>';
     }));
@@ -724,7 +729,7 @@ async function buildVoices(ctx) {
             (running
                 ? '<button type="button" class="btn-stop visible" data-action="stop-voices">⏹ Arrêter le doublage</button>'
                 : '<button type="button" class="btn-primary" data-action="gen-voices"' + (!todo || !a.ok || !key ? ' disabled' : '') + '>' + genLabel + '</button>') +
-            (ready ? (playing
+            (hasOwn ? (playing
                 ? '<button type="button" class="api-save-btn" data-action="stop-play">⏹ Arrêter l\'écoute <span id="d-play-clock"></span></button>'
                 : '<button type="button" class="api-save-btn" data-action="play-episode">▶ Écouter l\'épisode (voix et durées)</button>') : '') +
             '<div class="d-vplans">' + plans.join('') + '</div>' +
@@ -838,6 +843,160 @@ function stopPlayback() {
     S.player = null;
 }
 
+// ─── Section Animation des plans (Agnes) ──────────────────────────
+const CLIP_CHIPS = {
+    off: ['', '🖼️ image fixe'], noimage: ['warn', '🖼️ image du plan à générer d\'abord'], ok: ['ok', '✅ clip prêt'],
+    pending: ['soft', '⏳ en préparation chez Agnes'], cached: ['soft', '♻️ en cache'], stale: ['warn', '♻️ à refaire (image ou plan modifié)'],
+    missing: ['', '○ à animer'], queued: ['', '⏳ en attente'], spacing: ['', '⏳ en attente'], creating: ['run', '🎬 envoi à Agnes…'],
+    running: ['run', '🎬 animation…'], waiting: ['warn', '⏸ nouvel essai'], error: ['bad', '❌'], stopped: ['', '⏹ arrêté']
+};
+const fmtSec = n => (Math.round(n * 10) / 10).toFixed(1).replace('.', ',') + ' s';
+
+// Texte de la puce d'un plan pendant l'animation.
+function clipChip(state, live) {
+    const [cls, label] = CLIP_CHIPS[state] || CLIP_CHIPS.missing;
+    if (!live) return [cls, label];
+    if (state === 'spacing') return [cls, '⏳ envoi dans ' + live.left + ' s'];
+    if (state === 'running') return [cls, '🎬 animation' + (live.progress ? ' ' + live.progress + ' %' : '…') +
+        (live.message ? ' (' + live.message + ')' : live.left ? ' · vérification dans ' + live.left + ' s' : '')];
+    if (state === 'waiting') return [cls, '⏸ nouvel essai dans ' + live.left + ' s (' + live.message + ')'];
+    if (state === 'error') return [cls, '❌ ' + live.message];
+    return [cls, label];
+}
+
+async function buildClips(ctx) {
+    const e = ctx.episode;
+    if (!e) return { badge: '—', badgeClass: '', html: '<div class="char-empty">Créez un épisode dans « 📺 Épisodes ».</div>' };
+    const a = e.analysis;
+    if (!a || !a.plans.length) return { badge: 'EP.' + e.number, badgeClass: '', html: '<div class="char-empty">Écrivez le script de l\'épisode : chaque [PLAN] pourra être animé.</div>' };
+    const states = await CL.clipStates(ctx.project, ctx.chars, e);
+    const job = S.cjob && S.cjob.eid === e.id ? S.cjob : null;
+    const running = !!(S.cjob && S.cjob.running);
+    const dis = running ? ' disabled' : '';
+    const key = getAgnesKey();
+    const animated = states.filter(s => s.animate);
+    const ready = animated.filter(s => s.state === 'ok').length;
+    const todo = animated.filter(s => !['ok', 'noimage'].includes(s.state));
+    const pending = animated.filter(s => s.state === 'pending').length;
+    const noImage = animated.filter(s => s.state === 'noimage').length;
+    const eta = todo.length ? (todo.length - pending - 1) * CL.CLIP_TIMING.createEvery + CL.estimateSeconds(121) : 0;
+
+    const cards = await Promise.all(states.map(async s => {
+        const id = s.plan.id;
+        const live = job && job.states.get(id);
+        const chipKey = live && live.state !== 'ok' ? live.state : s.state;
+        const [cls, label] = clipChip(chipKey, live && live.state !== 'ok' ? live : null);
+        const showClip = s.asset && (s.state === 'ok' || s.state === 'stale');
+        const media = showClip
+            ? '<video class="d-shot" src="' + await assetUrl(s.asset.id) + '" data-asset="' + s.asset.id + '" data-action="zoom-clip" muted playsinline preload="metadata" aria-label="Clip du plan ' + id + ' (toucher pour lire)"></video>'
+            : s.shotAssetId ? '<img class="d-shot" src="' + await assetUrl(s.shotAssetId) + '" data-asset="' + s.shotAssetId + '" data-action="zoom-shot" alt="Image du plan ' + id + '">'
+            : '<div class="d-shot empty">' + id + '</div>';
+        const c = s.clip;
+        const vi = c && c.current ? c.versions.indexOf(c.current) : -1;
+        const versions = c && c.versions.length > 1
+            ? '<button type="button" class="char-btn" data-action="clip-version" data-plan="' + id + '" data-dir="-1"' + (vi <= 0 || running ? ' disabled' : '') + '>◀</button>' +
+              '<span class="d-ver">v' + (vi + 1) + '/' + c.versions.length + '</span>' +
+              '<button type="button" class="char-btn" data-action="clip-version" data-plan="' + id + '" data-dir="1"' + (vi >= c.versions.length - 1 || running ? ' disabled' : '') + '>▶</button>'
+            : '';
+        const said = s.plan.voix.map(v => '@' + esc(v.perso) + ' : « ' + esc(v.texte) + ' »').join('<br>');
+        const warns = [];
+        if (s.animate && s.tooLong) warns.push('⚠️ Plan de ' + fmtSec(s.need) + ' : un clip dure 10 s au plus, la dernière image restera figée. Coupez la réplique en deux plans.');
+        if (s.short) warns.push('⚠️ Clip de ' + fmtSec(s.asset.duration) + ' pour un plan de ' + fmtSec(s.need) + ' : la dernière image reste affichée. « Autre clip » en demandera un plus long.');
+        if (s.animate && s.audio === 'agnes' && s.state === 'ok' && s.asset && !s.asset.hasAudio) warns.push('⚠️ Ce clip n\'a pas de son : votre voix est utilisée.');
+        const info = !s.animate ? ''
+            : s.state === 'ok' && s.asset ? 'Clip ' + fmtSec(s.asset.duration) + (s.audio === 'agnes' && s.asset.hasAudio ? ' = durée du plan' : ' · plan ' + fmtSec(s.need))
+            : 'Clip demandé : ' + fmtSec(CL.clipSeconds(s.frames)) + ' (plan ' + fmtSec(s.need) + ')';
+        return '<div class="d-shot-card d-clip-card" data-cplan="' + id + '">' + media +
+            '<div class="d-shot-info">' +
+                '<div class="d-shot-top"><b>' + id + '</b> <span class="d-chip ' + cls + '" data-cchip="' + id + '">' + esc(label) + '</span></div>' +
+                '<div class="d-shot-text">' + (said || 'Sans réplique : ' + esc(s.plan.image)) + '</div>' +
+                '<label class="d-check"><input type="checkbox" data-clip-animate="' + id + '"' + (s.animate ? ' checked' : '') + dis + '> Animer ce plan</label>' +
+                (s.animate && s.plan.voix.length
+                    ? '<select class="d-clip-audio" data-clip-audio="' + id + '" aria-label="Voix du plan ' + id + '"' + dis + '>' +
+                        '<option value="own"' + (s.audio === 'own' ? ' selected' : '') + '>🎤 Votre voix (micro ou ElevenLabs)</option>' +
+                        '<option value="agnes"' + (s.audio === 'agnes' ? ' selected' : '') + '>🎬 Voix d\'Agnes (lèvres parfaites)</option></select>'
+                    : '') +
+                (info ? '<div class="d-shot-text">' + info + '</div>' : '') +
+                warns.map(w => '<div class="d-shot-text d-warn">' + w + '</div>').join('') +
+                (s.animate || (c && c.current)
+                    ? '<div class="char-actions">' +
+                        '<button type="button" class="char-btn" data-action="regen-clip" data-plan="' + id + '"' + (running || !a.ok || !key || s.state === 'noimage' ? ' disabled' : '') + '>' +
+                            (c && c.current ? '↻ Autre clip' : '🎬 Animer ce plan') + '</button>' + versions + '</div>'
+                    : '') +
+                (s.req.prompt ? '<details class="d-prompt"><summary>Prompt envoyé</summary><pre>' + esc(s.req.prompt) + '</pre></details>' : '') +
+            '</div></div>';
+    }));
+
+    const genLabel = !todo.length ? (animated.length ? '✅ Tous les plans cochés sont animés' : 'Cochez les plans à animer')
+        : '🎬 Animer ' + plural(todo.length, 'plan') + (pending ? ' (' + pending + ' en préparation)' : '');
+    return {
+        badge: 'EP.' + e.number + ' · ' + ready + '/' + animated.length, badgeClass: animated.length && ready === animated.length ? 'ok' : '',
+        html:
+            '<p class="char-intro">Agnes anime l\'image des plans cochés : le personnage bouge et dit sa réplique (lèvres qui bougent). ' +
+                'Le montage utilise alors le clip à la place de l\'image fixe. Voix : 🎤 la vôtre par défaut (lèvres approximatives) ou 🎬 celle d\'Agnes, synchronisée avec les lèvres (la durée du plan devient celle du clip).</p>' +
+            (!key ? '<div class="lock-banner"><span>⚠️ Ajoutez votre clé Agnes dans l\'onglet Vidéos pour animer les plans.</span><button type="button" class="char-btn" data-action="goto-videos">Onglet Vidéos</button></div>' : '') +
+            (!a.ok ? '<div class="lock-banner"><span>❌ Corrigez le script (' + plural(a.errors.length, 'erreur') + ') avant d\'animer les plans.</span></div>' : '') +
+            (noImage ? '<div class="lock-banner"><span>🖼️ ' + plural(noImage, 'plan') + ' coché' + (noImage > 1 ? 's' : '') + ' sans image : générez d\'abord les images (section Images).</span></div>' : '') +
+            '<div class="queue-summary"><span class="progress-text">🎬 ' + ready + '/' + plural(animated.length, 'plan') + ' animé' + (ready > 1 ? 's' : '') + '</span>' +
+                '<span class="eta-text" id="d-cjob-line">' + esc(job ? job.line : todo.length ? '≈ ' + fmtDuration(eta) + ' (une demande toutes les ' + CL.CLIP_TIMING.createEvery + ' s)' : 'Tout est prêt') + '</span></div>' +
+            (running && job
+                ? '<button type="button" class="btn-stop visible" data-action="stop-clips">⏹ Arrêter l\'animation</button>' +
+                  '<div class="api-hint">Gardez l\'appli ouverte : elle se met en pause si vous la quittez. Une animation déjà envoyée continue chez Agnes et sera reprise.</div>'
+                : '<button type="button" class="btn-primary" data-action="gen-clips"' + (!todo.length || !a.ok || !key || running ? ' disabled' : '') + '>' + genLabel + '</button>') +
+            '<div class="d-shots">' + cards.join('') + '</div>' +
+            '<div class="api-hint">Chaque clip dure 5, 6,4 ou 10 s selon la durée du plan (une réplique de plus de 10 s doit être coupée en deux plans). Un clip n\'est refait que si l\'image ou le plan changent ; « Autre clip » en propose un nouveau (les 4 derniers sont gardés).</div>'
+    };
+}
+
+async function startClips(planIds, force) {
+    if (S.cjob && S.cjob.running) return;
+    const ctx = await loadCtx();
+    const e = ctx.episode;
+    if (!e || !e.analysis || !e.analysis.ok) { toast('Corrigez d\'abord le script', 'warn'); return; }
+    const ctrl = new AbortController();
+    const job = S.cjob = { pid: ctx.project.id, eid: e.id, ctrl, states: new Map(), running: true, line: 'Préparation…' };
+    if (typeof window.ensureWakeLockActive === 'function') window.ensureWakeLockActive();
+    await refresh('clips');
+    let finished = 0;
+    try {
+        const summary = await CL.generateEpisodeClips({
+            project: ctx.project, characters: ctx.chars, episode: e, planIds, force, signal: ctrl.signal,
+            onUpdate: (planId, st) => {
+                job.states.set(planId, st);
+                if (['ok', 'error', 'stopped'].includes(st.state)) finished++;
+                const busy = [...job.states.values()].filter(x => ['running', 'creating', 'waiting'].includes(x.state)).length;
+                job.line = busy ? plural(busy, 'plan') + ' en cours chez Agnes · ' + finished + ' terminé' + (finished > 1 ? 's' : '') : finished + ' terminé' + (finished > 1 ? 's' : '');
+                const ln = $('#d-cjob-line');
+                if (ln) ln.textContent = job.line;
+                const chip = root.querySelector('[data-cchip="' + planId + '"]');
+                if (chip && !['ok', 'error', 'stopped'].includes(st.state)) {     // en cours : seule la puce change
+                    const [cls, text] = clipChip(st.state, st);
+                    chip.className = 'd-chip ' + cls;
+                    chip.textContent = text;
+                    return;
+                }
+                clearTimeout(S.clipsTimer);
+                S.clipsTimer = setTimeout(() => refresh('episodes', 'clips', 'voices').catch(fail), 150);
+            }
+        });
+        const parts = [];
+        if (summary.generated) parts.push(plural(summary.generated, 'clip') + ' créé' + (summary.generated > 1 ? 's' : ''));
+        if (summary.reused) parts.push(summary.reused + ' repris du cache');
+        if (summary.failed) parts.push(summary.failed + ' en échec');
+        if (summary.keyRefused) toast('Clé Agnes refusée : vérifiez-la dans l\'onglet Vidéos', 'error', 4500);
+        else if (summary.stopped) toast('Animation arrêtée : les créations déjà envoyées seront reprises', 'warn', 4000);
+        else toast(parts.join(' · ') || 'Clips déjà à jour', summary.failed ? 'warn' : 'success', 3500);
+        job.line = summary.stopped ? 'Arrêté' : (parts.join(' · ') || 'Clips déjà à jour');
+    } catch (err) {
+        fail(err);
+        job.line = err.message;
+    } finally {
+        job.running = false;
+        clearTimeout(S.clipsTimer);
+        await refresh('episodes', 'clips', 'voices');
+    }
+}
+
 // ─── Section Montage ──────────────────────────────────────────────
 async function buildMontage(ctx) {
     const e = ctx.episode;
@@ -856,6 +1015,7 @@ async function buildMontage(ctx) {
     const nImg = tl.plans.length - miss.images.length, nVox = tl.voices.length - miss.voices.length;
     const nMus = need.music.length - miss.music.length, nSfx = need.sfx.length - miss.sfx.length;
     const complete = !miss.images.length && !miss.voices.length && !miss.music.length && !miss.sfx.length;
+    const nClips = tl.plans.filter(p => p.clip).length;
     const t = S.preview && S.preview.tl ? Math.min(S.preview.t, tl.duration) : 0;
 
     const soundRow = (kind, item) => {
@@ -874,7 +1034,7 @@ async function buildMontage(ctx) {
     return {
         badge: 'EP.' + e.number + ' · ' + fmtClock(tl.duration), badgeClass: complete ? 'ok' : '',
         html:
-            '<div class="queue-summary"><span class="progress-text">🖼️ ' + nImg + '/' + tl.plans.length + ' · 🎙️ ' + nVox + '/' + tl.voices.length +
+            '<div class="queue-summary"><span class="progress-text">🖼️ ' + nImg + '/' + tl.plans.length + (nClips ? ' · 🎬 ' + nClips : '') + ' · 🎙️ ' + nVox + '/' + tl.voices.length +
                 (need.music.length ? ' · 🎵 ' + nMus + '/' + need.music.length : '') + (need.sfx.length ? ' · 🔊 ' + nSfx + '/' + need.sfx.length : '') + '</span>' +
                 '<span class="eta-text">⏱ ' + fmtClock(tl.duration) + '</span></div>' +
             (complete ? '' : '<div class="api-hint" style="margin:0 0 0.6rem">L\'aperçu fonctionne déjà : ' +
@@ -1193,7 +1353,7 @@ async function buildBackup() {
 }
 
 // ─── Rendu ────────────────────────────────────────────────────────
-const BUILDERS = { style: buildStyle, chars: buildChars, episodes: buildEpisodes, script: buildScript, images: buildImages, voices: buildVoices, montage: buildMontage, export: buildExport, batch: buildBatch, backup: buildBackup };
+const BUILDERS = { style: buildStyle, chars: buildChars, episodes: buildEpisodes, script: buildScript, images: buildImages, voices: buildVoices, clips: buildClips, montage: buildMontage, export: buildExport, batch: buildBatch, backup: buildBackup };
 
 function setBadge(k, { badge, badgeClass }) {
     const b = $('#d-badge-' + k);
@@ -1230,8 +1390,9 @@ async function renderAll() {
 // Met à jour seulement certaines sections (sans toucher au script en cours d'écriture).
 async function refresh(...keys) {
     if (!$('#d-sec-style')) return renderAll();
-    // le montage dépend du script, des images, des voix, des fiches et du style
-    if (!keys.includes('montage') && keys.some(k => ['script', 'images', 'voices', 'chars', 'style', 'episodes'].includes(k))) keys.push('montage');
+    // l'animation dépend des images, des voix (durées) et du plan ; le montage de tout cela
+    if (!keys.includes('clips') && keys.some(k => ['script', 'images', 'voices', 'chars', 'style', 'episodes'].includes(k))) keys.push('clips');
+    if (!keys.includes('montage') && keys.some(k => ['script', 'images', 'voices', 'clips', 'chars', 'style', 'episodes'].includes(k))) keys.push('montage');
     if (!keys.includes('export') && keys.includes('montage')) keys.push('export');
     if (!keys.includes('batch') && keys.some(k => ['export', 'episodes'].includes(k))) keys.push('batch');
     const ctx = await loadCtx();
@@ -1412,6 +1573,7 @@ const actions = {
     async 'delete-episode'() {
         if (!confirm('Supprimer cet épisode, son script et ses images ?')) return;
         if (S.job && S.job.running && S.job.eid === S.eid) S.job.ctrl.abort();
+        if (S.cjob && S.cjob.running && S.cjob.eid === S.eid) S.cjob.ctrl.abort();
         if (S.xjob && S.xjob.running && S.xjob.eid === S.eid) S.xjob.ctrl.abort();
         S.pendingScript = null;
         const gone = (await M.listEpisodes(S.pid)).find(x => x.id === S.eid);
@@ -1441,6 +1603,26 @@ const actions = {
             'ep' + e.number + '-plans.json');
     },
     async 'gen-images'() { await startImages(null, false); },
+    async 'gen-clips'() { await startClips(null, false); },
+    async 'regen-clip'(el) {
+        const c = await CL.getClip(S.eid, el.dataset.plan);
+        await startClips([el.dataset.plan], !!(c && c.current));
+    },
+    async 'stop-clips'() {
+        if (!S.cjob) return;
+        S.cjob.ctrl.abort();
+        S.cjob.line = 'Arrêt…';
+        const ln = $('#d-cjob-line');
+        if (ln) ln.textContent = 'Arrêt…';
+    },
+    async 'clip-version'(el) {
+        const c = await CL.getClip(S.eid, el.dataset.plan);
+        if (!c) return;
+        const i = c.versions.indexOf(c.current) + parseInt(el.dataset.dir, 10);
+        if (i < 0 || i >= c.versions.length) return;
+        await CL.selectClipVersion(S.eid, el.dataset.plan, c.versions[i]);
+        await refresh('clips', 'voices', 'episodes');
+    },
     async 'gen-voices'() { await startVoices(null, false); },
     async 'regen-line'(el) {
         const t = await VO.getTake(S.eid, el.dataset.line);
@@ -1616,6 +1798,15 @@ const actions = {
         await refresh('images', 'episodes');
     },
     async 'zoom-shot'(el) { showZoom(el.src); },
+    async 'zoom-clip'(el) {
+        if (S.preview) S.preview.pause();
+        stopPlayback();
+        const ov = document.createElement('div');
+        ov.className = 'd-overlay';
+        ov.innerHTML = '<video src="' + el.src + '" controls autoplay playsinline></video>';
+        ov.addEventListener('click', ev => { if (ev.target === ov) { ov.querySelector('video').pause(); ov.remove(); } });
+        document.body.appendChild(ov);
+    },
     async 'export-full'() { await exportSeries(true); },
     async 'export-light'() { await exportSeries(false); },
     async 'rename-project'() {
@@ -1629,6 +1820,7 @@ const actions = {
         const p = await M.getProject(S.pid);
         if (!confirm('Supprimer définitivement « ' + p.name + ' », ses personnages, ses épisodes et ses images ?')) return;
         if (S.job && S.job.running && S.job.pid === p.id) S.job.ctrl.abort();
+        if (S.cjob && S.cjob.running && S.cjob.pid === p.id) S.cjob.ctrl.abort();
         if (S.xjob && S.xjob.running) S.xjob.ctrl.abort();
         if (S.bjob && S.bjob.running) S.bjob.ctrl.abort();
         for (const ep of await M.listEpisodes(p.id)) {
@@ -1695,6 +1887,13 @@ root.addEventListener('change', async ev => {
             await refresh('batch');
             return;
         }
+        if (t.dataset && (t.dataset.clipAnimate || t.dataset.clipAudio)) {
+            const planId = t.dataset.clipAnimate || t.dataset.clipAudio;
+            await CL.saveClipPrefs(S.pid, S.eid, planId, t.dataset.clipAnimate ? { animate: t.checked } : { audio: t.value });
+            if (t.dataset.clipAudio) toast(t.value === 'agnes' ? planId + ' : voix d\'Agnes (durée du clip)' : planId + ' : votre voix');
+            await refresh('clips', 'voices', 'episodes');
+            return;
+        }
         if (t.id === 'd-series') {
             if (t.value === '__new') { S.newSeries = true; await renderAll(); $('#d-new-name').focus(); }
             else if (t.value === '__import') { await actions['import-project'](); }
@@ -1736,7 +1935,7 @@ root.addEventListener('focusout', ev => { if (ev.target.id === 'd-script') flush
 // Retour sur l'onglet Drama : la clé Agnes a pu changer dans l'onglet Vidéos.
 window.addEventListener('atelier:tab', ev => {
     if (ev.detail !== 'drama') { stopPlayback(); cancelRecording(); if (S.preview) S.preview.pause(); return; }
-    if ((S.job && S.job.running) || (S.vjob && S.vjob.running) || (S.xjob && S.xjob.running) || (S.bjob && S.bjob.running)) return;
+    if ([S.job, S.vjob, S.cjob, S.xjob, S.bjob].some(j => j && j.running)) return;
     if ($('#d-char-name')) { try { S.charDraft = readCharForm(); } catch (e) {} }   // fiche en cours de saisie gardée
     renderAll().catch(fail);
 });

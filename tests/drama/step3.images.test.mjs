@@ -107,7 +107,7 @@ try {
         b1.prompt.includes('Avoid: texte, 3D.'), 'prompt P1 : style, décor, fiche de Lina, scène, à éviter');
     let st = await shotsState();
     check(st.assets === 5 && Object.keys(st.shots).length === 5 && st.dims.join() === '1242x2208 image/jpeg', '5 images stockées sur le téléphone en JPEG 1242×2208 (1080×1920 + marge)');
-    check(await page.locator('#drama-root img.d-shot').count() === 5 && /✅ à jour/.test(await chip('P3')), '5 vignettes affichées, état « ✅ à jour »');
+    check(await page.locator('#d-body-images img.d-shot').count() === 5 && /✅ à jour/.test(await chip('P3')), '5 vignettes affichées, état « ✅ à jour »');
     check(/🖼️ 5\/5/.test(await page.textContent('#drama-root .d-ep')), 'liste des épisodes : « 🖼️ 5/5 »');
 
     // 2. Cache : rien n'est refait

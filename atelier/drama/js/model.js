@@ -116,9 +116,9 @@ export async function setStyleLocked(id, locked) {
 }
 
 export async function deleteProject(id) {
-    await tx(['projects', 'characters', 'episodes', 'assets', 'shots', 'takes', 'renders'], 'readwrite', s => {
+    await tx(['projects', 'characters', 'episodes', 'assets', 'shots', 'takes', 'renders', 'clips'], 'readwrite', s => {
         s.projects.delete(id);
-        for (const name of ['characters', 'episodes', 'assets', 'shots', 'takes', 'renders']) {
+        for (const name of ['characters', 'episodes', 'assets', 'shots', 'takes', 'renders', 'clips']) {
             const req = s[name].index('projectId').openKeyCursor(IDBKeyRange.only(id));
             req.onsuccess = () => { const c = req.result; if (c) { s[name].delete(c.primaryKey); c.continue(); } };
         }
@@ -268,28 +268,57 @@ export async function refreshEpisodeAnalyses(projectId) {
 export async function deleteEpisode(id) {
     const e = await get('episodes', id);
     if (!e) return;
-    const [shots, takes, renders] = await Promise.all([getByIndex('shots', 'episodeId', id), getByIndex('takes', 'episodeId', id), getByIndex('renders', 'episodeId', id)]);
-    await tx(['episodes', 'shots', 'takes', 'assets', 'renders'], 'readwrite', s => {
+    const [shots, takes, renders, clips] = await Promise.all(['shots', 'takes', 'renders', 'clips'].map(n => getByIndex(n, 'episodeId', id)));
+    await tx(['episodes', 'shots', 'takes', 'assets', 'renders', 'clips'], 'readwrite', s => {
         s.episodes.delete(id);
         renders.forEach(r => s.renders.delete(r.id));
         if (e.thumb && e.thumb.assetId) s.assets.delete(e.thumb.assetId);
         shots.forEach(sh => s.shots.delete(sh.id));
         takes.forEach(t => s.takes.delete(t.id));
+        clips.forEach(c => s.clips.delete(c.id));
     });
     await gcShotAssets(e.projectId);
     await touchProject(e.projectId);
 }
 
-// Supprime les images de plans et les prises de voix qui ne sont plus retenues
-// par aucun plan ni aucune réplique (versions comprises).
+const MEDIA_KINDS = ['shot', 'voice', 'clip'];
+
+// Supprime les images de plans, les prises de voix et les clips qui ne sont plus retenus
+// par aucun plan ni aucune réplique (versions comprises). Lecture en une seule transaction :
+// un média enregistré en même temps (linkMedia) est vu avec le plan qui le retient.
 export async function gcShotAssets(projectId) {
-    const [assets, shots, takes] = await Promise.all([
-        getByProject('assets', projectId), getByProject('shots', projectId), getByProject('takes', projectId)
-    ]);
-    const used = new Set([...shots, ...takes].flatMap(x => x.versions || []));
-    const orphans = assets.filter(a => (a.kind === 'shot' || a.kind === 'voice') && !used.has(a.id));
+    const r = await tx(['assets', 'shots', 'takes', 'clips'], 'readonly', s => {
+        const q = n => s[n].index('projectId').getAll(projectId);
+        return { assets: q('assets'), shots: q('shots'), takes: q('takes'), clips: q('clips') };
+    });
+    const used = new Set([...r.shots.result, ...r.takes.result, ...r.clips.result].flatMap(x => x.versions || []));
+    const orphans = r.assets.result.filter(a => MEDIA_KINDS.includes(a.kind) && !used.has(a.id));
     if (orphans.length) await tx('assets', 'readwrite', s => orphans.forEach(a => s.delete(a.id)));
     return orphans.length;
+}
+
+// Retient un média pour un plan / une réplique (store : 'shots', 'takes' ou 'clips') : nouvelle
+// version courante, les `max` dernières gardées. Le média (s'il est nouveau) et le plan sont
+// enregistrés dans la même transaction. base : { id, projectId, episodeId, … } si le plan est nouveau.
+export async function linkMedia(store, base, asset, max, { isNew = false, extra = null } = {}) {
+    let saved = null;
+    await tx(['assets', store], 'readwrite', s => {
+        if (isNew) s.assets.put(asset);
+        const req = s[store].get(base.id);
+        req.onsuccess = () => {
+            const x = req.result || { ...base, versions: [] };
+            x.versions = (x.versions || []).filter(v => v !== asset.id).concat(asset.id);
+            while (x.versions.length > max) x.versions.shift();
+            x.current = asset.id;
+            x.hash = asset.hash;
+            x.updatedAt = now();
+            if (extra) Object.assign(x, extra);
+            s[store].put(x);
+            saved = x;
+        };
+    });
+    await gcShotAssets(base.projectId);
+    return saved;
 }
 
 // ─── Médias (images de référence) ─────────────────────────────────
@@ -385,17 +414,22 @@ async function dataUriToBlob(uri) { return (await fetch(uri)).blob(); }
 export async function exportProject(id, { includeImages = true } = {}) {
     const project = await getProject(id);
     if (!project) throw new DramaError('Projet introuvable');
-    const [characters, episodes, allAssets, allShots, allTakes] = await Promise.all([
-        listCharacters(id), listEpisodes(id), getByProject('assets', id), getByProject('shots', id), getByProject('takes', id)
+    const [characters, episodes, allAssets, allShots, allTakes, allClips] = await Promise.all([
+        listCharacters(id), listEpisodes(id), getByProject('assets', id), getByProject('shots', id), getByProject('takes', id), getByProject('clips', id)
     ]);
     const onlyCurrent = list => includeImages ? list.filter(x => x.current).map(x => ({ ...x, versions: [x.current] })) : [];
     const shots = onlyCurrent(allShots);
     const takes = onlyCurrent(allTakes);
-    const kept = new Set([...shots, ...takes].map(x => x.current));
-    const assets = allAssets.filter(a => (a.kind !== 'shot' && a.kind !== 'voice') || kept.has(a.id));
+    // clips : réglages de chaque plan (animé, voix) toujours ; le clip retenu avec les images
+    const clips = allClips.map(c => {
+        const { pending, ...rest } = c;
+        return includeImages && c.current ? { ...rest, versions: [c.current] } : { ...rest, versions: [], current: null, hash: null };
+    });
+    const kept = new Set([...shots, ...takes, ...clips].map(x => x.current).filter(Boolean));
+    const assets = allAssets.filter(a => !MEDIA_KINDS.includes(a.kind) || kept.has(a.id));
     return {
         format: EXPORT_FORMAT, version: EXPORT_VERSION, exportedAt: now(),
-        project, characters, episodes, shots, takes,
+        project, characters, episodes, shots, takes, clips,
         assets: await Promise.all(assets.map(async a => {
             const { blob, ...meta } = a;
             return { ...meta, dataUri: await blobToDataUri(blob) };
@@ -441,13 +475,20 @@ export async function importProject(data) {
     }).filter(x => x.current);
     const shots = remapMedia(data.shots, (eid, sh) => eid + ':' + sh.planId);
     const takes = remapMedia(data.takes, (eid, t) => eid + ':' + t.lineId);
-    await tx(['projects', 'characters', 'episodes', 'assets', 'shots', 'takes'], 'readwrite', s => {
+    const clips = (data.clips || []).filter(c => episodeMap[c.episodeId]).map(c => {
+        const eid = episodeMap[c.episodeId];
+        const versions = (c.versions || []).map(remap).filter(Boolean);
+        const current = remap(c.current) || versions[versions.length - 1] || null;
+        return { ...c, id: eid + ':' + c.planId, projectId: pid, episodeId: eid, versions, current, hash: current ? c.hash : null, pending: null };
+    });
+    await tx(['projects', 'characters', 'episodes', 'assets', 'shots', 'takes', 'clips'], 'readwrite', s => {
         s.projects.put(project);
         characters.forEach(c => s.characters.put(c));
         episodes.forEach(e => s.episodes.put(e));
         assets.forEach(a => s.assets.put(a));
         shots.forEach(sh => s.shots.put(sh));
         takes.forEach(t => s.takes.put(t));
+        clips.forEach(c => s.clips.put(c));
     });
     requestPersistentStorage();
     return project;

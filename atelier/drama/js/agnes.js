@@ -91,3 +91,73 @@ export async function generateImage({ model, prompt, size = '2K', ratio = '9:16'
     if (!url && !b64) throw new AgnesError('Réponse Agnes sans image', { retryable: true });
     return { url, b64, revisedPrompt: item.revised_prompt || null };
 }
+
+// ─── Vidéo (étape 8 : plans animés) ───────────────────────────────
+// Même API que l'onglet Vidéos :
+//   POST {AGNES_BASE}/videos { model, prompt, image: dataURI, num_frames, frame_rate, negative_prompt? } → { video_id }
+//   GET  {AGNES_POLL}?video_id=…&model_name=… → { status, progress, metadata: { url } }
+export const AGNES_POLL = 'https://apihub.agnes-ai.com/agnesapi';
+export const VIDEO_MODEL = 'agnes-video-v2.0';
+export const VIDEO_FPS = 24;
+
+async function agnesFetch(url, init, signal, timeoutMs) {
+    const key = getAgnesKey();
+    if (!key) throw new AgnesError('Ajoutez votre clé Agnes dans l\'onglet Vidéos', { status: 401 });
+    const ctrl = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; ctrl.abort(); }, timeoutMs);
+    const onAbort = () => ctrl.abort();
+    if (signal) {
+        if (signal.aborted) ctrl.abort();
+        else signal.addEventListener('abort', onAbort, { once: true });
+    }
+    let res;
+    try {
+        res = await fetch(url, { ...init, headers: { ...(init.headers || {}), 'Authorization': 'Bearer ' + key }, signal: ctrl.signal });
+    } catch (e) {
+        if (signal && signal.aborted) throw new DOMException('Arrêt demandé', 'AbortError');
+        throw new AgnesError(timedOut ? 'Agnes ne répond pas (délai dépassé)' : 'Réseau indisponible', { retryable: true });
+    } finally {
+        clearTimeout(timer);
+        if (signal) signal.removeEventListener('abort', onAbort);
+    }
+    if (res.status === 401 || res.status === 403) throw new AgnesError('Clé Agnes refusée', { status: res.status });
+    if (res.status === 429) {
+        const ra = parseFloat(res.headers.get('retry-after') || '0');
+        throw new AgnesError('Agnes demande de patienter (trop de demandes)', { status: 429, retryable: true, retryAfter: ra > 0 ? ra : 0 });
+    }
+    if (!res.ok) {
+        let msg = 'erreur ' + res.status;
+        try {
+            const t = await res.text();
+            try { const j = JSON.parse(t); msg = (j.error && (j.error.message || j.error)) || j.message || j.detail || t; }
+            catch (_) { msg = t || msg; }
+        } catch (_) {}
+        throw new AgnesError(res.status === 503 ? 'Agnes est occupée' : 'Agnes : ' + String(msg).slice(0, 200),
+            { status: res.status, retryable: res.status >= 500 });
+    }
+    try { return await res.json(); } catch (e) { throw new AgnesError('Réponse Agnes illisible', { retryable: true }); }
+}
+
+// Lance l'animation d'une image ; retourne l'identifiant de la vidéo en préparation.
+export async function createVideo({ prompt, image, frames, negative = '', signal = null }) {
+    const body = { model: VIDEO_MODEL, prompt, image, num_frames: frames, frame_rate: VIDEO_FPS };
+    if (negative) body.negative_prompt = negative;
+    const d = await agnesFetch(AGNES_BASE + '/videos', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    }, signal, 120000);
+    const id = d.video_id || d.id || d.task_id;
+    if (!id) throw new AgnesError('Agnes n\'a pas renvoyé d\'identifiant de vidéo', { retryable: true });
+    return String(id);
+}
+
+// État d'une vidéo : { status: 'done' | 'failed' | 'running', progress, url }.
+export async function videoStatus(videoId, signal = null) {
+    const d = await agnesFetch(AGNES_POLL + '?video_id=' + encodeURIComponent(videoId) + '&model_name=' + encodeURIComponent(VIDEO_MODEL),
+        { method: 'GET' }, signal, 60000);
+    const raw = String(d.status || 'unknown').toLowerCase();
+    const url = (d.metadata && d.metadata.url) || d.url || (d.output && d.output.url) || null;
+    const status = ['completed', 'succeeded', 'done'].includes(raw) ? 'done' : ['failed', 'error', 'cancelled'].includes(raw) ? 'failed' : 'running';
+    if (status === 'done' && !url) throw new AgnesError('Vidéo terminée mais sans adresse', { retryable: true });
+    return { status, raw, progress: Math.max(0, Math.min(100, parseInt(d.progress, 10) || 0)), url };
+}

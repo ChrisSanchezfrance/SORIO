@@ -67,16 +67,17 @@ Cible : Android / Chrome. Code : `atelier/drama/`.
 | 5 | 🎞️ Montage | Aperçu en temps réel (9:16) : zoom, panoramiques, tremblement, transitions (fondu, fondu au noir/blanc, glissés, flash), sous-titres incrustés calés sur les mots (3 tailles) ; mixage voix + bruitages + musique en boucle avec fondus et baisse sous les voix ; bibliothèque sonore de la série (musiques et bruitages importés, appelés par leur nom dans le script) | ✅ |
 | 6 | 📤 Export | MP4 1080×1920, 30 i/s, son stéréo 48 kHz, fabriqué sur le téléphone (WebCodecs + mp4-muxer, écrit au fil de l'eau dans le stockage privé) : H.264 + AAC si l'appareil les produit, sinon VP9/AV1 + Opus ; progression et temps restant, pause en arrière-plan, arrêt sans fichier incomplet, export « à refaire » si le montage change ; vignette « EP.x » 1080×1920 tirée du plan choisi ; enregistrement sur le téléphone | ✅ |
 | 7 | 🗂️ Rendu en lot | Export plan par plan : chaque plan encodé est gardé, seuls les plans manquants ou modifiés sont refaits (arrêt, coupure, petite modification), puis assemblage du MP4 sans réencodage ; lot de plusieurs épisodes avec file gardée sur le téléphone, second essai automatique en cas d'erreur, « Reprendre » après fermeture de l'appli | ✅ |
+| 8 | 🎬 Animation des plans (Agnes) | Plans animés par le modèle vidéo d'Agnes (`agnes-video-v2.0`, celui de l'onglet Vidéos) : l'image du plan + scène, caméra et réplique (lèvres qui bougent) ; plans avec réplique cochés par défaut, clip de 5 / 6,4 / 10 s selon la durée du plan ; voix au choix par plan : 🎤 la vôtre (par défaut, lèvres approximatives) ou 🎬 celle d'Agnes (synchronisée, durée du plan = durée du clip) ; créations espacées de 62 s et suivies en parallèle, reprise d'une création après fermeture de l'appli, 429/503, cache, « autre clip », 4 versions ; le clip remplace l'image fixe dans l'aperçu, l'export (image par image) et le rendu en lot | ✅ |
 
 Clés : Agnes = celle de l'onglet Vidéos (partagée) ; ElevenLabs = saisie dans le panneau du haut de l'onglet Drama.
 Les données (séries, photos, scripts, images générées) restent sur le téléphone (IndexedDB).
 
 Code : `js/db.js` (IndexedDB), `js/model.js` (règles métier), `js/parser.js` (script → plans, pur),
 `js/images.js` (prompt, cache et génération des images), `js/voices.js` (doublage et minutage), `js/mic.js` (enregistrement au micro), `js/jobs.js` (pause, reprises),
-`js/montage.js` (timeline, caméra, sous-titres, musique — pur), `js/render.js` (dessin d'une image), `js/mix.js` (mixage), `js/player.js` (aperçu), `js/export.js` (MP4 par morceaux et vignette), `js/batch.js` (lot et reprise), `vendor/mp4-muxer.mjs` (MIT),
+`js/montage.js` (timeline, caméra, sous-titres, musique — pur), `js/render.js` (dessin d'une image), `js/mix.js` (mixage), `js/player.js` (aperçu), `js/export.js` (MP4 par morceaux et vignette), `js/batch.js` (lot et reprise), `js/clips.js` (plans animés par Agnes), `vendor/mp4-muxer.mjs` (MIT),
 `js/agnes.js` / `js/elevenlabs.js` (API), `js/app.js` (onglet).
 
 Tests (Chromium via Playwright, API simulées ; `node <fichier>`) :
 `tests/drama/step1.test.mjs`, `step2.parser.test.mjs` (Node seul), `step2.ui.test.mjs`,
-`step3.prompt.test.mjs` (Node seul), `step3.images.test.mjs`, `step4.timing.test.mjs` (Node seul), `step4.voices.test.mjs`, `step4.mic.test.mjs` (micro simulé), `step5.montage.test.mjs` (Node seul), `step5.preview.test.mjs`, `step6.export.test.mjs` (relit le MP4 produit), `step7.segments.test.mjs` (Node seul), `step7.batch.test.mjs`,
+`step3.prompt.test.mjs` (Node seul), `step3.images.test.mjs`, `step4.timing.test.mjs` (Node seul), `step4.voices.test.mjs`, `step4.mic.test.mjs` (micro simulé), `step5.montage.test.mjs` (Node seul), `step5.preview.test.mjs`, `step6.export.test.mjs` (relit le MP4 produit), `step7.segments.test.mjs` (Node seul), `step7.batch.test.mjs`, `step8.clips.test.mjs` (clips de test fabriqués dans la page),
 et `tests/atelier/videos.test.mjs` (onglet Vidéos).

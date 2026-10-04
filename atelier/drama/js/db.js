@@ -2,12 +2,13 @@
 // Magasins : projets, personnages, épisodes, médias (images et sons en Blob),
 // « shots » (image retenue pour chaque plan d'un épisode, avec ses versions) et
 // « takes » (prise de voix retenue pour chaque réplique, avec ses versions) et
-// « renders » (morceaux vidéo déjà encodés, un par plan : l'export reprend là où il s'est arrêté).
+// « renders » (morceaux vidéo déjà encodés, un par plan : l'export reprend là où il s'est arrêté) et
+// « clips » (plan animé par Agnes : clip retenu, versions, réglages du plan, création en cours).
 // Tout reste sur le téléphone ; rien n'est envoyé ailleurs.
 
 export const DB_NAME = 'drama_studio';
-export const DB_VERSION = 4;
-export const STORES = ['projects', 'characters', 'episodes', 'assets', 'shots', 'takes', 'renders'];
+export const DB_VERSION = 5;
+export const STORES = ['projects', 'characters', 'episodes', 'assets', 'shots', 'takes', 'renders', 'clips'];
 
 let dbPromise = null;
 
@@ -30,8 +31,8 @@ export function openDb() {
             // v2 : cache d'images par empreinte + image retenue par plan
             const assets = req.transaction.objectStore('assets');
             if (!assets.indexNames.contains('hash')) assets.createIndex('hash', 'hash', { unique: false });
-            // v2 : images des plans ; v3 : prises de voix ; v4 : morceaux vidéo encodés
-            for (const name of ['shots', 'takes', 'renders']) {
+            // v2 : images des plans ; v3 : prises de voix ; v4 : morceaux vidéo encodés ; v5 : clips animés
+            for (const name of ['shots', 'takes', 'renders', 'clips']) {
                 if (!db.objectStoreNames.contains(name)) {
                     const store = db.createObjectStore(name, { keyPath: 'id' });
                     store.createIndex('projectId', 'projectId', { unique: false });

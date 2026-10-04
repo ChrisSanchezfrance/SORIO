@@ -2,7 +2,7 @@
 // Rend l'appli installable et permet de l'ouvrir sans réseau.
 // Seuls les fichiers de l'appli sont mis en cache : les appels à l'API
 // et les vidéos passent toujours directement par le réseau.
-const CACHE = 'atelier-video-v11';
+const CACHE = 'atelier-video-v12';
 const APP_FILES = [
     './',
     './index.html',
@@ -29,7 +29,7 @@ const APP_FILES = [
     './drama/js/player.js',
     './drama/js/export.js',
     './drama/js/batch.js',
-    './drama/js/mic.js',
+    './drama/js/mic.js', './drama/js/clips.js',
     './drama/vendor/mp4-muxer.mjs'
 ];
 

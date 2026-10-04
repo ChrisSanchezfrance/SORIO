@@ -1,10 +1,23 @@
 // Drama — dessin d'une image du montage au temps t (aperçu et export).
 // ctx : contexte 2D d'un canvas de (1080 × 1920) × scale.
 // getImage(assetId) : image décodée (ImageBitmap) ou null si pas encore chargée.
+// opts.getClip(plan, temps) : image du clip animé (étape 8) à ce temps, ou null (l'image fixe est
+// alors dessinée à sa place).
 
 import { W, H, SUB_SIZES, cameraAt, planIndexAt, cueAt, ease } from './montage.js';
 
-function drawPlan(ctx, plan, local, getImage, s) {
+// Temps dans le clip d'un plan animé : la dernière image reste affichée si le plan est plus long.
+export const clipTimeAt = (plan, local) => Math.max(0, Math.min(local, plan.clip.duration - 1 / 48));
+
+function drawPlan(ctx, plan, local, getImage, s, getClip) {
+    const src = plan.clip && getClip ? getClip(plan, clipTimeAt(plan, local)) : null;
+    const sw = src && (src.videoWidth || src.width), sh = src && (src.videoHeight || src.height);
+    if (sw && sh) {
+        // clip plein cadre (recadré au centre), sans mouvement de caméra : c'est Agnes qui anime
+        const k = Math.max(W * s / sw, H * s / sh);
+        ctx.drawImage(src, (W * s - sw * k) / 2, (H * s - sh * k) / 2, sw * k, sh * k);
+        return;
+    }
     const p = plan.duration > 0 ? local / plan.duration : 0;
     const cam = cameraAt(plan.moves, Math.min(1, Math.max(0, p)), Math.max(0, local), plan.seed);
     const img = plan.imageAssetId ? getImage(plan.imageAssetId) : null;
@@ -71,6 +84,7 @@ function drawSubtitle(ctx, cue, tl, s) {
 // Dessine le montage au temps t. opts.scale : 1 pour l'export (1080×1920), 0,5 pour l'aperçu.
 export function drawFrame(ctx, tl, t, getImage, opts = {}) {
     const s = opts.scale || 1;
+    const gc = opts.getClip || null;
     ctx.save();
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W * s, H * s);
@@ -84,34 +98,46 @@ export function drawFrame(ctx, tl, t, getImage, opts = {}) {
     const q = inTr ? Math.max(0, local) / tr.duration : 1;
 
     if (!inTr) {
-        drawPlan(ctx, plan, local, getImage, s);
+        drawPlan(ctx, plan, local, getImage, s, gc);
     } else if (tr.type === 'fondu') {
-        if (prev) drawPlan(ctx, prev, prev.duration, getImage, s);
+        if (prev) drawPlan(ctx, prev, prev.duration, getImage, s, gc);
         ctx.globalAlpha = q;
-        drawPlan(ctx, plan, local, getImage, s);
+        drawPlan(ctx, plan, local, getImage, s, gc);
         ctx.globalAlpha = 1;
     } else if (tr.type === 'fondu-noir' || tr.type === 'fondu-blanc') {
         const color = tr.type === 'fondu-noir' ? '#000' : '#fff';
-        if (prev && q < 0.5) { drawPlan(ctx, prev, prev.duration, getImage, s); overlay(ctx, color, q * 2, s); }
-        else { drawPlan(ctx, plan, local, getImage, s); overlay(ctx, color, prev ? (1 - q) * 2 : 1 - q, s); }
+        if (prev && q < 0.5) { drawPlan(ctx, prev, prev.duration, getImage, s, gc); overlay(ctx, color, q * 2, s); }
+        else { drawPlan(ctx, plan, local, getImage, s, gc); overlay(ctx, color, prev ? (1 - q) * 2 : 1 - q, s); }
     } else if (tr.type === 'glisse-gauche' || tr.type === 'glisse-droite') {
         const dir = tr.type === 'glisse-gauche' ? -1 : 1;     // sens du mouvement des images
         const off = ease(q) * W * s;
         if (prev) {
-            ctx.save(); ctx.translate(dir * off, 0); drawPlan(ctx, prev, prev.duration, getImage, s); ctx.restore();
+            ctx.save(); ctx.translate(dir * off, 0); drawPlan(ctx, prev, prev.duration, getImage, s, gc); ctx.restore();
         }
-        ctx.save(); ctx.translate(dir * (off - W * s), 0); drawPlan(ctx, plan, local, getImage, s); ctx.restore();
+        ctx.save(); ctx.translate(dir * (off - W * s), 0); drawPlan(ctx, plan, local, getImage, s, gc); ctx.restore();
     } else if (tr.type === 'flash') {
-        drawPlan(ctx, plan, local, getImage, s);
+        drawPlan(ctx, plan, local, getImage, s, gc);
         overlay(ctx, '#fff', 1 - q, s);
     } else {
-        drawPlan(ctx, plan, local, getImage, s);
+        drawPlan(ctx, plan, local, getImage, s, gc);
     }
 
     const cue = tl.settings.subtitles ? cueAt(tl, t) : null;
     if (cue) drawSubtitle(ctx, cue, tl, s);
     ctx.restore();
     return { planIndex: i, cue };
+}
+
+// Plans animés dessinés au temps t (plan en cours, et précédent pendant une transition) : [{ plan, time }].
+export function clipsAt(tl, t) {
+    if (!tl.plans.length) return [];
+    const i = planIndexAt(tl, t);
+    const plan = tl.plans[i], prev = i > 0 ? tl.plans[i - 1] : null;
+    const local = t - plan.start;
+    const out = [];
+    if (prev && prev.clip && plan.transition.type !== 'coupe' && local < plan.transition.duration) out.push({ plan: prev, time: clipTimeAt(prev, prev.duration) });
+    if (plan.clip) out.push({ plan, time: clipTimeAt(plan, local) });
+    return out;
 }
 
 // Images nécessaires autour du temps t (plan en cours, précédent pour la transition, suivant).

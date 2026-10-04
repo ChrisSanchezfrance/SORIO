@@ -128,7 +128,7 @@ body:not([data-tab="drama"]) #drama-root { display: none; }
     position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,0.92);
     display: flex; align-items: center; justify-content: center; cursor: zoom-out;
 }
-.d-overlay img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.d-overlay img, .d-overlay video { max-width: 100%; max-height: 100%; object-fit: contain; }
 
 /* Voix et durées */
 #drama-root .d-vplans { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.8rem 0; }
@@ -194,3 +194,10 @@ body:not([data-tab="drama"]) #drama-root { display: none; }
 #drama-root .d-rec-dot { width: 12px; height: 12px; border-radius: 50%; background: #d93025; animation: d-blink 1s infinite; flex-shrink: 0; }
 #drama-root .d-rec-stop { border-color: #d93025; color: #d93025; font-weight: 700; }
 @keyframes d-blink { 50% { opacity: 0.25; } }
+
+/* Étape 8 : animation des plans (Agnes) */
+#drama-root video.d-shot { background: #000; object-fit: cover; }
+#drama-root .d-check { display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; margin-top: 0.4rem; cursor: pointer; }
+#drama-root .d-check input { width: 1.05rem; height: 1.05rem; margin: 0; }
+#drama-root .d-clip-audio { margin-top: 0.35rem; font-size: 0.78rem; padding: 0.35rem 0.4rem; width: 100%; }
+#drama-root .d-warn { color: #8a6510; }

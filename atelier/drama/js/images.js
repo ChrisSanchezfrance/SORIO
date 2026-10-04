@@ -11,7 +11,7 @@
 
 import { hashString, fold } from './parser.js';
 import { get, put, getByIndex, newId } from './db.js';
-import { gcShotAssets, getAsset } from './model.js';
+import { linkMedia, getAsset } from './model.js';
 import { generateImage, AgnesError } from './agnes.js';
 import { RETRY_WAITS, waitVisible, pausableWait, blobToDataUri, b64ToBlob } from './jobs.js';
 
@@ -99,17 +99,9 @@ export async function findCachedAsset(projectId, hash, kind = 'shot') {
     return list.sort((a, b) => b.createdAt - a.createdAt)[0] || null;
 }
 
-async function setShot(projectId, episodeId, planId, asset) {
-    const id = shotId(episodeId, planId);
-    const sh = (await get('shots', id)) || { id, projectId, episodeId, planId, versions: [] };
-    sh.versions = sh.versions.filter(v => v !== asset.id).concat(asset.id);
-    while (sh.versions.length > MAX_VERSIONS) sh.versions.shift();
-    sh.current = asset.id;
-    sh.hash = asset.hash;
-    sh.updatedAt = Date.now();
-    await put('shots', sh);
-    await gcShotAssets(projectId);
-    return sh;
+// Retient l'image pour le plan (isNew : image tout juste créée, enregistrée en même temps).
+function setShot(projectId, episodeId, planId, asset, isNew = false) {
+    return linkMedia('shots', { id: shotId(episodeId, planId), projectId, episodeId, planId }, asset, MAX_VERSIONS, { isNew });
 }
 
 // Choisit une version précédente / suivante d'un plan.
@@ -251,12 +243,12 @@ export async function generateEpisodeImages({ project, characters, episode, plan
             }
             const raw = await requestImage(req, refsData, signal, st => onUpdate(plan.id, st));
             const { blob, source } = await normalizeShot(raw);
-            const asset = await put('assets', {
+            const asset = {
                 id: newId('a'), projectId: project.id, kind: 'shot', episodeId: episode.id, planId: plan.id,
                 hash: req.hash, model: req.model, size: req.size, prompt: req.prompt,
                 mime: 'image/jpeg', width: SHOT_W, height: SHOT_H, source, blob, createdAt: Date.now()
-            });
-            await setShot(project.id, episode.id, plan.id, asset);
+            };
+            await setShot(project.id, episode.id, plan.id, asset, true);
             summary.generated++;
             onUpdate(plan.id, { state: 'ok', generated: true });
         } catch (e) {

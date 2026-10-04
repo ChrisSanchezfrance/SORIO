@@ -4,13 +4,17 @@
 import * as M from './model.js';
 import * as IMG from './images.js';
 import * as VO from './voices.js';
+import * as CL from './clips.js';
 import { buildTimeline } from './montage.js';
 import { drawFrame, imagesAround } from './render.js';
 import { scheduleMix, soundAssetIds } from './mix.js';
 
-// Rassemble tout ce qu'il faut pour monter l'épisode (images retenues, prises à jour, sons importés).
+// Rassemble tout ce qu'il faut pour monter l'épisode (images retenues, clips animés, prises à jour, sons importés).
 export async function loadEpisodeTimeline(project, characters, episode) {
-    const { states, timing } = await VO.voiceStates(project, characters, episode);
+    const clips = await CL.timelineClips(project, characters, episode);
+    const agnes = {};
+    for (const [pid, c] of Object.entries(clips)) if (c.audio) agnes[pid] = c.duration;
+    const { states, timing } = await VO.voiceStates(project, characters, episode, { agnes });
     const takes = {};
     for (const s of states) {
         if (s.state !== 'ok') continue;
@@ -20,7 +24,7 @@ export async function loadEpisodeTimeline(project, characters, episode) {
     const shots = {};
     for (const [planId, sh] of await IMG.getShots(episode.id)) if (sh.current) shots[planId] = sh.current;
     const library = await M.libraryIndex(project.id);
-    return buildTimeline({ analysis: episode.analysis, timing, shots, takes, library, settings: project.montage || {} });
+    return buildTimeline({ analysis: episode.analysis, timing, shots, takes, library, settings: project.montage || {}, clips });
 }
 
 // Durée d'un fichier audio (pour la bibliothèque sonore).
@@ -31,6 +35,7 @@ export async function audioFileDuration(blob) {
 }
 
 const MAX_BITMAPS = 8;
+const MAX_VIDEOS = 4;
 
 export class Player {
     constructor(onUpdate = () => {}) {
@@ -46,6 +51,8 @@ export class Player {
         this.playing = false;
         this.stopMix = null;
         this.raf = 0;
+        this.videos = new Map();       // planId → { assetId, video, url, ready } (clips animés)
+        this.usedVideos = new Set();
     }
 
     attach(canvas, tl) {
@@ -83,11 +90,63 @@ export class Player {
         return this.loading.get(id);
     }
 
+    // Vidéo du clip d'un plan animé (chargée à la demande, quelques-unes seulement en mémoire).
+    clipVideo(plan) {
+        let e = this.videos.get(plan.id);
+        if (e && e.assetId !== plan.clip.assetId) { this.releaseVideo(plan.id); e = null; }
+        if (e) { this.videos.delete(plan.id); this.videos.set(plan.id, e); return e; }
+        const video = document.createElement('video');
+        video.muted = true; video.playsInline = true; video.preload = 'auto';
+        e = { assetId: plan.clip.assetId, video, url: null, ready: false };
+        this.videos.set(plan.id, e);
+        const redraw = () => { if (!this.playing && this.videos.get(plan.id) === e) this.render(); };
+        video.addEventListener('loadeddata', () => { e.ready = true; redraw(); });
+        video.addEventListener('seeked', redraw);
+        M.getAsset(plan.clip.assetId).then(a => {
+            if (!a || this.videos.get(plan.id) !== e) return;
+            e.url = URL.createObjectURL(a.blob);
+            video.src = e.url;
+        }).catch(() => {});
+        while (this.videos.size > MAX_VIDEOS) this.releaseVideo(this.videos.keys().next().value);
+        return e;
+    }
+
+    releaseVideo(planId) {
+        const e = this.videos.get(planId);
+        if (!e) return;
+        this.videos.delete(planId);
+        e.video.pause();
+        e.video.removeAttribute('src');
+        e.video.load();
+        if (e.url) URL.revokeObjectURL(e.url);
+    }
+
+    // Image du clip au temps demandé : pendant la lecture la vidéo joue (recalée si elle dérive),
+    // à l'arrêt elle est positionnée sur l'image exacte. null tant qu'elle n'est pas prête.
+    getClip(plan, time) {
+        const e = this.clipVideo(plan);
+        this.usedVideos.add(plan.id);
+        if (!e.ready) return null;
+        const v = e.video;
+        const running = this.playing && time < plan.clip.duration - 0.06;
+        if (running) {
+            if (v.paused) { if (Math.abs(v.currentTime - time) > 0.05) v.currentTime = time; v.play().catch(() => {}); }
+            else if (Math.abs(v.currentTime - time) > 0.3) v.currentTime = time;
+        } else {
+            if (!v.paused) v.pause();
+            if (Math.abs(v.currentTime - time) > 0.02 && !v.seeking) v.currentTime = time;
+        }
+        return v;
+    }
+
     // Dessine l'image au temps courant ; charge les images voisines puis redessine si besoin.
     render() {
         if (!this.canvas || !this.tl) return null;
         const ctx = this.canvas.getContext('2d');
-        const info = drawFrame(ctx, this.tl, this.t, id => this.bitmaps.get(id) || null, { scale: this.scale });
+        this.usedVideos.clear();
+        const info = drawFrame(ctx, this.tl, this.t, id => this.bitmaps.get(id) || null,
+            { scale: this.scale, getClip: (plan, time) => this.getClip(plan, time) });
+        for (const [pid, e] of this.videos) if (!this.usedVideos.has(pid) && !e.video.paused) e.video.pause();
         const missing = imagesAround(this.tl, this.t).filter(id => !this.bitmaps.has(id));
         if (missing.length) {
             Promise.all(missing.map(id => this.image(id))).then(() => { if (!this.playing) this.render(); });
@@ -135,6 +194,7 @@ export class Player {
         if (this.stopMix) { this.stopMix(); this.stopMix = null; }
         cancelAnimationFrame(this.raf);
         this.playing = false;
+        for (const e of this.videos.values()) e.video.pause();
         if (this.tl) this.onUpdate({ t: this.t, duration: this.tl.duration, playing: false });
     }
 
@@ -142,6 +202,7 @@ export class Player {
         this.pause();
         for (const b of this.bitmaps.values()) if (b && b.close) b.close();
         this.bitmaps.clear();
+        for (const pid of [...this.videos.keys()]) this.releaseVideo(pid);
         this.buffers.clear();
         if (this.ac) { this.ac.close().catch(() => {}); this.ac = null; }
         this.canvas = null;

@@ -9,7 +9,7 @@
 
 import { Muxer, FileSystemWritableFileStreamTarget, ArrayBufferTarget } from '../vendor/mp4-muxer.mjs';
 import { W, H, FPS, videoSegments } from './montage.js';
-import { drawFrame, imagesAround } from './render.js';
+import { drawFrame, imagesAround, clipsAt } from './render.js';
 import { scheduleMix, soundAssetIds } from './mix.js';
 import { waitVisible } from './jobs.js';
 import { hashString } from './parser.js';
@@ -57,7 +57,9 @@ export async function pickCodecs() {
 
 // Empreinte du montage : l'export est « à refaire » si elle change.
 export function timelineHash(tl) {
-    return hashString(JSON.stringify({ d: tl.duration, p: tl.plans, v: tl.voices.map(v => [v.assetId, v.start]), s: tl.sfx, m: tl.music, c: tl.cues, st: tl.settings }));
+    const sig = { d: tl.duration, p: tl.plans, v: tl.voices.map(v => [v.assetId, v.start]), s: tl.sfx, m: tl.music, c: tl.cues, st: tl.settings };
+    if (tl.clipAudio && tl.clipAudio.length) sig.ca = tl.clipAudio;
+    return hashString(JSON.stringify(sig));
 }
 
 // ─── Fichiers exportés (stockage privé de l'appli) ────────────────
@@ -90,6 +92,52 @@ function bitmapCache(max = 6) {
         },
         get: id => map.get(id) || null,
         clear() { for (const b of map.values()) if (b && b.close) b.close(); map.clear(); }
+    };
+}
+
+// Clips animés pendant l'export : chaque image est prise à son temps exact (positionnement de la vidéo).
+function seekTo(video, t) {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => { cleanup(); reject(new Error('Clip : positionnement impossible')); }, 15000);
+        const ok = () => { cleanup(); resolve(); };
+        const cleanup = () => { clearTimeout(timer); video.removeEventListener('seeked', ok); };
+        video.addEventListener('seeked', ok);
+        video.currentTime = t;
+    });
+}
+function clipCache(max = 3) {
+    const map = new Map();     // planId → { assetId, video, url, time }
+    const release = e => { e.video.removeAttribute('src'); e.video.load(); URL.revokeObjectURL(e.url); };
+    async function open(plan) {
+        let e = map.get(plan.id);
+        if (e && e.assetId === plan.clip.assetId) { map.delete(plan.id); map.set(plan.id, e); return e; }
+        if (e) { release(e); map.delete(plan.id); }
+        const a = await M.getAsset(plan.clip.assetId);
+        if (!a) return null;
+        const video = document.createElement('video');
+        video.muted = true; video.playsInline = true; video.preload = 'auto';
+        const url = URL.createObjectURL(a.blob);
+        try {
+            await new Promise((resolve, reject) => {
+                video.onloadeddata = resolve;
+                video.onerror = () => reject(new Error('Clip du plan ' + plan.id + ' illisible sur ce téléphone'));
+                video.src = url;
+            });
+        } catch (err) { URL.revokeObjectURL(url); throw err; }
+        e = { assetId: plan.clip.assetId, video, url, time: -1 };
+        map.set(plan.id, e);
+        while (map.size > max) { const [k, old] = map.entries().next().value; map.delete(k); release(old); }
+        return e;
+    }
+    return {
+        async ensure(list) {
+            for (const { plan, time } of list) {
+                const e = await open(plan);
+                if (e && Math.abs(e.time - time) > 1e-4) { await seekTo(e.video, time); e.time = time; }
+            }
+        },
+        get: plan => { const e = map.get(plan.id); return e && e.assetId === plan.clip.assetId && e.time >= 0 ? e.video : null; },
+        clear() { for (const e of map.values()) release(e); map.clear(); }
     };
 }
 
@@ -173,6 +221,7 @@ export async function exportEpisode({ tl, projectId, episodeId, fileName, signal
     const audioChunks = [];
     const aenc = new AudioEncoder({ output: (chunk, meta) => audioChunks.push({ chunk, meta }), error: e => { encoderError = e; } });
     const images = bitmapCache();
+    const clips = clipCache();
     const check = () => {
         if (signal && signal.aborted) throw abortError();
         if (encoderError) throw new Error('Encodeur interrompu : ' + encoderError.message);
@@ -214,7 +263,8 @@ export async function exportEpisode({ tl, projectId, episodeId, fileName, signal
                 check();
                 const t = i / FPS;
                 await images.ensure(imagesAround(tl, t));
-                drawFrame(ctx, tl, t, images.get, { scale: 1 });
+                await clips.ensure(clipsAt(tl, t));
+                drawFrame(ctx, tl, t, images.get, { scale: 1, getClip: clips.get });
                 const frame = new VideoFrame(canvas, { timestamp: Math.round(i * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
                 venc.encode(frame, { keyFrame: i === seg.i0 || (i - seg.i0) % KEYFRAME_EVERY === 0 });
                 frame.close();
@@ -312,6 +362,7 @@ export async function exportEpisode({ tl, projectId, episodeId, fileName, signal
         throw e;
     } finally {
         images.clear();
+        clips.clear();
         try { if (venc.state !== 'closed') venc.close(); } catch (e) {}
         try { if (aenc.state !== 'closed') aenc.close(); } catch (e) {}
     }

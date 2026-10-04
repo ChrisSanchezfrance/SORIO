@@ -57,7 +57,7 @@ try {
     await click('[data-action="create-project"]');
     await page.waitForSelector('#d-sec-style.open');
     check(await page.$eval('#d-series', s => s.options[s.selectedIndex].text) === 'Néons Brisés', 'série créée et sélectionnée en haut de l\'onglet');
-    check(await page.locator('#drama-root .section').count() === 10, '10 sections : Style, Personnages, Épisodes, Script, Images, Voix, Montage, Export, Rendu en lot, Sauvegarde');
+    check(await page.locator('#drama-root .section').count() === 11, '11 sections : Style, Personnages, Épisodes, Script, Images, Voix, Animation, Montage, Export, Rendu en lot, Sauvegarde');
 
     // Image de référence du style puis verrouillage
     await choose(page, '[data-action="pick-style-image"]', await makePng(page, 2000, 3000, '#224466'));

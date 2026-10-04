@@ -10,7 +10,7 @@
 
 import { hashString, fold, PLAN_LEAD, PLAN_TAIL, GAP_BETWEEN_LINES, MIN_VOICED_PLAN, DEFAULT_PLAN_SECONDS } from './parser.js';
 import { get, put, getByIndex, newId } from './db.js';
-import { gcShotAssets, getAsset, DEFAULT_VOICE, ELEVEN_MODELS } from './model.js';
+import { linkMedia, getAsset, DEFAULT_VOICE, ELEVEN_MODELS } from './model.js';
 import { synthesize, alignmentToWords } from './elevenlabs.js';
 import { withRetries, waitVisible, b64ToBlob } from './jobs.js';
 import { findCachedAsset } from './images.js';
@@ -45,27 +45,38 @@ export function buildVoiceRequest(project, characters, line) {
 
 // Minutage de l'épisode. durations : { lineId: secondes } des prises à jour.
 // complete = toutes les répliques ont leur prise ; sinon les durées manquantes sont estimées.
-export function computeTiming(analysis, durations = {}, characters = []) {
+// clipPlans : { planId: secondes } plans dont la voix est celle du clip Agnes (étape 8) :
+// la durée du plan est celle du clip, les répliques sont réparties dedans (sous-titres).
+export function computeTiming(analysis, durations = {}, characters = [], clipPlans = {}) {
     const speedOf = name => { const c = characters.find(x => fold(x.name) === fold(name)); return (c && c.voice && c.voice.speed) || 1; };
     const plans = [];
     let t = 0, missing = 0, lines = 0;
     for (const p of (analysis && analysis.plans) || []) {
+        const clipLen = clipPlans[p.id];
+        const agnes = clipLen != null;
         const ls = p.voix.map((v, i) => {
             const id = lineId(p.id, i);
-            const d = durations[id];
+            const d = agnes ? null : durations[id];
             lines++;
-            if (d == null) missing++;
+            if (d == null && !agnes) missing++;
             return { id, perso: v.perso, duration: d != null ? r3(d) : null, estimate: r3(estimateLine(v.texte, speedOf(v.perso))) };
         });
+        if (agnes && ls.length) {
+            const est = ls.reduce((n, l) => n + l.estimate, 0);
+            const len = p.duration.mode === 'fixed' ? Math.min(clipLen, p.duration.seconds) : clipLen;
+            const room = Math.max(0.4 * ls.length, len - PLAN_LEAD - PLAN_TAIL - GAP_BETWEEN_LINES * (ls.length - 1));
+            ls.forEach(l => { l.duration = r3(l.estimate * room / est); l.agnes = true; });
+        }
         let start = PLAN_LEAD;
         for (const l of ls) { l.start = r3(start); start += (l.duration ?? l.estimate) + GAP_BETWEEN_LINES; }
         const voiced = ls.length ? PLAN_LEAD + ls.reduce((s, l) => s + (l.duration ?? l.estimate), 0) + GAP_BETWEEN_LINES * (ls.length - 1) + PLAN_TAIL : 0;
         const complete = ls.every(l => l.duration != null);
         let duration, mode;
         if (p.duration.mode === 'fixed') { duration = p.duration.seconds; mode = 'fixed'; }
+        else if (agnes) { duration = clipLen; mode = 'clip'; }
         else if (!ls.length) { duration = DEFAULT_PLAN_SECONDS; mode = 'default'; }
         else { duration = Math.max(MIN_VOICED_PLAN, voiced); mode = complete ? 'audio' : 'estimate'; }
-        plans.push({ id: p.id, start: r3(t), duration: r3(duration), mode, complete, overflow: mode === 'fixed' && voiced > duration + 0.01, lines: ls });
+        plans.push({ id: p.id, start: r3(t), duration: r3(duration), mode, complete, agnes, overflow: mode === 'fixed' && !agnes && voiced > duration + 0.01, lines: ls });
         t += duration;
     }
     return { plans, total: r3(t), complete: missing === 0, lines, voiced: lines - missing };
@@ -88,17 +99,8 @@ export async function getTakes(episodeId) {
     return new Map(list.map(t => [t.lineId, t]));
 }
 
-async function setTake(projectId, episodeId, line, asset) {
-    const id = takeId(episodeId, line.id);
-    const t = (await get('takes', id)) || { id, projectId, episodeId, lineId: line.id, planId: line.planId, versions: [] };
-    t.versions = t.versions.filter(v => v !== asset.id).concat(asset.id);
-    while (t.versions.length > MAX_TAKES) t.versions.shift();
-    t.current = asset.id;
-    t.hash = asset.hash;
-    t.updatedAt = Date.now();
-    await put('takes', t);
-    await gcShotAssets(projectId);
-    return t;
+function setTake(projectId, episodeId, line, asset, isNew = false) {
+    return linkMedia('takes', { id: takeId(episodeId, line.id), projectId, episodeId, lineId: line.id, planId: line.planId }, asset, MAX_TAKES, { isNew });
 }
 
 export async function selectTakeVersion(episodeId, lid, assetId) {
@@ -111,17 +113,28 @@ export async function selectTakeVersion(episodeId, lid, assetId) {
     return put('takes', t);
 }
 
-// État de chaque réplique (ok, cached, stale, missing, error) + minutage de l'épisode.
-export async function voiceStates(project, characters, episode) {
+// Plans dont la voix vient du clip Agnes : { planId: durée du clip } (chargé à la demande : clips.js
+// dépend lui-même de ce module).
+async function agnesPlans(project, characters, episode, given) {
+    if (given) return given;
+    const CL = await import('./clips.js');
+    return CL.agnesVoicePlans(project, characters, episode);
+}
+
+// État de chaque réplique (ok, agnes, cached, stale, missing, error) + minutage de l'épisode.
+// opts.agnes : { planId: secondes } (voir agnesPlans) ; {} pour ignorer les clips.
+export async function voiceStates(project, characters, episode, opts = {}) {
     const lines = episodeLines(episode.analysis);
     const takes = await getTakes(episode.id);
+    const agnes = await agnesPlans(project, characters, episode, opts.agnes);
     const states = [];
     const durations = {};
     for (const line of lines) {
         const req = buildVoiceRequest(project, characters, line);
         const take = takes.get(line.id) || null;
         let state, asset = null;
-        if (takeValid(take, req, line)) {
+        if (agnes[line.planId] != null) state = 'agnes';
+        else if (takeValid(take, req, line)) {
             state = 'ok';
             asset = await getAsset(take.current);
             if (asset) durations[line.id] = asset.duration;
@@ -131,7 +144,11 @@ export async function voiceStates(project, characters, episode) {
         else state = take && take.current ? 'stale' : 'missing';
         states.push({ line, req, take, state, duration: asset ? asset.duration : null, micro: !!(asset && asset.source === 'micro') });
     }
-    return { states, timing: computeTiming(episode.analysis, durations, characters) };
+    const timing = computeTiming(episode.analysis, durations, characters, agnes);
+    // durée attribuée aux répliques dites par Agnes (réparties dans le clip)
+    const byId = new Map(timing.plans.flatMap(p => p.lines).map(l => [l.id, l]));
+    for (const st of states) if (st.state === 'agnes') st.duration = byId.get(st.line.id).duration;
+    return { states, timing };
 }
 
 // ─── Génération ───────────────────────────────────────────────────
@@ -150,9 +167,11 @@ async function audioDuration(blob, words) {
 export async function generateEpisodeVoices({ project, characters, episode, lineIds = null, force = false, signal = null, onUpdate = () => {} }) {
     if (!episode.analysis || !episode.analysis.ok) throw new Error('Corrigez le script avant de générer les voix');
     const lines = episodeLines(episode.analysis).filter(l => !lineIds || lineIds.includes(l.id));
+    const agnes = await agnesPlans(project, characters, episode);
     const summary = { generated: 0, reused: 0, upToDate: 0, failed: 0, stopped: false };
     for (const line of lines) {
         if (signal && signal.aborted) { summary.stopped = true; break; }
+        if (agnes[line.planId] != null) { summary.upToDate++; onUpdate(line.id, { state: 'ok' }); continue; }   // voix du clip Agnes
         const req = buildVoiceRequest(project, characters, line);
         if (!force && takeValid(await getTake(episode.id, line.id), req, line)) { summary.upToDate++; onUpdate(line.id, { state: 'ok' }); continue; }
         if (req.error) { summary.failed++; onUpdate(line.id, { state: 'error', message: req.error }); continue; }
@@ -169,12 +188,12 @@ export async function generateEpisodeVoices({ project, characters, episode, line
             const blob = b64ToBlob(out.audioBase64, 'audio/mpeg');
             const words = alignmentToWords(out.alignment);
             const duration = await audioDuration(blob, words);
-            const asset = await put('assets', {
+            const asset = {
                 id: newId('a'), projectId: project.id, kind: 'voice', episodeId: episode.id, lineId: line.id,
                 hash: req.hash, voiceId: req.voiceId, model: req.modelId, text: req.text,
                 mime: 'audio/mpeg', duration, words, blob, createdAt: Date.now()
-            });
-            await setTake(project.id, episode.id, line, asset);
+            };
+            await setTake(project.id, episode.id, line, asset, true);
             summary.generated++;
             onUpdate(line.id, { state: 'ok', generated: true });
         } catch (e) {
@@ -192,11 +211,12 @@ export async function voiceReadyCount(project, characters, episode) {
     const lines = episodeLines(episode.analysis);
     if (!lines.length) return { ready: 0, total: 0 };
     const takes = await getTakes(episode.id);
+    const agnes = await agnesPlans(project, characters, episode);
     let ready = 0;
     for (const l of lines) {
         const req = buildVoiceRequest(project, characters, l);
         const t = takes.get(l.id);
-        if (takeValid(t, req, l)) ready++;
+        if (agnes[l.planId] != null || takeValid(t, req, l)) ready++;
     }
     return { ready, total: lines.length };
 }
@@ -205,9 +225,9 @@ export async function voiceReadyCount(project, characters, episode) {
 export async function saveMicTake(project, episode, lid, blob, duration) {
     const line = episodeLines(episode.analysis).find(l => l.id === lid);
     if (!line) throw new Error('Réplique introuvable');
-    const asset = await put('assets', {
+    const asset = {
         id: newId('a'), projectId: project.id, kind: 'voice', source: 'micro', episodeId: episode.id, lineId: lid,
         hash: micHash(line.texte), text: line.texte, mime: blob.type || 'audio/wav', duration, words: null, blob, createdAt: Date.now()
-    });
-    return setTake(project.id, episode.id, line, asset);
+    };
+    return setTake(project.id, episode.id, line, asset, true);
 }

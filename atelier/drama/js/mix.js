@@ -11,17 +11,22 @@ export function scheduleMix(ac, destination, tl, buffers, { offset = 0, when = a
     const nodes = [];
     const at = t => when + Math.max(0, t - offset);
 
-    const play = (buffer, start, gainValue) => {
-        if (!buffer || start + buffer.duration <= offset) return;
+    // maxDuration : son coupé au-delà (son d'un clip, limité à son plan)
+    const play = (buffer, start, gainValue, maxDuration = Infinity) => {
+        if (!buffer) return;
+        const length = Math.min(buffer.duration, maxDuration);
+        if (start + length <= offset) return;
         const src = ac.createBufferSource();
         src.buffer = buffer;
         const g = ac.createGain();
         g.gain.value = gainValue;
         src.connect(g).connect(destination);
-        src.start(at(start), Math.max(0, offset - start));
+        const into = Math.max(0, offset - start);
+        src.start(at(start), into, length - into);
         nodes.push(src);
     };
     for (const v of tl.voices) if (v.assetId) play(buffers.get(v.assetId), v.start, voiceGain);
+    for (const c of tl.clipAudio || []) play(buffers.get(c.assetId), c.start, voiceGain, c.duration);
     for (const x of tl.sfx) if (x.assetId) play(buffers.get(x.assetId), x.start, sfxGain * x.volume);
 
     for (const seg of tl.music) {
@@ -45,5 +50,5 @@ export function scheduleMix(ac, destination, tl, buffers, { offset = 0, when = a
 
 // Sons nécessaires au mixage.
 export function soundAssetIds(tl) {
-    return [...new Set([...tl.voices, ...tl.sfx, ...tl.music].map(x => x.assetId).filter(Boolean))];
+    return [...new Set([...tl.voices, ...tl.sfx, ...tl.music, ...(tl.clipAudio || [])].map(x => x.assetId).filter(Boolean))];
 }
