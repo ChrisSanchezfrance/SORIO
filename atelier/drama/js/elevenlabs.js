@@ -52,9 +52,20 @@ export function describeVoice(v) {
 //   → { audio_base64, alignment: { characters[], character_start_times_seconds[], character_end_times_seconds[] } }
 export const OUTPUT_FORMAT = 'mp3_44100_128';
 
+// Refus connus d'ElevenLabs (champ detail.status de la réponse), expliqués en français.
+const REFUSALS = {
+    detected_unusual_activity: 'ElevenLabs a bloqué l\'offre gratuite (« activité inhabituelle ») : cela arrive avec un VPN, un proxy ou plusieurs comptes gratuits. Désactivez le VPN, ou passez à un abonnement payant.',
+    missing_permissions: 'Votre clé ElevenLabs n\'a pas le droit « Text to Speech » : sur elevenlabs.io → Developers → API Keys, modifiez la clé et autorisez « Text to Speech ».',
+    invalid_api_key: 'Clé ElevenLabs invalide : recopiez-la depuis elevenlabs.io → Developers → API Keys.',
+    payment_required: 'Cette voix demande un abonnement ElevenLabs payant pour l\'API : choisissez une voix « premade » ou passez à un abonnement.',
+    paid_plan_required: 'Cette voix demande un abonnement ElevenLabs payant pour l\'API : choisissez une voix « premade » ou passez à un abonnement.',
+    voice_not_found: 'Voix introuvable sur votre compte ElevenLabs : choisissez-en une autre dans la fiche du personnage.'
+};
+
 export class ElevenError extends Error {
-    constructor(message, { status = 0, retryable = false, retryAfter = 0 } = {}) {
+    constructor(message, { status = 0, retryable = false, retryAfter = 0, code = '' } = {}) {
         super(message);
+        this.code = code;
         this.status = status;
         this.retryable = retryable;
         this.retryAfter = retryAfter;
@@ -97,7 +108,11 @@ export async function synthesize({ voiceId, text, modelId, settings = {}, signal
         const code = String(detail.status || detail.code || '');
         const msg = String(detail.message || (typeof detail === 'string' ? detail : '') || ('erreur ' + res.status)).slice(0, 200);
         if (code === 'quota_exceeded') throw new ElevenError('Crédits ElevenLabs épuisés', { status: res.status });
-        if (res.status === 401 || res.status === 403) throw new ElevenError('Clé ElevenLabs refusée', { status: res.status });
+        const known = REFUSALS[code];
+        if (known) throw new ElevenError(known, { status: res.status, code });
+        if (res.status === 401 || res.status === 403) {
+            throw new ElevenError('ElevenLabs refuse la synthèse' + (msg ? ' : « ' + msg + ' »' : ''), { status: res.status, code });
+        }
         if (res.status === 404 || code === 'voice_not_found') throw new ElevenError('Voix introuvable sur votre compte ElevenLabs', { status: res.status });
         if (res.status === 429) {
             const ra = parseFloat(res.headers.get('retry-after') || '0');

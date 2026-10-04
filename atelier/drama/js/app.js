@@ -1272,8 +1272,16 @@ const actions = {
         st.textContent = 'Vérification…';
         try {
             S.voices = await EL.listVoices({ force: true });
-            st.textContent = '✅ Clé valide : ' + S.voices.length + ' voix disponibles.';
-        } catch (e) { st.textContent = '⚠️ ' + e.message; }
+            st.textContent = '✅ ' + S.voices.length + ' voix disponibles. Essai de synthèse…';
+        } catch (e) { st.textContent = '⚠️ ' + e.message; return; }
+        // essai de synthèse sur un mot (quelques caractères de crédit) : vérifie les droits de la clé
+        const chars = await M.listCharacters(S.pid || '').catch(() => []);
+        const vid = (chars.find(c => c.voice && c.voice.voiceId) || {}).voice?.voiceId || (S.voices[0] && S.voices[0].voiceId);
+        if (!vid) { st.textContent = '✅ Clé valide : ' + S.voices.length + ' voix disponibles.'; return; }
+        try {
+            await EL.synthesize({ voiceId: vid, text: 'Bonjour.', modelId: M.ELEVEN_MODELS[0].id, settings: M.DEFAULT_VOICE });
+            st.textContent = '✅ Clé valide : ' + S.voices.length + ' voix disponibles, synthèse vocale autorisée.';
+        } catch (e) { st.textContent = '⚠️ La liste des voix fonctionne, mais pas la synthèse : ' + e.message; }
     },
     async 'save-style'() {
         await M.updateProject(S.pid, { style: { text: $('#d-style-text').value, negative: $('#d-style-neg').value } });

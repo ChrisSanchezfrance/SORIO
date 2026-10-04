@@ -34,12 +34,13 @@ page.on('pageerror', e => errors.push(e.message));
 page.on('dialog', d => d.accept());
 
 const calls = [];
-const sc = { fail429: 0, quota: false };
+const sc = { fail429: 0, quota: false, refusal: null };
 await ctx.route('https://api.elevenlabs.io/v1/text-to-speech/**', r => {
     const req = r.request();
     const body = JSON.parse(req.postData());
     calls.push({ url: req.url(), key: req.headers()['xi-api-key'], body });
     if (sc.quota) return r.fulfill({ status: 401, json: { detail: { status: 'quota_exceeded', message: 'This request exceeds your quota.' } } });
+    if (sc.refusal) return r.fulfill({ status: 401, json: { detail: { status: sc.refusal, message: 'refused: ' + sc.refusal } } });
     if (sc.fail429 > 0) { sc.fail429--; return r.fulfill({ status: 429, json: { detail: { status: 'too_many_concurrent_requests', message: 'busy' } } }); }
     const seconds = DURATIONS[body.text] || 0.8;
     return r.fulfill({ json: { audio_base64: wav(seconds).toString('base64'), alignment: alignment(body.text, seconds) } });
@@ -181,6 +182,28 @@ try {
     await idle();
     check(/Crédits ElevenLabs épuisés/.test(await chip('P2:0')), 'crédits épuisés : message clair sur la réplique');
     sc.quota = false;
+
+    // 8 bis. Refus expliqués : offre gratuite bloquée (VPN), clé sans le droit « Text to Speech », refus inconnu
+    for (const [code, re] of [['detected_unusual_activity', /VPN/], ['missing_permissions', /droit « Text to Speech »/], ['autre_refus', /refuse la synthèse : « refused: autre_refus »/]]) {
+        sc.refusal = code;
+        await line('P2:0').locator('[data-action="regen-line"]').click();
+        await waitToast(page, re);
+        await idle();
+        check(re.test(await chip('P2:0')), 'refus « ' + code + ' » : explication claire sur la réplique');
+    }
+    sc.refusal = null;
+
+    // 8 ter. « Vérifier » la clé : liste des voix + essai de synthèse
+    await page.route('https://api.elevenlabs.io/v1/voices', r => r.fulfill({ json: { voices: [{ voice_id: 'voice_lina', name: 'Lina FR' }] } }));
+    await page.click('[data-action="eleven-edit"]');
+    sc.refusal = 'detected_unusual_activity';
+    await page.click('[data-action="test-eleven"]');
+    await page.waitForFunction(() => /pas la synthèse/.test(document.getElementById('d-eleven-status').textContent));
+    check(/liste des voix fonctionne, mais pas la synthèse.*VPN/.test(await page.textContent('#d-eleven-status')), '« Vérifier » : voix OK mais synthèse refusée, cause expliquée');
+    sc.refusal = null;
+    await page.click('[data-action="test-eleven"]');
+    await page.waitForFunction(() => /synthèse vocale autorisée/.test(document.getElementById('d-eleven-status').textContent));
+    check(calls[calls.length - 1].body.text === 'Bonjour.', '« Vérifier » : clé valide, synthèse vocale autorisée (essai sur « Bonjour. »)');
 
     // 9. Pause en arrière-plan
     const n0 = calls.length;
