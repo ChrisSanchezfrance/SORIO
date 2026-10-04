@@ -48,3 +48,25 @@ Adresse une fois GitHub Pages activé : **https://chrissanchezfrance.github.io/S
   bonnes proportions avant l'envoi : recadrée au centre, ou complétée d'un fond flou pour ne rien couper, ou laissée
   telle quelle. Le choix est mémorisé.
 - **Hors ligne** : l'appli s'ouvre même sans réseau (la création de vidéos, elle, demande Internet).
+
+---
+
+# Drama — séries en images animées et doublées (`atelier/drama/`)
+
+Module en cours de construction, étape par étape (cible : Android / Chrome). Accès : bouton « 🎬 Drama »
+en haut de l'Atelier, ou https://chrissanchezfrance.github.io/SORIO/atelier/drama/
+
+| Étape | Contenu | État |
+|---|---|---|
+| 1 | Projet série : style verrouillé (texte, interdits, image de référence, graine), fiches personnages (@Nom, image de référence, voix ElevenLabs + réglages), épisodes (script balisé, autosauvegarde), export/import de la série | ✅ |
+| 2 | Parseur du script `[PLAN] [DECOR] [PERSOS] [IMAGE] [CAM] [VOIX] [SFX] [MUSIQUE]` → plans JSON | à faire |
+| 3 | Génération d'images par plan (cache, régénération d'un plan) | à faire |
+| 4 | Doublage ElevenLabs multi-voix, durée du plan = durée audio | à faire |
+| 5 | Montage : zoom/pan/tremblement, transitions, sous-titres, musique importée avec ducking | à faire |
+| 6 | Export MP4 1080×1920 30 i/s + vignette EP.x | à faire |
+| 7 | Rendu en lot avec reprise sur erreur | à faire |
+
+Code : `js/db.js` (IndexedDB), `js/model.js` (règles métier), `js/elevenlabs.js`, `js/app.js` (écrans).
+Les données restent sur le téléphone ; la clé ElevenLabs est stockée localement.
+
+Tests (Chromium via Playwright, API ElevenLabs simulée) : `node tests/drama/step1.test.mjs`

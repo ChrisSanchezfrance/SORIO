@@ -2,7 +2,7 @@
 // Rend l'appli installable et permet de l'ouvrir sans réseau.
 // Seuls les fichiers de l'appli sont mis en cache : les appels à l'API
 // et les vidéos passent toujours directement par le réseau.
-const CACHE = 'atelier-video-v2';
+const CACHE = 'atelier-video-v3';
 const APP_FILES = [
     './',
     './index.html',
@@ -10,7 +10,14 @@ const APP_FILES = [
     './icons/icon-192.png',
     './icons/icon-512.png',
     './icons/icon-maskable-512.png',
-    './icons/apple-touch-icon.png'
+    './icons/apple-touch-icon.png',
+    './drama/',
+    './drama/index.html',
+    './drama/drama.css',
+    './drama/js/app.js',
+    './drama/js/model.js',
+    './drama/js/db.js',
+    './drama/js/elevenlabs.js'
 ];
 
 self.addEventListener('install', event => {
