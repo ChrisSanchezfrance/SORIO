@@ -5,6 +5,8 @@
 //   sous-titres et zones où la musique baisse sous les voix.
 // Le dessin (render.js), le mixage (mix.js) et l'export (étape 6) lisent cette timeline.
 
+import { hashString } from './parser.js';
+
 export const W = 1080, H = 1920, FPS = 30;
 export const DEFAULT_MONTAGE = Object.freeze({ subtitles: true, subSize: 'M', musicVolume: 0.8, duck: 0.25 });
 export const SUB_SIZES = { S: 54, M: 64, L: 78 };
@@ -229,4 +231,28 @@ export function requiredSounds(analysis) {
         for (const x of p.sfx) sfx.set(x.name, x.label || x.name);
     }
     return { music: [...music].map(([name, label]) => ({ name, label })), sfx: [...sfx].map(([name, label]) => ({ name, label })) };
+}
+
+// ─── Morceaux vidéo (étape 7) ─────────────────────────────────────
+// Un morceau par plan : images [i0, i1) à 30 i/s. Son empreinte ne dépend que de ce qui est
+// dessiné dans ces images (plan, plan précédent pendant la transition, sous-titres affichés,
+// réglages, encodeur) : après une modification, seuls les morceaux touchés sont réencodés.
+export function videoSegments(tl, codecKey = '') {
+    const total = Math.max(1, Math.round(tl.duration * FPS));
+    const last = tl.plans.length - 1;
+    return tl.plans.map((p, k) => {
+        const i0 = Math.round(p.start * FPS);
+        const i1 = k === last ? total : Math.round(p.end * FPS);
+        const prev = k > 0 ? tl.plans[k - 1] : null;
+        const t0 = i0 / FPS, t1 = i1 / FPS;
+        const sig = {
+            codecKey, i0, i1,
+            plan: { img: p.imageAssetId, moves: p.moves, tr: p.transition, seed: p.seed, start: p.start, duration: p.duration },
+            prev: prev && p.transition.type !== 'coupe' ? { img: prev.imageAssetId, moves: prev.moves, seed: prev.seed, duration: prev.duration } : null,
+            cues: tl.settings.subtitles ? tl.cues.filter(c => c.end > t0 && c.start < t1) : []
+        };
+        // la taille des sous-titres ne compte que pour les plans qui en affichent
+        sig.sub = sig.cues.length ? tl.settings.subSize : null;
+        return { planId: p.id, i0, i1, frames: i1 - i0, hash: hashString(JSON.stringify(sig)) };
+    }).filter(s => s.frames > 0);
 }

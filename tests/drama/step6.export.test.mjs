@@ -70,7 +70,8 @@ try {
     const secs = ((Date.now() - t0) / 1000).toFixed(0);
     check(true, 'export terminé en ' + secs + ' s (badge « EP.1 · ✅ MP4 »)');
     check(/neons-brises-ep1\.mp4/.test(await page.textContent('#d-body-export .d-export')) && /✅ à jour/.test(await page.textContent('#d-body-export .d-export')), 'fichier « neons-brises-ep1.mp4 », à jour');
-    check(/📤 MP4/.test(await page.textContent('#drama-root .d-ep')), 'liste des épisodes : « 📤 MP4 »');
+    await page.waitForFunction(() => /📤 MP4/.test(document.querySelector('#drama-root .d-ep')?.textContent || ''));
+    check(true, 'liste des épisodes : « 📤 MP4 »');
 
     // 2. Le fichier enregistré sur le téléphone
     const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-action="save-export"]')]);

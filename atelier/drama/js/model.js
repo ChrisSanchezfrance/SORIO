@@ -116,9 +116,9 @@ export async function setStyleLocked(id, locked) {
 }
 
 export async function deleteProject(id) {
-    await tx(['projects', 'characters', 'episodes', 'assets', 'shots', 'takes'], 'readwrite', s => {
+    await tx(['projects', 'characters', 'episodes', 'assets', 'shots', 'takes', 'renders'], 'readwrite', s => {
         s.projects.delete(id);
-        for (const name of ['characters', 'episodes', 'assets', 'shots', 'takes']) {
+        for (const name of ['characters', 'episodes', 'assets', 'shots', 'takes', 'renders']) {
             const req = s[name].index('projectId').openKeyCursor(IDBKeyRange.only(id));
             req.onsuccess = () => { const c = req.result; if (c) { s[name].delete(c.primaryKey); c.continue(); } };
         }
@@ -268,9 +268,10 @@ export async function refreshEpisodeAnalyses(projectId) {
 export async function deleteEpisode(id) {
     const e = await get('episodes', id);
     if (!e) return;
-    const [shots, takes] = await Promise.all([getByIndex('shots', 'episodeId', id), getByIndex('takes', 'episodeId', id)]);
-    await tx(['episodes', 'shots', 'takes', 'assets'], 'readwrite', s => {
+    const [shots, takes, renders] = await Promise.all([getByIndex('shots', 'episodeId', id), getByIndex('takes', 'episodeId', id), getByIndex('renders', 'episodeId', id)]);
+    await tx(['episodes', 'shots', 'takes', 'assets', 'renders'], 'readwrite', s => {
         s.episodes.delete(id);
+        renders.forEach(r => s.renders.delete(r.id));
         if (e.thumb && e.thumb.assetId) s.assets.delete(e.thumb.assetId);
         shots.forEach(sh => s.shots.delete(sh.id));
         takes.forEach(t => s.takes.delete(t.id));

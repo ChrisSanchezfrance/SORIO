@@ -173,3 +173,14 @@ body:not([data-tab="drama"]) #drama-root { display: none; }
 #drama-root .d-thumb { width: 108px; aspect-ratio: 9 / 16; border-radius: 8px; object-fit: cover; background: var(--border); cursor: zoom-in; }
 #drama-root .d-thumb.empty { display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--ink-dim); cursor: default; }
 #drama-root .d-thumb-ctrl { flex: 1 1 12rem; min-width: 0; }
+
+/* Rendu en lot */
+#drama-root .d-blist { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.8rem; }
+#drama-root .d-brow {
+    display: flex; gap: 0.6rem; align-items: flex-start; padding: 0.55rem 0.7rem; cursor: pointer;
+    border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); font-size: 0.85rem;
+}
+#drama-root .d-brow.off { opacity: 0.6; cursor: default; }
+#drama-root .d-brow input { margin-top: 0.2rem; width: 1.1rem; height: 1.1rem; accent-color: var(--ink); flex-shrink: 0; }
+#drama-root .d-brow-main { flex: 1; min-width: 0; }
+#drama-root .d-brow-main .d-shot-text { display: block; margin-top: 0.25rem; }

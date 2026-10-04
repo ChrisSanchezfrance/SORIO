@@ -1,19 +1,20 @@
 // Drama — étape 6 : export MP4 1080×1920, 30 i/s, avec le son, et vignette « EP.x ».
 //
 // Tout se fait sur le téléphone : chaque image est dessinée par render.js (le même dessin que
-// l'aperçu), encodée par l'encodeur vidéo du téléphone (WebCodecs), le son est mixé hors ligne
-// par mix.js puis encodé, et mp4-muxer assemble le fichier MP4. Le fichier est écrit au fil de
-// l'eau dans le stockage privé de l'appli (OPFS) pour ne pas saturer la mémoire.
+// l'aperçu) et encodée par l'encodeur vidéo du téléphone (WebCodecs), plan par plan ; chaque plan
+// encodé est gardé (étape 7 : reprise). Le son est mixé hors ligne par mix.js puis encodé, et
+// mp4-muxer assemble le fichier MP4, écrit au fil de l'eau dans le stockage privé (OPFS).
 // Codecs : H.264 + AAC si le téléphone sait les produire (le plus compatible avec TikTok,
 // YouTube, Instagram…), sinon VP9 / AV1 + Opus, toujours dans un MP4.
 
 import { Muxer, FileSystemWritableFileStreamTarget, ArrayBufferTarget } from '../vendor/mp4-muxer.mjs';
-import { W, H, FPS } from './montage.js';
+import { W, H, FPS, videoSegments } from './montage.js';
 import { drawFrame, imagesAround } from './render.js';
 import { scheduleMix, soundAssetIds } from './mix.js';
 import { waitVisible } from './jobs.js';
 import { hashString } from './parser.js';
 import * as M from './model.js';
+import { get, put, del, getByIndex } from './db.js';
 
 export const SAMPLE_RATE = 48000;
 export const VIDEO_BITRATE = 6_000_000;
@@ -107,37 +108,138 @@ export async function renderEpisodeAudio(tl) {
 
 const abortError = () => new DOMException('Export arrêté', 'AbortError');
 
-// Exporte l'épisode. onProgress({ phase: 'son' | 'images' | 'fin', done, total }).
-export async function exportEpisode({ tl, fileName, signal = null, onProgress = () => {} }) {
-    const codecs = await pickCodecs();
-    const useOpfs = !!(navigator.storage && navigator.storage.getDirectory);
-    let writable = null, target;
-    if (useOpfs) {
-        const fh = await (await exportDir()).getFileHandle(fileName, { create: true });
-        writable = await fh.createWritable();
-        target = new FileSystemWritableFileStreamTarget(writable);
-    } else {
-        target = new ArrayBufferTarget();
+// ─── Morceaux vidéo encodés (un par plan), gardés pour reprendre ───
+const SEG_DIR = 'drama-segments';
+const segName = (episodeId, planId) => episodeId + '-' + planId + '.bin';
+async function segDir() {
+    const root = await navigator.storage.getDirectory();
+    return root.getDirectoryHandle(SEG_DIR, { create: true });
+}
+async function readSegFile(name) {
+    try { return await (await (await segDir()).getFileHandle(name)).getFile(); } catch (e) { return null; }
+}
+async function writeSegFile(name, bytes) {
+    const fh = await (await segDir()).getFileHandle(name, { create: true });
+    const w = await fh.createWritable();
+    await w.write(bytes);
+    await w.close();
+}
+async function removeSegFile(name) { try { await (await segDir()).removeEntry(name); } catch (e) {} }
+
+// Supprime les morceaux encodés d'un épisode (épisode supprimé, série supprimée).
+export async function deleteEpisodeRenders(episodeId) {
+    for (const r of await getByIndex('renders', 'episodeId', episodeId)) {
+        await removeSegFile(r.file);
+        await del('renders', r.id);
     }
-    const muxer = new Muxer({
-        target,
-        video: { codec: codecs.video.mux, width: W, height: H, frameRate: FPS },
-        audio: { codec: codecs.audio.mux, numberOfChannels: 2, sampleRate: SAMPLE_RATE },
-        fastStart: false,
-        firstTimestampBehavior: 'offset'
-    });
+}
+
+const toB64 = buf => {
+    if (!buf) return null;
+    const u8 = buf instanceof Uint8Array ? buf : new Uint8Array(buf.buffer ? buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) : buf);
+    let s = '';
+    for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+    return btoa(s);
+};
+const fromB64 = b64 => b64 ? Uint8Array.from(atob(b64), c => c.charCodeAt(0)) : undefined;
+
+// Exporte l'épisode. Les plans déjà encodés avec le même rendu sont repris tels quels :
+// un export arrêté, interrompu ou relancé après une petite modification ne réencode que le reste.
+// onProgress({ phase: 'prep' | 'images' | 'son' | 'fin', done, total, reused }).
+export async function exportEpisode({ tl, projectId, episodeId, fileName, signal = null, onProgress = () => {} }) {
+    const codecs = await pickCodecs();
+    const codecKey = codecs.video.codec + '|' + VIDEO_BITRATE + '|' + FPS;
+    const segs = videoSegments(tl, codecKey);
+    const total = segs.reduce((n, x) => n + x.frames, 0);
     let encoderError = null;
-    const venc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: e => { encoderError = e; } });
-    const aenc = new AudioEncoder({ output: (chunk, meta) => muxer.addAudioChunk(chunk, meta), error: e => { encoderError = e; } });
+    let collecting = null;            // morceau en cours : { chunks: [{ t, d, k, data }] }
+    let lastConfig = null;             // configuration de décodage fournie par l'encodeur
+    const venc = new VideoEncoder({
+        output: (chunk, meta) => {
+            if (meta && meta.decoderConfig) {
+                const c = meta.decoderConfig;
+                const cs = c.colorSpace && (c.colorSpace.toJSON ? c.colorSpace.toJSON() : c.colorSpace);
+                lastConfig = { codec: c.codec, codedWidth: c.codedWidth || W, codedHeight: c.codedHeight || H,
+                    colorSpace: cs ? { primaries: cs.primaries, transfer: cs.transfer, matrix: cs.matrix, fullRange: cs.fullRange } : null,
+                    description: c.description ? toB64(c.description) : null };
+            }
+            if (!collecting) return;
+            const data = new Uint8Array(chunk.byteLength);
+            chunk.copyTo(data);
+            collecting.chunks.push({ t: chunk.timestamp, d: chunk.duration || Math.round(1e6 / FPS), k: chunk.type === 'key', data });
+        },
+        error: e => { encoderError = e; }
+    });
+    const audioChunks = [];
+    const aenc = new AudioEncoder({ output: (chunk, meta) => audioChunks.push({ chunk, meta }), error: e => { encoderError = e; } });
     const images = bitmapCache();
     const check = () => {
         if (signal && signal.aborted) throw abortError();
         if (encoderError) throw new Error('Encodeur interrompu : ' + encoderError.message);
     };
+    let writable = null, outName = null;
+    const stats = { encoded: 0, reused: 0 };
 
     try {
-        // 1. Son : mixage hors ligne puis encodage
-        onProgress({ phase: 'son', done: 0, total: 1 });
+        onProgress({ phase: 'prep', done: 0, total });
+        venc.configure({ ...codecs.video.config, latencyMode: 'quality' });
+        const canvas = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(W, H) : Object.assign(document.createElement('canvas'), { width: W, height: H });
+        const ctx = canvas.getContext('2d');
+
+        // 1. En-têtes de l'encodeur de cette session (une image d'essai) : un morceau n'est
+        //    réutilisable que s'il a été encodé avec les mêmes en-têtes.
+        ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+        const probe = new VideoFrame(canvas, { timestamp: 0, duration: Math.round(1e6 / FPS) });
+        venc.encode(probe, { keyFrame: true });
+        probe.close();
+        await venc.flush();
+        check();
+        if (!lastConfig) lastConfig = { codec: codecs.video.codec, codedWidth: W, codedHeight: H, colorSpace: null, description: null };
+        const description = JSON.stringify(lastConfig);    // les morceaux réutilisés doivent avoir la même
+
+        // 2. Images, plan par plan
+        let done = 0;
+        for (const seg of segs) {
+            const id = episodeId + ':' + seg.planId;
+            const rec = await get('renders', id);
+            if (rec && rec.hash === seg.hash && (rec.description || null) === description && await readSegFile(rec.file)) {
+                done += seg.frames;
+                stats.reused += seg.frames;
+                onProgress({ phase: 'images', done, total, reused: stats.reused });
+                continue;
+            }
+            collecting = { chunks: [] };
+            for (let i = seg.i0; i < seg.i1; i++) {
+                if (i % 15 === 0) await waitVisible(signal);
+                check();
+                const t = i / FPS;
+                await images.ensure(imagesAround(tl, t));
+                drawFrame(ctx, tl, t, images.get, { scale: 1 });
+                const frame = new VideoFrame(canvas, { timestamp: Math.round(i * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
+                venc.encode(frame, { keyFrame: i === seg.i0 || (i - seg.i0) % KEYFRAME_EVERY === 0 });
+                frame.close();
+                while (venc.encodeQueueSize > 4) { await new Promise(r => setTimeout(r, 5)); check(); }
+                done++;
+                stats.encoded++;
+                if (i % 10 === 0 || i === seg.i1 - 1) onProgress({ phase: 'images', done, total, reused: stats.reused });
+            }
+            await venc.flush();
+            check();
+            const chunks = collecting.chunks;
+            collecting = null;
+            if (chunks.length !== seg.frames || !chunks[0].k) throw new Error('Morceau ' + seg.planId + ' incomplet');
+            // morceau terminé : enregistré tout de suite (reprise possible à partir d'ici)
+            const size = chunks.reduce((n, c) => n + c.data.length, 0);
+            const bytes = new Uint8Array(size);
+            let off = 0;
+            const index = chunks.map(c => { bytes.set(c.data, off); const e = { t: c.t, d: c.d, k: c.k, o: off, s: c.data.length }; off += c.data.length; return e; });
+            const file = segName(episodeId, seg.planId);
+            await writeSegFile(file, bytes);
+            await put('renders', { id, projectId, episodeId, planId: seg.planId, hash: seg.hash, codec: codecs.video.codec, description, file, index, createdAt: Date.now() });
+        }
+
+        // 3. Son : mixage hors ligne puis encodage
+        onProgress({ phase: 'son', done: total, total, reused: stats.reused });
         const audio = await renderEpisodeAudio(tl);
         check();
         aenc.configure(codecs.audio.config);
@@ -155,43 +257,58 @@ export async function exportEpisode({ tl, fileName, signal = null, onProgress = 
         }
         await aenc.flush();
         check();
-        onProgress({ phase: 'son', done: 1, total: 1 });
 
-        // 2. Images : dessin de chaque image puis encodage (pause si l'appli passe en arrière-plan)
-        venc.configure({ ...codecs.video.config, latencyMode: 'quality' });
-        const canvas = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(W, H) : Object.assign(document.createElement('canvas'), { width: W, height: H });
-        const ctx = canvas.getContext('2d');
-        const total = Math.max(1, Math.round(tl.duration * FPS));
-        for (let i = 0; i < total; i++) {
-            if (i % 15 === 0) await waitVisible(signal);
+        // 4. Assemblage du MP4 à partir des morceaux (sans réencoder)
+        onProgress({ phase: 'fin', done: total, total, reused: stats.reused });
+        const useOpfs = !!(navigator.storage && navigator.storage.getDirectory);
+        let target;
+        if (useOpfs) {
+            outName = fileName;
+            writable = await (await (await exportDir()).getFileHandle(fileName, { create: true })).createWritable();
+            target = new FileSystemWritableFileStreamTarget(writable);
+        } else target = new ArrayBufferTarget();
+        const muxer = new Muxer({
+            target,
+            video: { codec: codecs.video.mux, width: W, height: H, frameRate: FPS },
+            audio: { codec: codecs.audio.mux, numberOfChannels: 2, sampleRate: SAMPLE_RATE },
+            fastStart: false,
+            firstTimestampBehavior: 'offset'
+        });
+        for (const { chunk, meta } of audioChunks) muxer.addAudioChunk(chunk, meta);
+        let first = true;
+        for (const seg of segs) {
             check();
-            const t = i / FPS;
-            await images.ensure(imagesAround(tl, t));
-            drawFrame(ctx, tl, t, images.get, { scale: 1 });
-            const frame = new VideoFrame(canvas, { timestamp: Math.round(i * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
-            venc.encode(frame, { keyFrame: i % KEYFRAME_EVERY === 0 });
-            frame.close();
-            while (venc.encodeQueueSize > 4) { await new Promise(r => setTimeout(r, 5)); check(); }
-            if (i % 10 === 0 || i === total - 1) onProgress({ phase: 'images', done: i + 1, total });
+            const rec = await get('renders', episodeId + ':' + seg.planId);
+            const blob = await readSegFile(rec.file);
+            if (!blob) throw new Error('Morceau ' + seg.planId + ' introuvable');
+            const bytes = new Uint8Array(await blob.arrayBuffer());
+            for (const e of rec.index) {
+                const meta = first ? { decoderConfig: {
+                    codec: lastConfig.codec, codedWidth: lastConfig.codedWidth, codedHeight: lastConfig.codedHeight,
+                    ...(lastConfig.colorSpace ? { colorSpace: lastConfig.colorSpace } : {}),
+                    ...(lastConfig.description ? { description: fromB64(lastConfig.description) } : {})
+                } } : undefined;
+                muxer.addVideoChunkRaw(bytes.subarray(e.o, e.o + e.s), e.k ? 'key' : 'delta', e.t, e.d, meta);
+                first = false;
+            }
         }
-        await venc.flush();
-        check();
-
-        // 3. Fichier
-        onProgress({ phase: 'fin', done: 1, total: 1 });
         muxer.finalize();
         let file;
         if (writable) {
             await writable.close();
             writable = null;
             file = await getExportFile(fileName);
-        } else {
-            file = new File([target.buffer], fileName, { type: 'video/mp4' });
+        } else file = new File([target.buffer], fileName, { type: 'video/mp4' });
+
+        // morceaux de plans qui n'existent plus dans l'épisode
+        const keep = new Set(segs.map(x => x.planId));
+        for (const r of await getByIndex('renders', 'episodeId', episodeId)) {
+            if (!keep.has(r.planId)) { await removeSegFile(r.file); await del('renders', r.id); }
         }
-        return { file, codecs: codecs.video.label + ' + ' + codecs.audio.label, compatible: codecs.compatible, frames: total };
+        return { file, codecs: codecs.video.label + ' + ' + codecs.audio.label, compatible: codecs.compatible, frames: total, ...stats };
     } catch (e) {
         if (writable) { try { await writable.abort(); } catch (_) {} }
-        if (useOpfs) await deleteExportFile(fileName);
+        if (outName) await deleteExportFile(outName);
         throw e;
     } finally {
         images.clear();

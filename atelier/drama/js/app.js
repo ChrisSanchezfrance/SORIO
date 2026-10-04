@@ -1,12 +1,13 @@
 // Drama — onglet « 🎬 Drama » de l'appli Atelier Vidéo.
 // Même présentation que l'onglet Vidéos : un panneau en haut (série en cours, clés),
-// puis des sections repliables : Style, Personnages, Épisodes, Script, Images, Voix, Montage, Export, Sauvegarde.
+// puis des sections repliables : Style, Personnages, Épisodes, Script, Images, Voix, Montage, Export, Rendu en lot, Sauvegarde.
 import * as M from './model.js';
 import * as EL from './elevenlabs.js';
 import * as IMG from './images.js';
 import * as VO from './voices.js';
 import * as PL from './player.js';
 import * as EX from './export.js';
+import * as BT from './batch.js';
 import { requiredSounds, SUB_SIZES } from './montage.js';
 import { parseScript } from './parser.js';
 import { IMAGE_MODELS, IMAGE_SIZES, getAgnesKey } from './agnes.js';
@@ -25,6 +26,7 @@ const SECTIONS = [
     ['voices', '🎙️ Voix et durées'],
     ['montage', '🎞️ Montage'],
     ['export', '📤 Export'],
+    ['batch', '🗂️ Rendu en lot'],
     ['backup', '💾 Sauvegarde et gestion']
 ];
 
@@ -42,7 +44,9 @@ const S = {
     montageTl: null,     // timeline de l'épisode affiché dans le Montage
     xjob: null,          // export en cours : { eid, ctrl, running, phase, done, total, started }
     codecs: null,        // codecs d'export disponibles sur cet appareil
-    exportUrl: null      // { name, url } de l'aperçu du MP4 exporté
+    exportUrl: null,     // { name, url } de l'aperçu du MP4 exporté
+    bjob: null,          // rendu en lot en cours : { ctrl, running, eid, phase, done, total }
+    batchSel: null       // épisodes cochés pour le lot (Set)
 };
 
 // ─── Utilitaires ──────────────────────────────────────────────────
@@ -139,6 +143,7 @@ async function loadCtx() {
     }
     lsSet(CUR_EPISODE + S.pid, S.eid || '');
     const episode = episodes.find(e => e.id === S.eid) || null;
+    S.lastEpisodes = episodes;
     return { projects, project, chars, episodes, episode };
 }
 
@@ -915,7 +920,7 @@ async function buildExport(ctx) {
     const file = info ? await EX.getExportFile(info.file) : null;
     const upToDate = !!(file && info.tlHash === hash);
     const job = S.xjob && S.xjob.eid === e.id && S.xjob.running ? S.xjob : null;
-    const busy = !!(S.xjob && S.xjob.running);
+    const busy = !!((S.xjob && S.xjob.running) || (S.bjob && S.bjob.running));
     const miss = tl.missing;
     const warn = [miss.images.length ? plural(miss.images.length, 'image') + ' manquante' + (miss.images.length > 1 ? 's' : '') + ' (fond sombre)' : '',
         miss.voices.length ? plural(miss.voices.length, 'réplique') + ' sans voix (sous-titre seul)' : '',
@@ -979,46 +984,165 @@ function exportText(job) {
     if (job.phase === 'fin') return '📦 Finalisation du fichier…';
     if (job.phase !== 'images') return 'Préparation…';
     const elapsed = (Date.now() - job.imagesStart) / 1000;
-    const rate = job.done / Math.max(0.1, elapsed);
+    const encoded = job.done - (job.reused || 0);            // images reprises : instantanées, hors estimation
+    const rate = encoded / Math.max(0.1, elapsed);
     const left = rate > 0 ? (job.total - job.done) / rate : 0;
-    return '🎞️ Image ' + job.done + '/' + job.total + (job.done > 30 ? ' · encore ~' + fmtClock(left) : '');
+    return '🎞️ Image ' + job.done + '/' + job.total + (encoded > 30 ? ' · encore ~' + fmtClock(left) : '');
+}
+
+// Exporte un épisode (moteur commun à l'export simple et au rendu en lot).
+async function exportOneEpisode(project, chars, e, signal, onProgress) {
+    if (!e.analysis || !e.analysis.ok) throw new Error('Script de l\'EP.' + e.number + ' à corriger');
+    const tl = await PL.loadEpisodeTimeline(project, chars, e);
+    const fileName = e.id + '.mp4';
+    if (e.exportInfo) await EX.deleteExportFile(e.exportInfo.file);
+    await M.updateEpisode(e.id, { exportInfo: null });
+    const res = await EX.exportEpisode({ tl, projectId: project.id, episodeId: e.id, fileName, signal, onProgress });
+    await M.updateEpisode(e.id, { exportInfo: {
+        file: fileName, size: res.file.size, duration: tl.duration, codecs: res.codecs, compatible: res.compatible,
+        frames: res.frames, encoded: res.encoded, reused: res.reused, tlHash: EX.timelineHash(tl), createdAt: Date.now()
+    }});
+    return { size: res.file.size, encoded: res.encoded, reused: res.reused };
+}
+
+function trackProgress(job, p) {
+    if (p.phase === 'images' && job.phase !== 'images') { job.imagesStart = Date.now(); job.reusedAtStart = p.reused || 0; }
+    job.phase = p.phase; job.done = p.done; job.total = p.total; job.reused = p.reused || 0;
 }
 
 async function startExport() {
-    if (S.xjob && S.xjob.running) return;
+    if ((S.xjob && S.xjob.running) || (S.bjob && S.bjob.running)) return;
     const ctx = await loadCtx();
     const e = ctx.episode;
     if (!e || !e.analysis || !e.analysis.ok) { toast('Corrigez d\'abord le script', 'warn'); return; }
     if (S.preview) S.preview.pause();
     stopPlayback();
-    const tl = await PL.loadEpisodeTimeline(ctx.project, ctx.chars, e);
     const ctrl = new AbortController();
     const job = S.xjob = { eid: e.id, ctrl, running: true, phase: 'prep', done: 0, total: 1, started: Date.now(), imagesStart: 0 };
     if (typeof window.ensureWakeLockActive === 'function') window.ensureWakeLockActive();
     await refresh('export');
-    const fileName = e.id + '.mp4';
     try {
-        if (e.exportInfo) await EX.deleteExportFile(e.exportInfo.file);
-        const res = await EX.exportEpisode({ tl, fileName, signal: ctrl.signal, onProgress: p => {
-            if (p.phase === 'images' && job.phase !== 'images') job.imagesStart = Date.now();
-            job.phase = p.phase; job.done = p.done; job.total = p.total;
+        const res = await exportOneEpisode(ctx.project, ctx.chars, e, ctrl.signal, p => {
+            trackProgress(job, p);
             const fill = $('#d-xfill'), txt = $('#d-xtext');
             if (fill) fill.style.width = exportPercent(job) + '%';
             if (txt) txt.textContent = exportText(job);
-        }});
-        await M.updateEpisode(e.id, { exportInfo: {
-            file: fileName, size: res.file.size, duration: tl.duration, codecs: res.codecs, compatible: res.compatible,
-            frames: res.frames, tlHash: EX.timelineHash(tl), createdAt: Date.now()
-        }});
-        toast('EP.' + e.number + ' exporté : ' + fmtSize(res.file.size), 'success', 3500);
+        });
+        toast('EP.' + e.number + ' exporté : ' + fmtSize(res.size) + (res.reused ? ' (' + res.reused + ' images reprises)' : ''), 'success', 3500);
     } catch (err) {
-        if (err.name === 'AbortError') {
-            await M.updateEpisode(e.id, { exportInfo: null });
-            toast('Export arrêté', 'warn');
-        } else fail(err);
+        if (err.name === 'AbortError') toast('Export arrêté : les plans déjà encodés sont gardés, relancez pour reprendre', 'warn', 4500);
+        else fail(err);
     } finally {
         job.running = false;
         await refresh('export', 'episodes');
+    }
+}
+
+// ─── Section Rendu en lot ─────────────────────────────────────────
+async function buildBatch(ctx) {
+    const eps = ctx.episodes;
+    if (!eps.length) return { badge: '—', badgeClass: '', html: '<div class="char-empty">Aucun épisode.</div>' };
+    const b = BT.loadBatch();
+    const mine = b && b.projectId === ctx.project.id ? b : null;
+    const running = !!(S.bjob && S.bjob.running);
+    const states = await Promise.all(eps.map(async e => {
+        const ok = !!(e.analysis && e.analysis.ok && e.analysis.plans.length);
+        let state = 'never';
+        if (!ok) state = 'script';
+        else if (e.exportInfo && await EX.getExportFile(e.exportInfo.file)) {
+            const tl = await PL.loadEpisodeTimeline(ctx.project, ctx.chars, e);
+            state = e.exportInfo.tlHash === EX.timelineHash(tl) ? 'uptodate' : 'stale';
+        }
+        return { e, ok, state };
+    }));
+    // présélection : les épisodes prêts dont l'export manque ou est à refaire (tant que l'utilisateur n'a rien coché)
+    if (!S.batchSel || !S.batchSelTouched) S.batchSel = new Set(states.filter(x => x.ok && x.state !== 'uptodate').map(x => x.e.id));
+    for (const id of [...S.batchSel]) if (!states.some(x => x.e.id === id && x.ok)) S.batchSel.delete(id);
+    const LABEL = { uptodate: ['ok', '✅ MP4 à jour'], stale: ['warn', '⚠️ à refaire'], never: ['', '○ pas encore exporté'], script: ['bad', '❌ script à corriger'] };
+    const RES = { pending: ['', '⏳ en attente'], running: ['run', '🎞️ en cours'], done: ['ok', '✅ exporté'], error: ['bad', '❌ échec'], stopped: ['warn', '⏸ arrêté'] };
+    const sel = [...S.batchSel];
+    const cur = running ? S.bjob : null;
+    const resumable = !running && BT.interrupted(mine);
+
+    const rows = states.map(x => {
+        const [cls, label] = LABEL[x.state];
+        const r = mine && mine.results[x.e.id];
+        const [rcls, rlabel] = r ? RES[r.state] || ['', r.state] : ['', ''];
+        return '<label class="d-brow' + (x.ok ? '' : ' off') + '">' +
+            '<input type="checkbox" data-bsel="' + x.e.id + '"' + (S.batchSel.has(x.e.id) ? ' checked' : '') + (x.ok && !running ? '' : ' disabled') + '>' +
+            '<span class="d-brow-main"><b>EP.' + x.e.number + '</b> ' + esc(x.e.title) +
+                '<span class="d-shot-text"><span class="d-chip ' + cls + '">' + label + '</span>' +
+                (r ? ' <span class="d-chip ' + rcls + '">' + rlabel + '</span>' : '') +
+                (r && r.state === 'done' ? ' ' + fmtSize(r.size) + (r.reused ? ' · ' + r.reused + ' images reprises' : '') : '') +
+                (r && r.message ? ' ' + esc(r.message) : '') + '</span></span></label>';
+    }).join('');
+
+    return {
+        badge: running ? '🎞️ en cours' : resumable ? '⏸ interrompu' : mine && mine.finishedAt ? BT.doneCount(mine) + '/' + mine.ids.length + ' faits' : '',
+        badgeClass: running ? 'soft' : resumable ? 'bad' : mine && mine.finishedAt && BT.doneCount(mine) === mine.ids.length ? 'ok' : '',
+        html:
+            '<p class="char-intro">Exportez plusieurs épisodes à la suite. Chaque plan encodé est gardé : après une coupure, une erreur ou une petite modification, seuls les plans manquants ou modifiés sont refaits.</p>' +
+            (resumable ? '<div class="lock-banner"><span>⏸ Rendu en lot interrompu : ' + BT.doneCount(mine) + '/' + mine.ids.length + ' épisode' + (mine.ids.length > 1 ? 's' : '') + ' fait' + (BT.doneCount(mine) > 1 ? 's' : '') + '.</span>' +
+                '<button type="button" class="char-btn" data-action="batch-resume">▶ Reprendre</button><button type="button" class="char-btn" data-action="batch-forget">Abandonner</button></div>' : '') +
+            '<div class="d-blist">' + rows + '</div>' +
+            (cur
+                ? '<div class="d-xprog"><div class="d-xbar"><div class="d-xfill" id="d-bfill" style="width:' + batchPercent(cur, mine) + '%"></div></div>' +
+                  '<div class="api-hint" id="d-btext">' + esc(batchText(cur, mine, eps)) + '</div></div>' +
+                  '<button type="button" class="btn-stop visible" data-action="batch-stop">⏹ Arrêter le lot</button>' +
+                  '<div class="api-hint">Gardez l\'appli ouverte : le rendu se met en pause si vous la quittez. S\'il est interrompu, « Reprendre » repart du dernier plan encodé.</div>'
+                : '<button type="button" class="btn-primary" data-action="batch-start"' + (!sel.length || (S.xjob && S.xjob.running) ? ' disabled' : '') + '>🗂️ Exporter ' +
+                  (sel.length ? plural(sel.length, 'épisode') : 'la sélection') + '</button>')
+    };
+}
+
+function batchPercent(job, b) {
+    if (!b) return 0;
+    const n = b.ids.length, idx = Math.max(0, b.ids.indexOf(job.eid));
+    const inner = job.phase === 'images' ? job.done / Math.max(1, job.total) * 0.95 : job.phase === 'son' ? 0.96 : job.phase === 'fin' ? 0.99 : 0;
+    return Math.round((idx + inner) / n * 100);
+}
+function batchText(job, b, eps) {
+    const e = eps.find(x => x.id === job.eid);
+    const head = 'Épisode ' + (b.ids.indexOf(job.eid) + 1) + '/' + b.ids.length + (e ? ' · EP.' + e.number : '');
+    return head + ' — ' + exportText(job) + (job.reused ? ' · ' + job.reused + ' images reprises' : '');
+}
+
+async function runBatchUI(b) {
+    if ((S.bjob && S.bjob.running) || (S.xjob && S.xjob.running)) return;
+    if (S.preview) S.preview.pause();
+    stopPlayback();
+    const ctrl = new AbortController();
+    const job = S.bjob = { ctrl, running: true, eid: null, phase: 'prep', done: 0, total: 1 };
+    if (typeof window.ensureWakeLockActive === 'function') window.ensureWakeLockActive();
+    await refresh('batch');
+    try {
+        const out = await BT.runBatch(b, {
+            signal: ctrl.signal,
+            exportOne: async (eid, signal, onProgress) => {
+                const ctx = await loadCtx();
+                const e = (await M.listEpisodes(b.projectId)).find(x => x.id === eid);
+                if (!e) throw new Error('Épisode supprimé');
+                const project = await M.getProject(b.projectId);
+                return exportOneEpisode(project, await M.listCharacters(b.projectId), e, signal, onProgress);
+            },
+            onProgress: (eid, p) => {
+                job.eid = eid;
+                trackProgress(job, p);
+                const fill = $('#d-bfill'), txt = $('#d-btext');
+                if (fill) fill.style.width = batchPercent(job, b) + '%';
+                if (txt) txt.textContent = batchText(job, b, S.lastEpisodes || []);
+            },
+            onUpdate: () => { job.phase = 'prep'; refresh('batch', 'episodes').catch(fail); }
+        });
+        const ok = BT.doneCount(out), n = out.ids.length;
+        if (ctrl.signal.aborted) toast('Rendu en lot arrêté : « Reprendre » repartira du dernier plan encodé', 'warn', 4500);
+        else toast(ok === n ? 'Lot terminé : ' + plural(n, 'épisode') + ' exporté' + (n > 1 ? 's' : '') : ok + '/' + n + ' épisodes exportés, ' + (n - ok) + ' en échec', ok === n ? 'success' : 'warn', 4500);
+        S.batchSel = null;
+        S.batchSelTouched = false;
+    } catch (err) { fail(err); }
+    finally {
+        job.running = false;
+        await refresh('batch', 'episodes', 'export');
     }
 }
 
@@ -1049,7 +1173,7 @@ async function buildBackup() {
 }
 
 // ─── Rendu ────────────────────────────────────────────────────────
-const BUILDERS = { style: buildStyle, chars: buildChars, episodes: buildEpisodes, script: buildScript, images: buildImages, voices: buildVoices, montage: buildMontage, export: buildExport, backup: buildBackup };
+const BUILDERS = { style: buildStyle, chars: buildChars, episodes: buildEpisodes, script: buildScript, images: buildImages, voices: buildVoices, montage: buildMontage, export: buildExport, batch: buildBatch, backup: buildBackup };
 
 function setBadge(k, { badge, badgeClass }) {
     const b = $('#d-badge-' + k);
@@ -1089,6 +1213,7 @@ async function refresh(...keys) {
     // le montage dépend du script, des images, des voix, des fiches et du style
     if (!keys.includes('montage') && keys.some(k => ['script', 'images', 'voices', 'chars', 'style', 'episodes'].includes(k))) keys.push('montage');
     if (!keys.includes('export') && keys.includes('montage')) keys.push('export');
+    if (!keys.includes('batch') && keys.some(k => ['export', 'episodes'].includes(k))) keys.push('batch');
     const ctx = await loadCtx();
     if (!ctx.project) return renderAll();
     for (const k of keys) {
@@ -1263,6 +1388,7 @@ const actions = {
         S.pendingScript = null;
         const gone = (await M.listEpisodes(S.pid)).find(x => x.id === S.eid);
         if (gone && gone.exportInfo) await EX.deleteExportFile(gone.exportInfo.file);
+        await EX.deleteEpisodeRenders(S.eid);
         await M.deleteEpisode(S.eid);
         S.eid = null;
         toast('Épisode supprimé', 'warn');
@@ -1321,6 +1447,23 @@ const actions = {
     async 'play-episode'() { await playEpisode(); },
     async 'stop-play'() { stopPlayback(); await refresh('voices'); },
     async 'start-export'() { await startExport(); },
+    async 'batch-start'() {
+        const ctx = await loadCtx();
+        const ids = ctx.episodes.filter(e => S.batchSel && S.batchSel.has(e.id)).map(e => e.id);   // dans l'ordre des épisodes
+        if (!ids.length) return;
+        await runBatchUI(BT.newBatch(ctx.project.id, ids));
+    },
+    async 'batch-resume'() {
+        const b = BT.loadBatch();
+        if (b) await runBatchUI(b);
+    },
+    async 'batch-forget'() { BT.saveBatch(null); await refresh('batch'); },
+    async 'batch-stop'() {
+        if (!S.bjob) return;
+        S.bjob.ctrl.abort();
+        const t = $('#d-btext');
+        if (t) t.textContent = 'Arrêt…';
+    },
     async 'stop-export'() {
         if (!S.xjob) return;
         S.xjob.ctrl.abort();
@@ -1427,7 +1570,13 @@ const actions = {
         if (!confirm('Supprimer définitivement « ' + p.name + ' », ses personnages, ses épisodes et ses images ?')) return;
         if (S.job && S.job.running && S.job.pid === p.id) S.job.ctrl.abort();
         if (S.xjob && S.xjob.running) S.xjob.ctrl.abort();
-        for (const ep of await M.listEpisodes(p.id)) if (ep.exportInfo) await EX.deleteExportFile(ep.exportInfo.file);
+        if (S.bjob && S.bjob.running) S.bjob.ctrl.abort();
+        for (const ep of await M.listEpisodes(p.id)) {
+            if (ep.exportInfo) await EX.deleteExportFile(ep.exportInfo.file);
+            await EX.deleteEpisodeRenders(ep.id);
+        }
+        const b = BT.loadBatch();
+        if (b && b.projectId === p.id) BT.saveBatch(null);
         await M.deleteProject(p.id);
         S.pid = null; S.eid = null;
         toast('Série supprimée', 'warn');
@@ -1479,6 +1628,13 @@ root.addEventListener('input', ev => {
 root.addEventListener('change', async ev => {
     const t = ev.target;
     try {
+        if (t.dataset && t.dataset.bsel) {
+            if (!S.batchSel) S.batchSel = new Set();
+            if (t.checked) S.batchSel.add(t.dataset.bsel); else S.batchSel.delete(t.dataset.bsel);
+            S.batchSelTouched = true;
+            await refresh('batch');
+            return;
+        }
         if (t.id === 'd-series') {
             if (t.value === '__new') { S.newSeries = true; await renderAll(); $('#d-new-name').focus(); }
             else if (t.value === '__import') { await actions['import-project'](); }
@@ -1520,7 +1676,7 @@ root.addEventListener('focusout', ev => { if (ev.target.id === 'd-script') flush
 // Retour sur l'onglet Drama : la clé Agnes a pu changer dans l'onglet Vidéos.
 window.addEventListener('atelier:tab', ev => {
     if (ev.detail !== 'drama') { stopPlayback(); if (S.preview) S.preview.pause(); return; }
-    if ((S.job && S.job.running) || (S.vjob && S.vjob.running) || (S.xjob && S.xjob.running)) return;
+    if ((S.job && S.job.running) || (S.vjob && S.vjob.running) || (S.xjob && S.xjob.running) || (S.bjob && S.bjob.running)) return;
     if ($('#d-char-name')) { try { S.charDraft = readCharForm(); } catch (e) {} }   // fiche en cours de saisie gardée
     renderAll().catch(fail);
 });
