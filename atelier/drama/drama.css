@@ -184,3 +184,13 @@ body:not([data-tab="drama"]) #drama-root { display: none; }
 #drama-root .d-brow input { margin-top: 0.2rem; width: 1.1rem; height: 1.1rem; accent-color: var(--ink); flex-shrink: 0; }
 #drama-root .d-brow-main { flex: 1; min-width: 0; }
 #drama-root .d-brow-main .d-shot-text { display: block; margin-top: 0.25rem; }
+
+/* Enregistrement au micro */
+#drama-root .d-rec {
+    display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0.45rem 0 0.2rem;
+    padding: 0.5rem 0.65rem; border-radius: 8px; background: #fbe9e7; color: #8e2a1f; font-size: 0.8rem;
+}
+#drama-root .d-rec > span:nth-child(2) { flex: 1 1 10rem; }
+#drama-root .d-rec-dot { width: 12px; height: 12px; border-radius: 50%; background: #d93025; animation: d-blink 1s infinite; flex-shrink: 0; }
+#drama-root .d-rec-stop { border-color: #d93025; color: #d93025; font-weight: 700; }
+@keyframes d-blink { 50% { opacity: 0.25; } }

@@ -8,6 +8,7 @@ import * as VO from './voices.js';
 import * as PL from './player.js';
 import * as EX from './export.js';
 import * as BT from './batch.js';
+import * as MIC from './mic.js';
 import { requiredSounds, SUB_SIZES } from './montage.js';
 import { parseScript } from './parser.js';
 import { IMAGE_MODELS, IMAGE_SIZES, getAgnesKey } from './agnes.js';
@@ -46,7 +47,8 @@ const S = {
     codecs: null,        // codecs d'export disponibles sur cet appareil
     exportUrl: null,     // { name, url } de l'aperçu du MP4 exporté
     bjob: null,          // rendu en lot en cours : { ctrl, running, eid, phase, done, total }
-    batchSel: null       // épisodes cochés pour le lot (Set)
+    batchSel: null,      // épisodes cochés pour le lot (Set)
+    rec: null            // enregistrement au micro en cours : { lineId, eid, session, timer }
 };
 
 // ─── Utilitaires ──────────────────────────────────────────────────
@@ -668,8 +670,9 @@ async function buildVoices(ctx) {
         const lines = await Promise.all((byPlan.get(tp.id) || []).map(async s => {
             const live = job && job.states.get(s.line.id);
             const chipKey = live && live.state !== 'ok' ? live.state : s.state;
-            const [cls, label] = VOICE_CHIPS[chipKey] || VOICE_CHIPS.missing;
-            const msg = live && live.state === 'error' ? live.message : s.state === 'error' ? s.req.error : '';
+            const [cls, label0] = VOICE_CHIPS[chipKey] || VOICE_CHIPS.missing;
+            const label = chipKey === 'ok' && s.micro ? '✅ enregistrée au micro' : label0;
+            const msg = live && live.state === 'error' ? live.message : s.state === 'error' ? s.req.error + ' — ou enregistrez-la au micro' : '';
             const extra = msg ? ' ' + esc(msg)
                 : live && live.state === 'waiting' ? ' dans <span data-vleft="' + s.line.id + '">' + (live.left || '') + '</span> s' : '';
             const t = s.take;
@@ -683,9 +686,15 @@ async function buildVoices(ctx) {
                 '<div class="d-line-top"><b>@' + esc(s.line.perso) + '</b>' + (s.line.ton ? ' <i>(' + esc(s.line.ton) + ')</i>' : '') +
                     ' <span class="d-chip ' + cls + '" data-vchip="' + s.line.id + '">' + label + extra + '</span>' +
                     (s.duration != null ? '<span class="d-line-dur">' + s.duration.toFixed(1) + ' s</span>' : '') + '</div>' +
-                '<div class="d-shot-text">« ' + esc(s.line.texte) + ' »' + (s.req.voiceName ? ' — 🎙️ ' + esc(s.req.voiceName) : '') + '</div>' +
+                '<div class="d-shot-text">« ' + esc(s.line.texte) + ' »' + (s.micro ? ' — 🎤 votre voix' : s.req.voiceName ? ' — 🎙️ ' + esc(s.req.voiceName) : '') + '</div>' +
+                (S.rec && S.rec.lineId === s.line.id
+                    ? '<div class="d-rec"><span class="d-rec-dot"></span><span>Enregistrement… <b id="d-rec-time">0:00</b> — dites la réplique</span>' +
+                      '<button type="button" class="char-btn d-rec-stop" data-action="rec-stop">⏹ Arrêter</button>' +
+                      '<button type="button" class="char-btn" data-action="rec-cancel">Annuler</button></div>'
+                    : '') +
                 '<div class="char-actions">' +
                     (s.state === 'ok' ? '<button type="button" class="char-btn" data-action="play-line" data-line="' + s.line.id + '">▶ Écouter</button>' : '') +
+                    (S.rec ? '' : '<button type="button" class="char-btn" data-action="rec-start" data-line="' + s.line.id + '"' + (running ? ' disabled' : '') + '>🎤 ' + (s.micro ? 'Réenregistrer' : 'Enregistrer') + '</button>') +
                     (s.state !== 'error' ? '<button type="button" class="char-btn" data-action="regen-line" data-line="' + s.line.id + '"' + (running || !a.ok || !key ? ' disabled' : '') + '>' +
                         (t && t.current ? '↻ Autre prise' : '🎙️ Générer') + '</button>' : '') + versions +
                 '</div></div>';
@@ -705,7 +714,7 @@ async function buildVoices(ctx) {
         badgeClass: states.length && ready === states.length ? 'ok' : '',
         html:
             '<div class="api-hint" style="margin:0 0 0.6rem">Modèle : ' + esc(model.name) + ' · voix et réglages de chaque fiche (section Personnages).</div>' +
-            (!key ? '<div class="lock-banner"><span>⚠️ Ajoutez votre clé ElevenLabs en haut de l\'onglet Drama pour générer les voix.</span><button type="button" class="char-btn" data-action="open-eleven">Ajouter la clé</button></div>' : '') +
+            (!key ? '<div class="lock-banner"><span>🎤 Enregistrez chaque réplique au micro, ou ajoutez une clé ElevenLabs en haut de l\'onglet Drama pour des voix de synthèse.</span><button type="button" class="char-btn" data-action="open-eleven">Ajouter la clé</button></div>' : '') +
             (!a.ok ? '<div class="lock-banner"><span>❌ Corrigez le script (' + plural(a.errors.length, 'erreur') + ') avant de générer les voix.</span></div>' : '') +
             blocked.map(b => '<div class="lock-banner"><span>⚠️ ' + esc(b) + '</span></div>').join('') +
             '<div class="queue-summary"><span class="progress-text">🎙️ ' + ready + '/' + plural(states.length, 'réplique') + ' prête' + (ready > 1 ? 's' : '') + '</span>' +
@@ -719,7 +728,8 @@ async function buildVoices(ctx) {
                 ? '<button type="button" class="api-save-btn" data-action="stop-play">⏹ Arrêter l\'écoute <span id="d-play-clock"></span></button>'
                 : '<button type="button" class="api-save-btn" data-action="play-episode">▶ Écouter l\'épisode (voix et durées)</button>') : '') +
             '<div class="d-vplans">' + plans.join('') + '</div>' +
-            '<div class="api-hint">Une prise n\'est refaite que si le texte, la voix ou ses réglages changent ; « Autre prise » en propose une nouvelle (les 4 dernières sont gardées). Le ton entre parenthèses est indicatif : il n\'est pas transmis à ElevenLabs.</div>'
+            '<div class="api-hint">🎤 « Enregistrer » : dites la réplique puis touchez « Arrêter » ; les silences du début et de la fin sont retirés automatiquement. Une prise au micro reste valable tant que le texte ne change pas. ' +
+            'Une prise ElevenLabs n\'est refaite que si le texte, la voix ou ses réglages changent ; « Autre prise » en propose une nouvelle (les 4 dernières sont gardées). Le ton entre parenthèses est indicatif : il n\'est pas transmis à ElevenLabs.</div>'
     };
 }
 
@@ -808,6 +818,16 @@ async function playEpisode() {
         if (pos > player.total + 0.3) { stopPlayback(); refresh('voices').catch(fail); }
     }, 250);
 }
+
+function cancelRecording() {
+    if (!S.rec) return;
+    clearInterval(S.rec.timer);
+    S.rec.session.cancel();
+    S.rec = null;
+}
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && S.rec) { cancelRecording(); toast('Enregistrement annulé (appli quittée)', 'warn'); refresh('voices').catch(() => {}); }
+});
 
 function stopPlayback() {
     const p = S.player;
@@ -1453,6 +1473,38 @@ const actions = {
         await audio.play();
     },
     async 'play-episode'() { await playEpisode(); },
+    async 'rec-start'(el) {
+        if (S.rec) return;
+        stopPlayback();
+        if (S.preview) S.preview.pause();
+        const session = await MIC.startRecording();
+        S.rec = { lineId: el.dataset.line, eid: S.eid, session, timer: null };
+        S.rec.timer = setInterval(() => {
+            if (!S.rec) return;
+            const sec = (Date.now() - S.rec.session.startedAt) / 1000;
+            const t = $('#d-rec-time');
+            if (t) t.textContent = fmtClock(sec);
+            if (sec >= MIC.MAX_SECONDS) actions['rec-stop']().catch(fail);
+        }, 250);
+        await refresh('voices');
+    },
+    async 'rec-stop'() {
+        const r = S.rec;
+        if (!r) return;
+        S.rec = null;
+        clearInterval(r.timer);
+        try {
+            const raw = await r.session.stop();
+            const out = await MIC.processRecording(raw);
+            const ctx = await loadCtx();
+            const e = ctx.episodes.find(x => x.id === r.eid);
+            await VO.saveMicTake(ctx.project, e, r.lineId, out.blob, out.duration);
+            toast('Réplique enregistrée : ' + out.duration.toFixed(1) + ' s' + (out.trimmed > 0.2 ? ' (silences retirés)' : ''));
+        } finally {
+            await refresh('voices', 'episodes');
+        }
+    },
+    async 'rec-cancel'() { cancelRecording(); await refresh('voices'); },
     async 'stop-play'() { stopPlayback(); await refresh('voices'); },
     async 'start-export'() { await startExport(); },
     async 'batch-start'() {
@@ -1683,7 +1735,7 @@ root.addEventListener('focusout', ev => { if (ev.target.id === 'd-script') flush
 
 // Retour sur l'onglet Drama : la clé Agnes a pu changer dans l'onglet Vidéos.
 window.addEventListener('atelier:tab', ev => {
-    if (ev.detail !== 'drama') { stopPlayback(); if (S.preview) S.preview.pause(); return; }
+    if (ev.detail !== 'drama') { stopPlayback(); cancelRecording(); if (S.preview) S.preview.pause(); return; }
     if ((S.job && S.job.running) || (S.vjob && S.vjob.running) || (S.xjob && S.xjob.running) || (S.bjob && S.bjob.running)) return;
     if ($('#d-char-name')) { try { S.charDraft = readCharForm(); } catch (e) {} }   // fiche en cours de saisie gardée
     renderAll().catch(fail);

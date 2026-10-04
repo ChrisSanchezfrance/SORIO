@@ -71,6 +71,15 @@ export function computeTiming(analysis, durations = {}, characters = []) {
     return { plans, total: r3(t), complete: missing === 0, lines, voiced: lines - missing };
 }
 
+// ─── Prises enregistrées au micro ─────────────────────────────────
+// Une prise au micro ne dépend que du texte de la réplique (pas de la voix ElevenLabs).
+export const micHash = text => hashString(JSON.stringify(['micro', text]));
+
+// Prise à jour : enregistrée au micro pour ce texte, ou générée avec la voix et les réglages actuels.
+export function takeValid(take, req, line) {
+    return !!(take && take.current && (take.hash === micHash(line.texte) || (!req.error && take.hash === req.hash)));
+}
+
 // ─── Stockage des prises ──────────────────────────────────────────
 export const takeId = (episodeId, lid) => episodeId + ':' + lid;
 export const getTake = (episodeId, lid) => get('takes', takeId(episodeId, lid));
@@ -112,15 +121,15 @@ export async function voiceStates(project, characters, episode) {
         const req = buildVoiceRequest(project, characters, line);
         const take = takes.get(line.id) || null;
         let state, asset = null;
-        if (req.error) state = 'error';
-        else if (take && take.current && take.hash === req.hash) {
+        if (takeValid(take, req, line)) {
             state = 'ok';
             asset = await getAsset(take.current);
             if (asset) durations[line.id] = asset.duration;
         }
+        else if (req.error) state = 'error';
         else if (await findCachedAsset(project.id, req.hash, 'voice')) state = 'cached';
         else state = take && take.current ? 'stale' : 'missing';
-        states.push({ line, req, take, state, duration: asset ? asset.duration : null });
+        states.push({ line, req, take, state, duration: asset ? asset.duration : null, micro: !!(asset && asset.source === 'micro') });
     }
     return { states, timing: computeTiming(episode.analysis, durations, characters) };
 }
@@ -145,12 +154,11 @@ export async function generateEpisodeVoices({ project, characters, episode, line
     for (const line of lines) {
         if (signal && signal.aborted) { summary.stopped = true; break; }
         const req = buildVoiceRequest(project, characters, line);
+        if (!force && takeValid(await getTake(episode.id, line.id), req, line)) { summary.upToDate++; onUpdate(line.id, { state: 'ok' }); continue; }
         if (req.error) { summary.failed++; onUpdate(line.id, { state: 'error', message: req.error }); continue; }
         try {
             await waitVisible(signal);
             if (!force) {
-                const take = await getTake(episode.id, line.id);
-                if (take && take.current && take.hash === req.hash) { summary.upToDate++; onUpdate(line.id, { state: 'ok' }); continue; }
                 const cached = await findCachedAsset(project.id, req.hash, 'voice');
                 if (cached) { await setTake(project.id, episode.id, line, cached); summary.reused++; onUpdate(line.id, { state: 'ok', reused: true }); continue; }
             }
@@ -188,7 +196,18 @@ export async function voiceReadyCount(project, characters, episode) {
     for (const l of lines) {
         const req = buildVoiceRequest(project, characters, l);
         const t = takes.get(l.id);
-        if (!req.error && t && t.current && t.hash === req.hash) ready++;
+        if (takeValid(t, req, l)) ready++;
     }
     return { ready, total: lines.length };
+}
+
+// Enregistre une prise au micro comme nouvelle version de la réplique.
+export async function saveMicTake(project, episode, lid, blob, duration) {
+    const line = episodeLines(episode.analysis).find(l => l.id === lid);
+    if (!line) throw new Error('Réplique introuvable');
+    const asset = await put('assets', {
+        id: newId('a'), projectId: project.id, kind: 'voice', source: 'micro', episodeId: episode.id, lineId: lid,
+        hash: micHash(line.texte), text: line.texte, mime: blob.type || 'audio/wav', duration, words: null, blob, createdAt: Date.now()
+    });
+    return setTake(project.id, episode.id, line, asset);
 }
