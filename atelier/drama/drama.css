@@ -201,3 +201,4 @@ body:not([data-tab="drama"]) #drama-root { display: none; }
 #drama-root .d-check input { width: 1.05rem; height: 1.05rem; margin: 0; }
 #drama-root .d-clip-audio { margin-top: 0.35rem; font-size: 0.78rem; padding: 0.35rem 0.4rem; width: 100%; }
 #drama-root .d-warn { color: #8a6510; }
+#drama-root a.char-btn { display: inline-flex; align-items: center; text-decoration: none; color: inherit; }

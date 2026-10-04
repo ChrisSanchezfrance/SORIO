@@ -14,7 +14,7 @@
 import { hashString, fold } from './parser.js';
 import { get, tx, getByIndex, newId } from './db.js';
 import { linkMedia, getAsset } from './model.js';
-import { createVideo, videoStatus, AgnesError, VIDEO_MODEL, VIDEO_FPS } from './agnes.js';
+import { createVideo, videoStatus, fetchVideoContent, AgnesError, VIDEO_MODEL, VIDEO_FPS } from './agnes.js';
 import { RETRY_WAITS, waitVisible, pausableWait, blobToDataUri } from './jobs.js';
 import { getShots, findCachedAsset } from './images.js';
 import { voiceStates } from './voices.js';
@@ -139,7 +139,7 @@ const savePending = (projectId, episodeId, planId, pending) => updateClip(projec
 
 function setClipAsset(projectId, episodeId, planId, asset, isNew = false) {
     return linkMedia('clips', { id: clipId(episodeId, planId), projectId, episodeId, planId, animate: null, audio: 'own' },
-        asset, MAX_CLIPS, { isNew, extra: { pending: null } });
+        asset, MAX_CLIPS, { isNew, extra: { pending: null, remote: null } });
 }
 
 export async function selectClipVersion(episodeId, planId, assetId) {
@@ -147,6 +147,33 @@ export async function selectClipVersion(episodeId, planId, assetId) {
     if (!c || !c.versions.includes(assetId)) return null;
     const a = await getAsset(assetId);
     return updateClip(c.projectId, episodeId, planId, x => { x.current = assetId; x.hash = a ? a.hash : x.hash; });
+}
+
+// Enregistre le fichier d'un clip comme nouvelle version du plan. info : { hash, frames, prompt, videoId }.
+async function saveClipBlob(project, episode, planId, blob, info) {
+    const meta = await probeClip(blob, info.frames ? clipSeconds(info.frames) : 0);
+    if (!meta.duration) throw new AgnesError('Vidéo illisible sur ce téléphone');
+    const asset = {
+        id: newId('a'), projectId: project.id, kind: 'clip', episodeId: episode.id, planId,
+        hash: info.hash, model: info.videoId ? VIDEO_MODEL : 'import', frames: info.frames || null, prompt: info.prompt || null,
+        videoId: info.videoId || null, mime: blob.type || 'video/mp4', ...meta, blob, createdAt: Date.now()
+    };
+    return setClipAsset(project.id, episode.id, planId, asset, true);
+}
+
+// Importe une vidéo du téléphone comme clip du plan (clip d'Agnes téléchargé à la main,
+// ou vidéo de l'onglet Vidéos). Elle vaut tant que l'image et le plan ne changent pas.
+export async function importClipFile(project, characters, episode, planId, file) {
+    if (!file || !/^video\//.test(file.type || '') && !/\.(mp4|mov|webm|m4v)$/i.test(file.name || '')) throw new AgnesError('Choisissez une vidéo');
+    const plan = ((episode.analysis && episode.analysis.plans) || []).find(p => p.id === planId);
+    if (!plan) throw new AgnesError('Plan introuvable');
+    const sh = (await getShots(episode.id)).get(planId);
+    const req = buildClipRequest(project, characters, plan, sh && sh.current ? sh.hash : null);
+    if (req.error) throw new AgnesError(req.error);
+    const c = await getClip(episode.id, planId);
+    const info = c && c.remote && c.remote.hash === req.hash ? c.remote : { hash: req.hash, prompt: req.prompt };
+    const blob = file.type && /^video\//.test(file.type) ? file : new Blob([file], { type: 'video/mp4' });
+    return saveClipBlob(project, episode, planId, blob, info);
 }
 
 // ─── États ────────────────────────────────────────────────────────
@@ -191,6 +218,7 @@ export async function timelineClips(project, characters, episode) {
 }
 
 // État de chaque plan : off (non animé), noimage, ok, pending (création en cours chez Agnes),
+// remote (clip prêt chez Agnes, à télécharger puis importer),
 // cached, stale (image ou plan modifié depuis), missing.
 export async function clipStates(project, characters, episode) {
     const plans = (episode.analysis && episode.analysis.plans) || [];
@@ -210,6 +238,7 @@ export async function clipStates(project, characters, episode) {
         let state;
         if (!animate) state = 'off';
         else if (req.error) state = 'noimage';
+        else if (c && c.remote && c.remote.hash === req.hash) state = 'remote';   // nouveau clip à importer (l'ancien reste au montage)
         else if (c && c.current && c.hash === req.hash) state = 'ok';
         else if (c && c.pending && c.pending.hash === req.hash) state = 'pending';
         else if (await findCachedAsset(project.id, req.hash, 'clip')) state = 'cached';
@@ -268,17 +297,36 @@ async function retrying(fn, signal, onWait) {
     }
 }
 
-async function fetchClip(url, signal) {
+class BlockedDownload extends Error {}
+
+async function getVideo(url, signal) {
     let res;
-    try { res = await fetch(url, { signal }); }
+    try { res = await fetch(url, { signal, credentials: 'omit' }); }
     catch (e) {
         if (signal && signal.aborted) throw new DOMException('Arrêt demandé', 'AbortError');
-        throw new AgnesError('Clip créé mais impossible à télécharger (' + e.message + ')', { retryable: true });
+        throw new BlockedDownload(e.message);       // le plus souvent : hébergeur sans autorisation CORS
     }
     if (!res.ok) throw new AgnesError('Clip créé mais impossible à télécharger (HTTP ' + res.status + ')', { retryable: res.status >= 500 });
     const blob = await res.blob();
     if (!blob.size) throw new AgnesError('Clip vide', { retryable: true });
-    return blob.type && /^video\//.test(blob.type) ? blob : new Blob([blob], { type: 'video/mp4' });
+    return blob;
+}
+const asVideo = blob => blob.type && /^video\//.test(blob.type) ? blob : new Blob([blob], { type: 'video/mp4' });
+
+// Récupère le fichier du clip : adresse renvoyée (en https), puis téléchargement par l'API.
+// Si le téléphone n'a le droit de lire ni l'un ni l'autre : BlockedDownload (import manuel).
+export async function downloadClip(url, videoId, signal) {
+    const tries = [...new Set([url.replace(/^http:\/\//i, 'https://'), url])];
+    let last = null;
+    for (const u of tries) {
+        try { return asVideo(await getVideo(u, signal)); }
+        catch (e) { if (!(e instanceof BlockedDownload)) throw e; last = e; }
+    }
+    try { return asVideo(await fetchVideoContent(videoId, signal)); }
+    catch (e) {
+        if (signal && signal.aborted) throw new DOMException('Arrêt demandé', 'AbortError');
+        throw new BlockedDownload((last && last.message) || e.message);
+    }
 }
 
 // Durée, taille et présence d'un son, lues par le téléphone.
@@ -318,7 +366,7 @@ export async function generateEpisodeClips({ project, characters, episode, planI
     if (signal) { if (signal.aborted) ctrl.abort(); else signal.addEventListener('abort', onAbort, { once: true }); }
     const all = await clipStates(project, characters, episode);
     const targets = all.filter(s => planIds ? planIds.includes(s.plan.id) : s.animate);
-    const summary = { generated: 0, reused: 0, upToDate: 0, failed: 0, resumed: 0, stopped: false, keyRefused: false };
+    const summary = { generated: 0, reused: 0, upToDate: 0, failed: 0, resumed: 0, remote: 0, stopped: false, keyRefused: false };
     const fail = (id, e) => {
         if (e.name === 'AbortError') { summary.stopped = !summary.keyRefused; onUpdate(id, { state: 'stopped' }); return; }
         summary.failed++;
@@ -353,15 +401,20 @@ export async function generateEpisodeClips({ project, characters, episode, planI
             }
             if (st.status !== 'done') continue;
             onUpdate(id, { state: 'running', progress: 100, message: 'téléchargement' });
-            const blob = await retrying(() => fetchClip(st.url, sig), sig, (left, message) => onUpdate(id, { state: 'waiting', left, message }));
-            const meta = await probeClip(blob, clipSeconds(pending.frames));
-            const asset = {
-                id: newId('a'), projectId: project.id, kind: 'clip', episodeId: episode.id, planId: id,
-                hash: pending.hash, model: VIDEO_MODEL, frames: pending.frames, prompt: pending.prompt, videoId: pending.videoId,
-                mime: blob.type || 'video/mp4', ...meta, blob, createdAt: Date.now()
-            };
-            await setClipAsset(project.id, episode.id, id, asset, true);
             recordTime(pending.frames, (Date.now() - pending.createdAt) / 1000);
+            const remote = { ...pending, url: st.url, readyAt: Date.now() };
+            let blob;
+            try {
+                blob = await retrying(() => downloadClip(st.url, pending.videoId, sig), sig, (left, message) => onUpdate(id, { state: 'waiting', left, message }));
+            } catch (e) {
+                if (!(e instanceof BlockedDownload)) throw e;
+                // clip prêt chez Agnes mais non téléchargeable par l'appli : à télécharger puis importer
+                await updateClip(project.id, episode.id, id, c => { c.pending = null; c.remote = remote; });
+                summary.remote++;
+                onUpdate(id, { state: 'remote' });
+                return;
+            }
+            await saveClipBlob(project, episode, id, blob, remote);
             summary.generated++;
             onUpdate(id, { state: 'ok', generated: true });
             return;
@@ -381,6 +434,19 @@ export async function generateEpisodeClips({ project, characters, episode, planI
                 if (!force) {
                     const cached = await findCachedAsset(project.id, s.req.hash, 'clip');
                     if (cached) { await setClipAsset(project.id, episode.id, id, cached); summary.reused++; onUpdate(id, { state: 'ok', reused: true }); continue; }
+                }
+                if (!force && s.state === 'remote') {      // nouvel essai de téléchargement, sans recréer
+                    try {
+                        const blob = await downloadClip(s.clip.remote.url, s.clip.remote.videoId, sig);
+                        await saveClipBlob(project, episode, id, blob, s.clip.remote);
+                        summary.generated++;
+                        onUpdate(id, { state: 'ok', generated: true });
+                    } catch (e) {
+                        if (!(e instanceof BlockedDownload)) throw e;
+                        summary.remote++;
+                        onUpdate(id, { state: 'remote' });
+                    }
+                    continue;
                 }
                 let pending = !force && s.clip && s.clip.pending && s.clip.pending.hash === s.req.hash ? s.clip.pending : null;
                 if (pending) summary.resumed++;

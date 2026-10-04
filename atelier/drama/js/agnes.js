@@ -161,3 +161,18 @@ export async function videoStatus(videoId, signal = null) {
     if (status === 'done' && !url) throw new AgnesError('Vidéo terminée mais sans adresse', { retryable: true });
     return { status, raw, progress: Math.max(0, Math.min(100, parseInt(d.progress, 10) || 0)), url };
 }
+
+// Téléchargement du fichier vidéo par l'API (format compatible OpenAI : /videos/{id}/content),
+// quand l'adresse renvoyée n'autorise pas le téléchargement depuis une appli web.
+export async function fetchVideoContent(videoId, signal = null) {
+    const key = getAgnesKey();
+    const res = await fetch(AGNES_BASE + '/videos/' + encodeURIComponent(videoId) + '/content', {
+        headers: { 'Authorization': 'Bearer ' + key }, signal
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const type = (res.headers.get('content-type') || '').toLowerCase();
+    if (/json|html|text/.test(type)) throw new Error('pas une vidéo');
+    const blob = await res.blob();
+    if (blob.size < 1000) throw new Error('vidéo vide');
+    return blob;
+}

@@ -54,7 +54,8 @@ const close = (c, rgb, tol = 45) => c.every((v, i) => Math.abs(v - rgb[i]) <= to
 
 // API vidéo Agnes simulée
 const creates = [], polls = [];
-const sc = { fail429: 0, refuse: false, failIds: new Set(), hold: false, mute: false };
+const sc = { fail429: 0, refuse: false, failIds: new Set(), hold: false, mute: false, cdnBlocked: false, content: true };
+const contents = [];
 const tasks = new Map();
 let CLIP = null, CLIP_MUTE = null, nId = 0;
 await ctx.route('https://apihub.agnes-ai.com/v1/videos', r => {
@@ -78,7 +79,13 @@ await ctx.route('https://apihub.agnes-ai.com/agnesapi**', r => {
     if (sc.hold || t.polls < 2) return r.fulfill({ json: { status: 'processing', progress: 40 } });
     return r.fulfill({ json: { status: 'completed', progress: 100, metadata: { url: 'https://cdn.agnes.test/' + id + '.mp4' } } });
 });
+await ctx.route('https://apihub.agnes-ai.com/v1/videos/*/content', r => {
+    const id = r.request().url().match(/videos\/(vid\d+)\/content/)[1];
+    contents.push({ id, auth: r.request().headers()['authorization'] });
+    return sc.content ? r.fulfill({ body: CLIP, contentType: 'video/mp4' }) : r.fulfill({ status: 404, json: { error: 'not found' } });
+});
 await ctx.route('https://cdn.agnes.test/**', r => {
+    if (sc.cdnBlocked) return r.abort('failed');      // hébergeur sans CORS : « Failed to fetch »
     const id = r.request().url().match(/(vid\d+)\.mp4/)[1];
     return r.fulfill({ body: tasks.get(id).mute ? CLIP_MUTE : CLIP, contentType: 'video/mp4' });
 });
@@ -318,6 +325,29 @@ try {
     sc.refuse = false;
     check(true, 'clé refusée : message clair, animation arrêtée');
 
+    // 8 bis. Hébergeur du clip sans autorisation CORS (« Failed to fetch » sur le téléphone)
+    sc.cdnBlocked = true;
+    await page.click('[data-action="gen-clips"]');
+    await page.waitForSelector('[data-action="stop-clips"]', { state: 'detached', timeout: 30000 });
+    await page.waitForFunction(() => /✅ clip prêt/.test(document.querySelector('[data-cchip="P5"]')?.textContent || ''), null, { timeout: 30000 });
+    check(contents.length === 1 && contents[0].auth === 'Bearer agnes-test-key', 'adresse du clip bloquée : clip récupéré par l\'API Agnes (/videos/{id}/content)');
+    sc.content = false;
+    const nC = creates.length;
+    await page.click('[data-cplan="P5"] [data-action="regen-clip"]');
+    while (creates.length === nC) await page.waitForTimeout(100);
+    await page.waitForSelector('[data-action="stop-clips"]', { state: 'detached', timeout: 30000 });
+    await page.waitForFunction(() => /à télécharger/.test(document.querySelector('[data-cchip="P5"]')?.textContent || ''), null, { timeout: 30000 });
+    const href = await page.getAttribute('[data-cplan="P5"] a.char-btn', 'href');
+    check(/cdn\.agnes\.test\/vid\d+\.mp4/.test(href) && /Importer le clip/.test(await page.textContent('[data-cplan="P5"]')),
+        'tout est bloqué : « ⬇️ prêt chez Agnes », lien « Ouvrir le clip » et explication pour l\'importer');
+    const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('[data-cplan="P5"] [data-action="import-clip"]')]);
+    await chooser.setFiles({ name: 'clip-p5.mp4', mimeType: 'video/mp4', buffer: CLIP });
+    await waitToast(page, /Clip de P5 importé/);
+    await page.waitForFunction(() => /✅ clip prêt/.test(document.querySelector('[data-cchip="P5"]')?.textContent || ''));
+    st = await state();
+    check(st.clips.P5.versions === 2 && st.plans[4].clip, 'clip téléchargé puis importé : P5 animé (version 2/2)');
+    sc.cdnBlocked = false; sc.content = true;
+
     // 9. Image du plan régénérée : clip à refaire, image fixe en attendant
     await inApp(page, async ({ M, DB }) => {
         const e = (await M.listEpisodes((await M.listProjects())[0].id))[0];
@@ -333,8 +363,8 @@ try {
     await page.click('[data-dtoggle="backup"]');
     const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-action="export-full"]')]);
     const data = JSON.parse(await readFile(await dl.path(), 'utf8'));
-    check(data.clips.length === 5 && data.assets.filter(a => a.kind === 'clip').length === 4 && data.clips.find(c => c.planId === 'P3').audio === 'agnes',
-        'sauvegarde : réglages des 5 plans + clip retenu de 4 plans (voix d\'Agnes de P3 comprise)');
+    check(data.clips.length === 5 && data.assets.filter(a => a.kind === 'clip').length === 5 && data.clips.find(c => c.planId === 'P3').audio === 'agnes',
+        'sauvegarde : réglages des 5 plans + clip retenu de chaque plan (voix d\'Agnes de P3 comprise)');
     await inApp(page, async ({ M }, d) => { await M.importProject(d); }, data);
     const imp = await inApp(page, async ({ M }) => {
         const CL = await import('./drama/js/clips.js');

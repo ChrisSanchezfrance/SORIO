@@ -846,7 +846,7 @@ function stopPlayback() {
 // ─── Section Animation des plans (Agnes) ──────────────────────────
 const CLIP_CHIPS = {
     off: ['', '🖼️ image fixe'], noimage: ['warn', '🖼️ image du plan à générer d\'abord'], ok: ['ok', '✅ clip prêt'],
-    pending: ['soft', '⏳ en préparation chez Agnes'], cached: ['soft', '♻️ en cache'], stale: ['warn', '♻️ à refaire (image ou plan modifié)'],
+    pending: ['soft', '⏳ en préparation chez Agnes'], remote: ['warn', '⬇️ prêt chez Agnes : à télécharger puis importer'], cached: ['soft', '♻️ en cache'], stale: ['warn', '♻️ à refaire (image ou plan modifié)'],
     missing: ['', '○ à animer'], queued: ['', '⏳ en attente'], spacing: ['', '⏳ en attente'], creating: ['run', '🎬 envoi à Agnes…'],
     running: ['run', '🎬 animation…'], waiting: ['warn', '⏸ nouvel essai'], error: ['bad', '❌'], stopped: ['', '⏹ arrêté']
 };
@@ -877,17 +877,22 @@ async function buildClips(ctx) {
     const animated = states.filter(s => s.animate);
     const ready = animated.filter(s => s.state === 'ok').length;
     const todo = animated.filter(s => !['ok', 'noimage'].includes(s.state));
+    const remote = animated.filter(s => s.state === 'remote').length;
     const pending = animated.filter(s => s.state === 'pending').length;
     const noImage = animated.filter(s => s.state === 'noimage').length;
     const eta = todo.length ? (todo.length - pending - 1) * CL.CLIP_TIMING.createEvery + CL.estimateSeconds(121) : 0;
 
     const cards = await Promise.all(states.map(async s => {
         const id = s.plan.id;
-        const live = job && job.states.get(id);
+        const live0 = job && job.states.get(id);
+        const live = live0 && (job.running || live0.state === 'error') ? live0 : null;     // après coup : seules les erreurs restent
         const chipKey = live && live.state !== 'ok' ? live.state : s.state;
         const [cls, label] = clipChip(chipKey, live && live.state !== 'ok' ? live : null);
         const showClip = s.asset && (s.state === 'ok' || s.state === 'stale');
-        const media = showClip
+        const remoteUrl = s.state === 'remote' && s.clip.remote.url;
+        const media = remoteUrl
+            ? '<video class="d-shot" src="' + esc(remoteUrl) + '" data-action="zoom-clip" muted playsinline preload="metadata" aria-label="Clip du plan ' + id + ' chez Agnes"></video>'
+            : showClip
             ? '<video class="d-shot" src="' + await assetUrl(s.asset.id) + '" data-asset="' + s.asset.id + '" data-action="zoom-clip" muted playsinline preload="metadata" aria-label="Clip du plan ' + id + ' (toucher pour lire)"></video>'
             : s.shotAssetId ? '<img class="d-shot" src="' + await assetUrl(s.shotAssetId) + '" data-asset="' + s.shotAssetId + '" data-action="zoom-shot" alt="Image du plan ' + id + '">'
             : '<div class="d-shot empty">' + id + '</div>';
@@ -918,10 +923,17 @@ async function buildClips(ctx) {
                     : '') +
                 (info ? '<div class="d-shot-text">' + info + '</div>' : '') +
                 warns.map(w => '<div class="d-shot-text d-warn">' + w + '</div>').join('') +
+                (remoteUrl
+                    ? '<div class="d-shot-text d-warn">Le clip est prêt, mais Agnes ne laisse pas l\'appli le télécharger elle-même. ' +
+                        '1. Touchez « ⬇️ Ouvrir le clip », puis ⋮ → Télécharger. 2. Revenez ici et touchez « 📥 Importer le clip » : choisissez la vidéo téléchargée.</div>' +
+                      '<div class="char-actions"><a class="char-btn" href="' + esc(remoteUrl) + '" target="_blank" rel="noopener" download>⬇️ Ouvrir le clip</a>' +
+                      '<button type="button" class="char-btn" data-action="import-clip" data-plan="' + id + '"' + dis + '>📥 Importer le clip</button></div>'
+                    : '') +
                 (s.animate || (c && c.current)
                     ? '<div class="char-actions">' +
                         '<button type="button" class="char-btn" data-action="regen-clip" data-plan="' + id + '"' + (running || !a.ok || !key || s.state === 'noimage' ? ' disabled' : '') + '>' +
-                            (c && c.current ? '↻ Autre clip' : '🎬 Animer ce plan') + '</button>' + versions + '</div>'
+                            (c && c.current ? '↻ Autre clip' : '🎬 Animer ce plan') + '</button>' + versions +
+                        (!remoteUrl && s.state !== 'noimage' ? '<button type="button" class="char-btn" data-action="import-clip" data-plan="' + id + '"' + dis + '>📥 Importer une vidéo</button>' : '') + '</div>'
                     : '') +
                 (s.req.prompt ? '<details class="d-prompt"><summary>Prompt envoyé</summary><pre>' + esc(s.req.prompt) + '</pre></details>' : '') +
             '</div></div>';
@@ -936,6 +948,7 @@ async function buildClips(ctx) {
                 'Le montage utilise alors le clip à la place de l\'image fixe. Voix : 🎤 la vôtre par défaut (lèvres approximatives) ou 🎬 celle d\'Agnes, synchronisée avec les lèvres (la durée du plan devient celle du clip).</p>' +
             (!key ? '<div class="lock-banner"><span>⚠️ Ajoutez votre clé Agnes dans l\'onglet Vidéos pour animer les plans.</span><button type="button" class="char-btn" data-action="goto-videos">Onglet Vidéos</button></div>' : '') +
             (!a.ok ? '<div class="lock-banner"><span>❌ Corrigez le script (' + plural(a.errors.length, 'erreur') + ') avant d\'animer les plans.</span></div>' : '') +
+            (remote ? '<div class="lock-banner"><span>⬇️ ' + plural(remote, 'clip') + ' prêt' + (remote > 1 ? 's' : '') + ' chez Agnes à télécharger puis importer (voir ' + (remote > 1 ? 'les plans' : 'le plan') + ' ci-dessous).</span></div>' : '') +
             (noImage ? '<div class="lock-banner"><span>🖼️ ' + plural(noImage, 'plan') + ' coché' + (noImage > 1 ? 's' : '') + ' sans image : générez d\'abord les images (section Images).</span></div>' : '') +
             '<div class="queue-summary"><span class="progress-text">🎬 ' + ready + '/' + plural(animated.length, 'plan') + ' animé' + (ready > 1 ? 's' : '') + '</span>' +
                 '<span class="eta-text" id="d-cjob-line">' + esc(job ? job.line : todo.length ? '≈ ' + fmtDuration(eta) + ' (une demande toutes les ' + CL.CLIP_TIMING.createEvery + ' s)' : 'Tout est prêt') + '</span></div>' +
@@ -983,9 +996,10 @@ async function startClips(planIds, force) {
         if (summary.generated) parts.push(plural(summary.generated, 'clip') + ' créé' + (summary.generated > 1 ? 's' : ''));
         if (summary.reused) parts.push(summary.reused + ' repris du cache');
         if (summary.failed) parts.push(summary.failed + ' en échec');
+        if (summary.remote) parts.push(summary.remote + ' à télécharger puis importer');
         if (summary.keyRefused) toast('Clé Agnes refusée : vérifiez-la dans l\'onglet Vidéos', 'error', 4500);
         else if (summary.stopped) toast('Animation arrêtée : les créations déjà envoyées seront reprises', 'warn', 4000);
-        else toast(parts.join(' · ') || 'Clips déjà à jour', summary.failed ? 'warn' : 'success', 3500);
+        else toast(parts.join(' · ') || 'Clips déjà à jour', summary.failed || summary.remote ? 'warn' : 'success', summary.remote ? 5000 : 3500);
         job.line = summary.stopped ? 'Arrêté' : (parts.join(' · ') || 'Clips déjà à jour');
     } catch (err) {
         fail(err);
@@ -1614,6 +1628,14 @@ const actions = {
         S.cjob.line = 'Arrêt…';
         const ln = $('#d-cjob-line');
         if (ln) ln.textContent = 'Arrêt…';
+    },
+    async 'import-clip'(el) {
+        const file = await pickFile('video/*');
+        if (!file) return;
+        const ctx = await loadCtx();
+        await CL.importClipFile(ctx.project, ctx.chars, ctx.episode, el.dataset.plan, file);
+        toast('Clip de ' + el.dataset.plan + ' importé');
+        await refresh('clips', 'voices', 'episodes');
     },
     async 'clip-version'(el) {
         const c = await CL.getClip(S.eid, el.dataset.plan);
