@@ -1,0 +1,1949 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0d0d0f">
+<title>Style Forge v5 — Studio Réalisateur</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+--bg:#0d0d0f;--bg2:#141417;--bg3:#1c1c21;--line:#26262c;--line2:#33333c;
+--fg:#f2f2f4;--fg2:#b8b8c0;--mut:#7c7c88;--faint:#55555f;
+--gold:#e6b45a;--ok:#4cc38a;--err:#e05555;--warn:#d8983f;
+--r:14px;--rs:10px;--mono:ui-monospace,Menlo,Consolas,monospace;
+}
+html,body{background:var(--bg);color:var(--fg)}
+body{font:15px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;max-width:880px;margin:0 auto;padding-bottom:110px;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,textarea,select{font-family:inherit;color:var(--fg)}
+img{display:block;max-width:100%}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:3px}
+header{position:sticky;top:0;z-index:50;background:rgba(13,13,15,.94);backdrop-filter:blur(14px);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+header h1{font-size:18px;font-weight:800;letter-spacing:-.02em}
+header h1 em{color:var(--gold);font-style:normal}
+header .sub{font-size:11px;color:var(--mut);margin-top:1px}
+.statchip{display:flex;align-items:center;gap:7px;padding:6px 12px;border-radius:100px;background:var(--bg3);border:1px solid var(--line);font-size:12px;font-weight:600;white-space:nowrap}
+.statchip .dot{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+.statchip.run{border-color:rgba(76,195,138,.4);color:var(--ok)}
+.statchip.run .dot{background:var(--ok);animation:pul 1.6s infinite}
+@keyframes pul{50%{opacity:.35}}
+main{padding:14px 16px}
+.card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);margin-bottom:12px;overflow:hidden}
+.card summary{padding:14px 16px;cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:10px;font-weight:700;font-size:14px}
+.card summary::-webkit-details-marker{display:none}
+.card summary .cnt{font-size:11px;font-weight:700;padding:3px 9px;border-radius:100px;background:var(--bg3);color:var(--mut);margin-left:auto}
+.card summary .arr{color:var(--faint);font-size:11px;transition:transform .15s}
+.card[open] summary .arr{transform:rotate(180deg)}
+.card .content{padding:0 16px 16px}
+.f{margin-bottom:14px}
+.f label{display:block;font-size:11px;font-weight:700;color:var(--fg2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+.f .hint{font-size:11.5px;color:var(--mut);margin-top:5px;line-height:1.45}
+input[type=text],input[type=number],textarea,select{width:100%;padding:11px 13px;border:1px solid var(--line2);border-radius:var(--rs);background:var(--bg3);color:var(--fg);font-size:14px;appearance:none;-webkit-appearance:none}
+input:focus,textarea:focus,select:focus{outline:none;border-color:var(--gold)}
+textarea{font-family:var(--mono);font-size:12px;min-height:76px;resize:vertical;line-height:1.55}
+select{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='7'><path fill='%237c7c88' d='M5 7L0 0h10z'/></svg>");background-repeat:no-repeat;background-position:right 13px center;padding-right:34px}
+input[type=number]{text-align:center}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{padding:8px 13px;border-radius:100px;border:1px solid var(--line2);background:var(--bg3);color:var(--fg2);font-size:12.5px;font-weight:600}
+.seg button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px;border-radius:var(--rs);border:1px solid var(--line2);background:var(--bg3);color:var(--fg);font-size:14px;font-weight:700;min-height:48px;transition:.15s}
+.btn:active{transform:scale(.98)}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn.gold{background:var(--gold);color:#1a1408;border-color:var(--gold)}
+.btn.dng{border-color:rgba(224,85,85,.5);color:var(--err)}
+.brow{display:flex;gap:8px}.brow .btn{flex:1}
+.keyslist{max-height:200px;overflow-y:auto;border:1px solid var(--line);border-radius:var(--rs);margin-top:10px;background:var(--bg3)}
+.kitem{display:flex;align-items:center;gap:9px;padding:9px 12px;border-bottom:1px solid var(--line);font-size:12px}
+.kitem:last-child{border:0}
+.kitem .id{font-family:var(--mono);color:var(--fg2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kst{font-size:9.5px;font-weight:800;padding:3px 8px;border-radius:100px;text-transform:uppercase;flex-shrink:0}
+.kst.ok{background:rgba(76,195,138,.14);color:var(--ok)}
+.kst.cool{background:rgba(216,152,63,.14);color:var(--warn)}
+.kst.dead{background:rgba(224,85,85,.14);color:var(--err)}
+.cap{padding:10px 12px;background:rgba(230,180,90,.08);border:1px solid rgba(230,180,90,.25);border-radius:var(--rs);font-size:12px;color:var(--gold);margin-top:10px;line-height:1.55}
+.saveok{margin-top:8px;font-size:12px;color:var(--ok);min-height:18px}
+.chk{display:flex;align-items:center;gap:12px;padding:12px 13px;border:1px solid var(--line2);border-radius:var(--rs);background:var(--bg3);cursor:pointer}
+.chk input{width:20px;height:20px;accent-color:var(--gold);flex-shrink:0}
+.chk .t{font-size:13px;font-weight:700}
+.chk .d{font-size:11.5px;color:var(--mut);margin-top:2px;line-height:1.4}
+.chk.on{border-color:var(--gold);background:rgba(230,180,90,.07)}
+.drop{position:relative;border:2px dashed var(--line2);border-radius:var(--r);padding:30px 18px;text-align:center;cursor:pointer;transition:.15s;overflow:hidden}
+.drop:hover{border-color:var(--gold)}
+.drop.has{padding:0;border-style:solid;border-color:var(--gold)}
+.drop input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:2}
+.drop.has input[type=file]{display:none}
+.drop .ic{font-size:30px;margin-bottom:8px}
+.drop .ti{font-weight:700}
+.drop .de{font-size:12px;color:var(--mut);margin-top:3px;line-height:1.4;position:relative;z-index:1}
+.drop .prev{position:relative}
+.drop img{width:100%;max-height:320px;object-fit:contain;background:#000}
+.drop .rm{position:absolute;top:10px;right:10px;width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.75);color:#fff;font-size:14px;display:flex;align-items:center;justify-content:center;z-index:3;border:1px solid rgba(255,255,255,.2)}
+#seriesBar{display:flex;gap:6px;overflow-x:auto;padding:4px 0 10px;scrollbar-width:none}
+#seriesBar::-webkit-scrollbar{display:none}
+.stab{padding:7px 13px;border-radius:100px;border:1px solid var(--line2);background:var(--bg2);color:var(--fg2);font-size:12px;font-weight:700;white-space:nowrap;flex-shrink:0}
+.stab.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.stab .n{font-family:var(--mono);opacity:.7;margin-left:4px}
+#stream{display:flex;flex-direction:column;gap:14px}
+.node{position:relative}
+.node.child{margin-left:20px;padding-left:14px;border-left:2px solid var(--line2)}
+.kids{display:flex;flex-direction:column;gap:12px;margin-top:12px}
+.kids.hidden{display:none}
+.ktoggle{display:inline-flex;align-items:center;gap:7px;margin:10px 0 0 14px;padding:6px 13px;border-radius:100px;border:1px solid var(--line2);background:var(--bg3);color:var(--fg2);font-size:12px;font-weight:700}
+.ktoggle .n{font-family:var(--mono);color:var(--gold)}
+.blk{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;animation:bIn .3s ease}
+@keyframes bIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.blk.err{border-color:rgba(224,85,85,.5)}
+.blk.sel{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)}
+.bhead{padding:10px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.bcat{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:100px;background:var(--fg);color:var(--bg);font-size:10px;font-weight:800;text-transform:uppercase;white-space:nowrap}
+.bname{flex:1;min-width:110px;font-weight:700;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bbadges{display:flex;gap:4px}
+.bbadges i{font-style:normal;font-size:9.5px;font-weight:800;padding:2px 6px;border-radius:4px;background:rgba(230,180,90,.9);color:#1a1408}
+.btime{font-size:10.5px;color:var(--faint);font-family:var(--mono)}
+.bsel{width:26px;height:26px;border-radius:7px;border:2px solid var(--line2);background:var(--bg3);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;color:transparent}
+.bsel.on{background:var(--gold);border-color:var(--gold);color:#1a1408}
+.bimg{background:#000;display:flex;align-items:center;justify-content:center;min-height:170px;position:relative}
+.bimg img{width:100%;height:auto;max-height:74vh;object-fit:contain;cursor:zoom-in}
+.bimg .load{width:26px;height:26px;border:3px solid var(--line2);border-top-color:var(--gold);border-radius:50%;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.bimg .errmsg{padding:24px;text-align:center;color:var(--err);font-size:12.5px}
+.bimg .errmsg a{color:var(--gold)}
+.bacts{display:flex;gap:6px;overflow-x:auto;padding:10px 12px;border-top:1px solid var(--line);scrollbar-width:none}
+.bacts::-webkit-scrollbar{display:none}
+.bact{flex-shrink:0;display:inline-flex;align-items:center;gap:6px;padding:8px 13px;border-radius:100px;border:1px solid var(--line2);background:var(--bg3);color:var(--fg2);font-size:12px;font-weight:700}
+.bact .i{font-size:14px}
+.bact:active{transform:scale(.96)}
+.bact.gold{background:var(--gold);color:#1a1408;border-color:var(--gold)}
+.bmore{border-top:1px solid var(--line);padding:12px;background:var(--bg3)}
+.bmore textarea{min-height:64px;margin-bottom:8px}
+.pitch{padding:11px 13px;background:var(--bg2);border:1px solid var(--line);border-radius:var(--rs);margin-bottom:7px;cursor:pointer}
+.pitch .pt{font-weight:700;font-size:13px;display:flex;justify-content:space-between;gap:8px}
+.pitch .pt .mk{font-size:16px;color:var(--faint)}
+.pitch.on{border-color:var(--gold);background:rgba(230,180,90,.08)}
+.pitch.on .pt .mk{color:var(--gold)}
+.pitch .pd{font-size:12px;color:var(--mut);margin-top:3px;line-height:1.4}
+.bmsg{margin:10px 12px 0;padding:9px 12px;border-radius:var(--rs);font-size:12.5px;display:none}
+.bmsg.on{display:block}
+.bmsg.ok{background:rgba(76,195,138,.12);color:var(--ok)}
+.bmsg.err{background:rgba(224,85,85,.12);color:var(--err)}
+.empty{text-align:center;padding:56px 20px;color:var(--faint)}
+.empty .ic{font-size:40px;display:block;margin-bottom:10px}
+.empty .t{font-weight:700;color:var(--fg2);margin-bottom:5px}
+.empty .s{font-size:13px;line-height:1.5;max-width:460px;margin:0 auto}
+#batchDone{display:none;background:var(--bg2);border:1px solid var(--gold);border-radius:var(--r);padding:18px;text-align:center;margin:0 0 14px}
+#batchDone .t{font-weight:800;font-size:16px}
+#batchDone .s{font-size:12.5px;color:var(--mut);margin:6px 0 14px}
+#bar{position:fixed;bottom:0;left:0;right:0;max-width:880px;margin:0 auto;background:rgba(13,13,15,.96);backdrop-filter:blur(16px);border-top:1px solid var(--line);padding:10px 16px 14px;z-index:60}
+.brow2{display:flex;align-items:center;gap:10px}
+.bbtn{width:48px;height:48px;border-radius:var(--rs);border:1px solid var(--line2);background:var(--bg3);font-size:17px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.bbtn.play{background:var(--gold);color:#1a1408;border-color:var(--gold)}
+.bbtn.pause{background:var(--warn);color:#fff;border-color:var(--warn)}
+.bbtn:disabled{opacity:.35}
+.binfo{flex:1;min-width:0}
+.binfo .l1{display:flex;align-items:baseline;gap:8px}
+.binfo .cnt{font-size:21px;font-weight:800;font-family:var(--mono)}
+.binfo .lbl{font-size:10px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+.binfo .eta{font-size:11px;font-family:var(--mono);color:var(--faint);margin-left:auto;white-space:nowrap}
+.binfo .stt{font-size:11px;color:var(--mut);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+.prog{height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;margin-top:6px}
+.prog i{display:block;height:100%;width:0;background:var(--gold);transition:width .3s}
+#selBar{display:none;position:fixed;bottom:78px;left:0;right:0;max-width:880px;margin:0 auto;background:rgba(20,20,23,.97);border:1px solid var(--gold);border-radius:var(--r);padding:12px 14px;z-index:61}
+#selBar.on{display:flex;gap:8px;align-items:center}
+#selBar .txt{flex:1;font-size:13px;font-weight:700}
+#selBar .txt .n{color:var(--gold);font-family:var(--mono)}
+#selBar button{width:auto;padding:9px 14px;min-height:40px;font-size:12.5px;border-radius:100px;flex-shrink:0}
+.modal{position:fixed;inset:0;background:var(--bg);z-index:300;display:none;overflow-y:auto;padding-bottom:90px}
+.modal.on{display:block}
+.mh{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;align-items:center;gap:12px;z-index:5}
+.mh h3{font-size:16px;font-weight:800;flex:1}
+.mh .cnt{font-size:12px;font-family:var(--mono);color:var(--mut)}
+.mh .x{width:36px;height:36px;border-radius:50%;background:var(--bg3);border:1px solid var(--line);font-size:14px;color:var(--fg2);flex-shrink:0}
+.mtabs{display:flex;gap:6px;overflow-x:auto;padding:10px 16px;border-bottom:1px solid var(--line);position:sticky;top:61px;background:var(--bg);z-index:4}
+.mtab{padding:8px 14px;border-radius:100px;border:1px solid var(--line2);background:var(--bg2);color:var(--fg2);font-size:12.5px;font-weight:700;white-space:nowrap;flex-shrink:0}
+.mtab.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.mb{padding:16px}
+.arow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
+.hgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:12px 16px}
+@media(min-width:640px){.hgrid{grid-template-columns:repeat(5,1fr)}}
+.hcell{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;background:var(--bg3);cursor:pointer;border:1px solid var(--line)}
+.hcell img{width:100%;height:100%;object-fit:cover}
+.hcell .l{position:absolute;bottom:0;left:0;right:0;padding:14px 5px 4px;background:linear-gradient(transparent,rgba(0,0,0,.85));color:#fff;font-size:9px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#lb{position:fixed;inset:0;background:rgba(5,5,7,.96);z-index:400;display:none;flex-direction:column}
+#lb.on{display:flex}
+#lb .lbh{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);flex-shrink:0}
+#lb .lbh .ti{flex:1;min-width:0;font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#lb .lbh button{width:36px;height:36px;border-radius:50%;background:var(--bg3);border:1px solid var(--line);font-size:14px;color:var(--fg2);flex-shrink:0}
+#lb .lbbody{flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:12px}
+#lb img{max-width:100%;max-height:68vh;object-fit:contain;border-radius:8px}
+#lb .lbacts{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;padding:14px 0}
+#lb .lp{width:100%;max-width:700px;font-family:var(--mono);font-size:10.5px;color:var(--mut);line-height:1.5;background:var(--bg2);border:1px solid var(--line);border-radius:var(--rs);padding:10px 12px;white-space:pre-wrap;word-break:break-word}
+#lb .lbline{font-size:11.5px;color:var(--faint);margin-top:8px;text-align:center}
+#toast{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-120px);background:var(--fg);color:#0a0a0c;padding:11px 18px;border-radius:100px;font-size:13px;font-weight:700;z-index:999;opacity:0;transition:.28s cubic-bezier(.2,.9,.3,1.1);max-width:88vw;pointer-events:none}
+#toast.on{opacity:1;transform:translateX(-50%)}
+#toast.err{background:var(--err);color:#fff}
+#toast.warn{background:var(--warn);color:#fff}
+#logw{margin:16px;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+#logw summary{padding:10px 14px;cursor:pointer;font-size:12px;font-weight:700;color:var(--mut);list-style:none}
+#logw summary::-webkit-details-marker{display:none}
+#log{max-height:150px;overflow-y:auto;background:var(--bg2);border-top:1px solid var(--line);padding:8px 12px;font-family:var(--mono);font-size:10.5px;line-height:1.6;color:var(--fg2)}
+#log .l{word-break:break-word;padding:1px 0}
+#log .l.s{color:var(--ok)}
+#log .l.e{color:var(--err)}
+#log .l.w{color:var(--warn)}
+#log .t{color:var(--faint);margin-right:6px}
+</style>
+</head>
+<body>
+
+<header>
+<div>
+<h1>Style <em>Forge</em> v5</h1>
+<p class="sub">Studio du réalisateur · sobre, intellectuel, exhaustif</p>
+</div>
+<div class="statchip" id="chip"><span class="dot"></span><span id="chipTx">Prêt</span></div>
+</header>
+
+<main>
+
+<details class="card" open id="cKeys">
+<summary><span>🔑</span> Clés API <span class="cnt" id="keyBadge">0</span><span class="arr">▾</span></summary>
+<div class="content">
+<div class="f">
+<label>Une clé par ligne — sauvegarde auto</label>
+<textarea id="keysIn" rows="4" placeholder="sk-xxxx&#10;sk-yyyy" spellcheck="false" autocomplete="off"></textarea>
+<div class="saveok" id="saveOk"></div>
+<div class="hint">Rotation auto sur la clé la moins sollicitée · cooldown 65 s sur 429.</div>
+</div>
+<div class="keyslist" id="keysList" style="display:none"></div>
+<div class="cap" id="capBox" style="display:none"></div>
+</div>
+</details>
+
+<details class="card" open id="cSet">
+<summary><span>⚙️</span> Réglages du tournage <span class="arr">▾</span></summary>
+<div class="content">
+
+<div class="f">
+<label>Identité conservée</label>
+<div class="chk" id="cloneChk">
+<input type="checkbox" id="cloneFull">
+<div><div class="t">Visage uniquement</div><div class="d" id="cloneDesc">Seul le visage est cloné ; habits, coiffe et décor changent à chaque image. Coche pour cloner aussi le chapeau et les vêtements.</div></div>
+</div>
+</div>
+
+<div class="f">
+<label>🎬 Mode studio</label>
+<select id="modeSel">
+<option value="cinema">🎥 Cinéma — grands réalisateurs</option>
+<option value="photo" selected>📸 Grands photographes</option>
+<option value="harcourt">🔍 Portraits Studio Harcourt</option>
+<option value="couture">👗 Haute couture (sobre)</option>
+<option value="art">🖼️ Beaux-arts & matériaux</option>
+<option value="street">🧱 Street art — toutes techniques</option>
+<option value="affiche">💣 Affiches créatives (punk, propagande…)</option>
+<option value="illus">📚 Illustration / BD / Comics</option>
+<option value="manga">🌸 Manga / Anime</option>
+<option value="realisme">🔬 Hyperréalisme</option>
+<option value="hyperillus">🌀 Hyper-illustration</option>
+<option value="hook">📱 Abonnement / TikTok / Promo</option>
+<option value="all">🎲 Tout mélanger</option>
+</select>
+<div class="hint" id="modeHint"></div>
+</div>
+
+<div class="f">
+<label>Scènes à forger d'un coup</label>
+<div class="seg" id="batchSeg">
+<button data-v="20">20</button>
+<button data-v="40" class="on">40</button>
+<button data-v="60">60</button>
+</div>
+</div>
+
+<div class="f">
+<label>Format</label>
+<select id="ratio">
+<option value="1:1" selected>⬛ Carré 1:1</option>
+<option value="9:16">📱 Portrait 9:16</option>
+<option value="16:9">🖥️ Paysage 16:9</option>
+<option value="4:3">🖼️ 4:3</option>
+<option value="3:4">📖 3:4</option>
+<option value="mixed">🎲 Mélangé</option>
+</select>
+</div>
+
+<div class="f">
+<label>Résolution</label>
+<select id="sizeSel">
+<option value="1K" selected>1K · rapide (20 RPM/clé)</option>
+<option value="2K">2K · qualité (5 RPM/clé)</option>
+</select>
+</div>
+
+<div class="f">
+<label>2ᵉ personnage (univers de l'artiste)</label>
+<select id="duoSel">
+<option value="none" selected>Solo</option>
+<option value="sometimes">Parfois (≈ 40 %)</option>
+<option value="always">Toujours</option>
+</select>
+</div>
+
+<div class="f">
+<label>Saut dans l'espace</label>
+<select id="spaceSel">
+<option value="0.1" selected>Rare (1/10)</option>
+<option value="0.05">Très rare</option>
+<option value="0.3">Fréquent</option>
+<option value="0">Jamais</option>
+</select>
+</div>
+
+<div class="f">
+<label>Texte sur les vêtements</label>
+<select id="txtSel">
+<option value="yes">Toujours</option>
+<option value="sometimes" selected>Parfois</option>
+<option value="no">Jamais</option>
+</select>
+<div class="hint">Le texte se règle dans ⚙️ Admin → Textes (vide = aucun texte).</div>
+</div>
+
+<div class="f">
+<label>Workers par clé</label>
+<input type="number" id="wPerKey" value="2" min="1" max="4">
+<div class="hint" id="wHint"></div>
+</div>
+
+<div class="f">
+<label>Intervalle min. entre requêtes par clé (ms)</label>
+<input type="number" id="interval" value="3000" min="500" max="20000" step="500">
+</div>
+
+</div>
+</details>
+
+<details class="card" open id="cPhoto">
+<summary><span>🎬</span> Photo / image de référence <span class="cnt" id="phBadge">—</span><span class="arr">▾</span></summary>
+<div class="content">
+<div class="drop" id="drop">
+<input type="file" accept="image/*" id="fileIn">
+<div class="ic">🎬</div>
+<div class="ti">Charger l'image de référence</div>
+<div class="de">Visage bien visible, face caméra. Valide et tu obtiens immédiatement une série complète de scènes, même visage, univers très variés.</div>
+</div>
+<button class="btn gold" id="startBtn" style="margin-top:12px" disabled>⚡ FORGER LA SÉRIE</button>
+</div>
+</details>
+
+<div class="brow" style="margin-bottom:14px">
+<button class="btn" id="selModeBtn">☑️ Sélection multiple</button>
+<button class="btn" id="histBtn" style="flex:0 0 54px" title="Historique">📜</button>
+<button class="btn" id="sessBtn" style="flex:0 0 54px" title="Sessions">🗂</button>
+<button class="btn" id="adminBtn" style="flex:0 0 54px" title="Admin">⚙️</button>
+</div>
+
+<nav id="seriesBar" style="display:none"></nav>
+<div id="batchDone">
+<div class="t">✨ Série terminée</div>
+<div class="s" id="batchDoneSub"></div>
+<button class="btn gold" id="nextBatchBtn">▶ Nouvelle série</button>
+</div>
+
+<section id="stream"></section>
+
+<div class="empty" id="empty">
+<span class="ic">🎬</span>
+<div class="t">Le plateau est vide</div>
+<div class="s">Charge une photo, choisis un mode (photographes, Harcourt, couture, beaux-arts, street art, hyperréalisme…), forge 20 à 60 scènes. Développe chaque image en branche : c'est toujours l'image générée qui sert de source. Coche des images pour les télécharger en lot. Esthétique générale : sobre, intellectuelle, jamais tapageuse.</div>
+</div>
+
+<details id="logw">
+<summary>🛠 Journal technique</summary>
+<div id="log"></div>
+</details>
+
+</main>
+
+<div id="selBar">
+<span class="txt">☑ <span class="n" id="selN">0</span> sélectionnée(s)</span>
+<button class="btn gold" id="selAll">Tout</button>
+<button class="btn" id="selNone">Aucune</button>
+<button class="btn gold" id="selDl">📥 Télécharger</button>
+</div>
+
+<nav id="bar">
+<div class="brow2">
+<button class="bbtn play" id="playBtn" disabled>▶</button>
+<button class="bbtn pause" id="pauseBtn" style="display:none">⏸</button>
+<div class="binfo">
+<div class="l1"><span class="cnt" id="bCount">0</span><span class="lbl">images</span><span class="eta" id="bEta"></span></div>
+<div class="stt" id="bStat">Prêt · charge ta photo et forge</div>
+<div class="prog"><i id="bProg"></i></div>
+</div>
+</div>
+</nav>
+
+<div class="modal" id="sessM">
+<div class="mh"><h3>🗂 Sessions</h3><button class="x" id="sessX">✕</button></div>
+<div class="mb" id="sessBody"></div>
+</div>
+
+<div class="modal" id="histM">
+<div class="mh"><h3>📜 Toutes mes images</h3><span class="cnt" id="histCnt">0</span><button class="x" id="histX">✕</button></div>
+<div class="hgrid" id="hGrid"></div>
+</div>
+
+<div class="modal" id="admM">
+<div class="mh"><h3>⚙️ Administration</h3><button class="x" id="admX">✕</button></div>
+<div class="mtabs">
+<button class="mtab on" data-t="prompts">📝 Prompts</button>
+<button class="mtab" data-t="texts">✍️ Textes</button>
+<button class="mtab" data-t="api">🔌 API</button>
+<button class="mtab" data-t="plans">🎬 Esthétiques</button>
+</div>
+<div class="mb" id="admBody"></div>
+</div>
+
+<div id="lb">
+<div class="lbh">
+<span class="ti" id="lbTi">—</span>
+<button id="lbX">✕</button>
+</div>
+<div class="lbbody">
+<img id="lbImg" alt="">
+<div class="lbacts" id="lbActs"></div>
+<div class="lbline" id="lbLine"></div>
+<div class="lp" id="lbPrompt"></div>
+</div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ════════════════════════════════════════════════════════════════
+   CONFIG
+════════════════════════════════════════════════════════════════ */
+var DEF_API='https://apihub.agnes-ai.com/v1';
+var DEF_MTX='agnes-2.5-flash';
+var DEF_MIMG='agnes-image-2.1-flash';
+var LS={keys:'sf5_keys',db:'sf5_db',adm:'sf5_adm',cfg:'sf5_cfg',api:'sf5_api'};
+var IDB_NAME='styleforge5',IDB_VER=1;
+
+function $(id){return document.getElementById(id)}
+function sleep(ms){return new Promise(function(r){setTimeout(r,ms)})}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]})}
+function nowT(){return new Date().toLocaleTimeString('fr-FR',{hour12:false})}
+function rnd(a){return a[Math.floor(Math.random()*a.length)]}
+function stamp(){var d=new Date(),p=function(n){return String(n).padStart(2,'0')};return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'_'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds())}
+function safe(s){return String(s||'style').replace(/[^a-z0-9\-_]+/gi,'_').replace(/_+/g,'_').slice(0,36)}
+
+var toastT;
+function toast(m,t){var el=$('toast');el.textContent=m;el.className='on '+(t||'');clearTimeout(toastT);toastT=setTimeout(function(){el.className=''},2600)}
+function log(m,lv){var c=$('log');if(!c)return;var d=document.createElement('div');d.className='l '+(lv||'');d.innerHTML='<span class="t">'+nowT()+'</span>'+esc(m);c.appendChild(d);while(c.children.length>120)c.removeChild(c.firstChild);c.scrollTop=c.scrollHeight}
+
+/* ════════════════════════════════════════════════════════════════
+   INDEXEDDB
+════════════════════════════════════════════════════════════════ */
+var idb=null;
+function idbOpen(){
+  return new Promise(function(res,rej){
+    if(idb)return res(idb);
+    if(!window.indexedDB)return rej(new Error('IndexedDB indisponible'));
+    var rq=indexedDB.open(IDB_NAME,IDB_VER);
+    rq.onupgradeneeded=function(e){
+      var d=e.target.result;
+      if(!d.objectStoreNames.contains('images'))d.createObjectStore('images',{keyPath:'id'});
+      if(!d.objectStoreNames.contains('series'))d.createObjectStore('series',{keyPath:'id'});
+      if(!d.objectStoreNames.contains('kv'))d.createObjectStore('kv');
+    };
+    rq.onsuccess=function(e){idb=e.target.result;res(idb)};
+    rq.onerror=function(){rej(rq.error||new Error('open fail'))};
+  });
+}
+function idbPut(store,val,key){
+  return idbOpen().then(function(db){
+    return new Promise(function(res,rej){
+      var tx=db.transaction(store,'readwrite');
+      if(key!==undefined)tx.objectStore(store).put(val,key);
+      else tx.objectStore(store).put(val);
+      tx.oncomplete=function(){res(true)};
+      tx.onerror=function(){rej(tx.error)};
+    });
+  });
+}
+function idbGet(store,key){
+  return idbOpen().then(function(db){
+    return new Promise(function(res,rej){
+      var rq=db.transaction(store).objectStore(store).get(key);
+      rq.onsuccess=function(){res(rq.result)};
+      rq.onerror=function(){rej(rq.error)};
+    });
+  });
+}
+function idbGetAll(store){
+  return idbOpen().then(function(db){
+    return new Promise(function(res,rej){
+      var rq=db.transaction(store).objectStore(store).getAll();
+      rq.onsuccess=function(){res(rq.result||[])};
+      rq.onerror=function(){rej(rq.error)};
+    });
+  });
+}
+function idbDel(store,key){
+  return idbOpen().then(function(db){
+    return new Promise(function(res,rej){
+      var tx=db.transaction(store,'readwrite');
+      tx.objectStore(store).delete(key);
+      tx.oncomplete=function(){res(true)};
+      tx.onerror=function(){rej(tx.error)};
+    });
+  });
+}
+function saveImage(item){
+  /* méta lue au moment de l'écriture : c'est toujours l'état « déplié » le plus récent qui est enregistré */
+  var metaOf=function(){return{cat:item.cat,style:item.style,ratio:item.ratio,seriesId:item.seriesId,parent:item.parent||null,
+    fname:item.fname,time:item.time,badges:item.badges,prompt:item.prompt,open:!!item.open}};
+  if(item.saved){
+    /* image déjà enregistrée : on met seulement à jour ses métadonnées */
+    return idbGet('images',item.id).then(function(rec){if(rec){rec.meta=metaOf();return idbPut('images',rec)}}).catch(function(){});
+  }
+  var put=function(blob){
+    return idbPut('images',{id:item.id,blob:blob,url:blob?null:item.url,meta:metaOf()}).then(function(){item.saved=true});
+  };
+  if(item.blob)return put(item.blob);
+  return fetch(item.url,{mode:'cors'}).then(function(r){return r.blob()}).then(function(blob){
+    item.blob=blob;return put(blob);
+  }).catch(function(){
+    return idbPut('images',{id:item.id,blob:null,url:item.url,meta:metaOf()}).then(function(){item.saved=true});
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   BANQUE D'ESTHÉTIQUES — sobre, intellectuelle, exhaustive
+════════════════════════════════════════════════════════════════ */
+var MODES={
+cinema:{n:'Cinéma',i:'🎥',cats:{}},
+photo:{n:'Grands photographes',i:'📸',cats:{}},
+harcourt:{n:'Studio Harcourt',i:'🔍',cats:{}},
+couture:{n:'Haute couture',i:'👗',cats:{}},
+art:{n:'Beaux-arts & matériaux',i:'🖼️',cats:{}},
+street:{n:'Street art',i:'🧱',cats:{}},
+affiche:{n:'Affiches',i:'💣',cats:{}},
+illus:{n:'Illustration/BD',i:'📚',cats:{}},
+manga:{n:'Manga/Anime',i:'🌸',cats:{}},
+realisme:{n:'Hyperréalisme',i:'🔬',cats:{}},
+hyperillus:{n:'Hyper-illustration',i:'🌀',cats:{}},
+hook:{n:'Abonnement/Promo',i:'📱',cats:{}}
+};
+var CATS={};
+function defCat(id,mode,n,i){CATS[id]={n:n,i:i,mode:mode};MODES[mode].cats[id]=id;}
+
+/* CINÉMA */
+defCat('wes','cinema','Wes Anderson','🎪');defCat('kub','cinema','Kubrick','🛰️');
+defCat('hitch','cinema','Hitchcock','🐦');defCat('tar','cinema','Tarantino','💀');
+defCat('vill','cinema','Villeneuve','🏜️');defCat('lynch','cinema','David Lynch','🍒');
+defCat('wong','cinema','Wong Kar-wai','🌃');defCat('kuro','cinema','Kurosawa','⚔️');
+defCat('bong','cinema','Bong Joon-ho','🏠');defCat('nolan','cinema','Nolan','🌀');
+defCat('refn','cinema','Winding Refn','🔵');defCat('noir','cinema','Film noir 40s','🕵️');
+defCat('ghia','cinema','Néoréalisme italien','🚲');defCat('tark','cinema','Tarkovski','🕯️');
+defCat('parnat','cinema','Nouvelle vague','☕');defCat('malick','cinema','Terrence Malick','🌾');
+/* PHOTOGRAPHES */
+defCat('lei','photo','Annie Leibovitz','📸');defCat('mcc','photo','Steve McCurry','🌍');
+defCat('avedon','photo','Richard Avedon','⬛');defCat('newton','photo','Helmut Newton','👠');
+defCat('lindb','photo','Peter Lindbergh','🖤');defCat('leiter','photo','Saul Leiter','☂️');
+defCat('maier','photo','Vivian Maier','🕵️');defCat('salgado','photo','Sebastião Salgado','🌋');
+defCat('cartier','photo','Cartier-Bresson','🚶');defCat('araki','photo','Nobuyoshi Araki','🧵');
+defCat('parr','photo','Martin Parr','🏖️');defCat('crawford','photo','Cindy Sherman','🎭');
+/* HARCOURT */
+defCat('harco','harcourt','Portrait Harcourt classique','🔍');
+defCat('harco2','harcourt','Harcourt dramatique clair-obscur','🕯️');
+defCat('harco3','harcourt','Harcourt glamour années 40','💎');
+defCat('harco4','harcourt','Harcourt contemporain','🖤');
+/* COUTURE */
+defCat('chanel','couture','Tailleur Chanel','⛓️');defCat('dior','couture','Bar Dior','🏬');
+defCat('gaultier','couture','Gaultier architecture','📐');defCat('yohji','couture','Yohji Yamamoto','⚫');
+defCat('margiela','couture','Margiela déconstruction','✂️');defCat('balen','couture','Balenciaga sculptural','🗿');
+defCat('armani','couture','Armani sobriété','🤍');defCat('watanabe','couture','Rei Kawakubo / Comme des Garçons','🌙');
+/* BEAUX-ARTS */
+defCat('pochoir','art','Pochoir stencil','🕳️');defCat('clay','art','Pâte à modeler / claymation','🧱');
+defCat('sculpt','art','Sculpture marbre','🗿');defCat('bronze','art','Sculpture bronze','🥉');
+defCat('fresco','art','Fresque renaissance','🏛️');defCat('oilport','art','Portrait à l\'huile','🖌️');
+defCat('carav','art','Caravage clair-obscur','🕯️');defCat('vermeer','art','Vermeer lumière','🪟');
+defCat('sumi','art','Sumi-e encre','🖤');defCat('aqua','art','Aquarelle','💧');
+defCat('gouache','art','Gouache','🎨');defCat('charc','art','Fusain / sanguine','🪵');
+defCat('mosaic','art','Mosaïque byzantine','🔮');defCat('vitrail','art','Vitrail gothique','⛪');
+defCat('origami','art','Origami papier','📄');defCat('papercut','art','Papier découpé','✂️');
+defCat('woodcut','art','Gravure sur bois','🪚');defCat('etch','art','Eau-forte','🖋️');
+defCat('ceramic','art','Céramique raku','🏺');defCat('bronzeclay','art','Terre cuite','🧱');
+defCat('lowpoly','art','Low poly','🔷');defCat('glass','art','Sculpture de verre','🔷');
+/* STREET ART */
+defCat('banksy','street','Pochoir Banksy','🕳️');defCat('wildstyle','street','Graffiti wildstyle','🖊️');
+defCat('poster','street','Wheatpaste affiche collée','📋');defCat('sticker','street','Sticker art','🏷️');
+defCat('mosaicst','street','Mosaïque de rue','🎲');defCat('yarn','street','Yarn bombing','🧶');
+defCat('stencilpo','street','Pochoir multicouche','🎭');defCat('reverse','street','Graffiti inversé (nettoyage)','🧼');
+defCat('murals','street','Fresque murale monumentale','🏙️');defCat('pasteup','street','Paste-up collage','🧻');
+defCat('light','street','Projection lumineuse','💡');defCat('inkwash','street','Encre et lavis urbain','🖌️');
+/* AFFICHES */
+defCat('punk','affiche','Punk créatif','🏴');defCat('sov','affiche','Constructivisme soviétique','🚩');
+defCat('swiss','affiche','Typographie suisse','◻️');defCat('bauhaus','affiche','Bauhaus','🔴');
+defCat('artdeco','affiche','Art déco','🏙️');defCat('muchap','affiche','Mucha Art nouveau','🌿');
+defCat('ukiyo','affiche','Ukiyo-e','🌊');defCat('vhs','affiche','VHS 80s','📼');
+defCat('dada','affiche','Dada collage','✂️');defCat('psyche','affiche','Psychédélique 60s','🌈');
+/* ILLUSTRATION */
+defCat('ligneclaire','illus','Ligne claire','📏');defCat('goldage','illus','Golden Age comics','🦸');
+defCat('penink','illus','Plume & encre','🖋️');defCat('woodengr','illus','Gravure victorienne','🎩');
+defCat('muchai','illus','Illustration Mucha','🌿');defCat('flatmod','illus','Flat moderne','🔷');
+/* MANGA */
+defCat('seinen','manga','Seinen réaliste','🌑');defCat('ghibli','manga','Ghibli','🍃');
+defCat('shinkai','manga','Shinkai','🌇');defCat('retro80','manga','Anime rétro 80s','📺');
+/* HYPERRÉALISME */
+defCat('hyper','realisme','Portrait photoréaliste','🔬');defCat('macro','realisme','Macro peau & lumière','🧬');
+defCat('dutch','realisme','Réalisme hollandais moderne','🧀');defCat('editorial','realisme','Éditorial magazine','📰');
+/* HYPER-ILLUSTRATION */
+defCat('kruger','hyperillus','Barbara Kruger typographique','🅰️');defCat('hockney','hyperillus','David Hockney','🏊');
+defCat('basquiat','hyperillus','Basquiat','🖍️');defCat('kahlo','hyperillus','Frida Kahlo','🌺');
+defCat('magritte','hyperillus','Magritte','🎩');defCat('escher','hyperillus','Escher impossible','🔁');
+defCat('beardsley','hyperillus','Aubrey Beardsley','🖤');defCat('klimt','hyperillus','Klimt doré','🌟');
+/* HOOK / ABONNEMENT */
+defCat('tiktok','hook','Abonnement TikTok','📱');defCat('follow','hook','Follow / Like / Comment','👉');
+defCat('promo','hook','Promo sobre','🛍️');defCat('edito','hook','Éditorial people','📰');
+
+var BASE=[
+/* — CINÉMA — */
+['wes1','wes','Symétrie frontale pastel','Wes Anderson style: perfect bilateral symmetry, subject dead-center, pastel pink and butter yellow palette, meticulous flat set design, 35mm film still'],
+['wes2','wes','Plan amplitude poupée','Wes Anderson style: wide symmetrical establishing shot, small centered subject, candy pastel architecture, dollhouse perspective'],
+['kub1','kub','Perspective à un point','Stanley Kubrick style: one-point perspective symmetrical corridor, subject at vanishing point, cold clinical light, unnerving stillness'],
+['kub2','kub','Baroque bougies','Stanley Kubrick style: candlelit baroque interior, warm amber against deep shadow, symmetry, slow dread'],
+['kub3','kub','Close-up clinique','Stanley Kubrick style: slow emotional close-up, centered face, single hard key light, black background'],
+['hit1','hitch','Escalier menaçant','Alfred Hitchcock style: dramatic low angle on a staircase, menacing geometry, high contrast black and white, 1950s thriller'],
+['hit2','hitch','Key light et rideaux','Alfred Hitchcock style: subject behind a sheer curtain, single hard key light, deep shadows, quiet menace'],
+['tar1','tar','Table de diner 70s','Tarantino style: two-shot across a diner table, 1970s aesthetic, saturated primaries, tense conversation, 35mm film'],
+['tar2','tar','Couloir rétro néon','Tarantino style: figure walking down a long corridor, hard backlight, yellow palette, graphic composition'],
+['vil1','vill','Echelle monumentale','Denis Villeneuve style: tiny human silhouette before colossal brutalist architecture, dust haze, muted palette, sublime restraint'],
+['vil2','vill','Silhouette dans la brume','Denis Villeneuve style: lone figure in fog, backlit, cold blue-grey monochrome, immense negative space'],
+['lyn1','lynch','Rideaux rouges oniriques','David Lynch style: red velvet curtains, slow-club lighting, dreamlike figure, deep shadow, uncanny warmth'],
+['lyn2','lynch','Route de nuit','David Lynch style: lonely highway at night, sodium vapor light, figure lit by headlights, unsettling stillness'],
+['won1','wong','Néon Hong Kong','Wong Kar-wai style: cramped Hong Kong interior, saturated neon red and green, motion blur feel, 1990s melancholy'],
+['kur1','kuro','Elément déchaîné','Kurosawa style: figure battling wind rain or storm, telephoto compression, high contrast monochrome'],
+['kur2','kuro','Seigneur féodal','Kurosawa style: feudal lord in layered robes, formal symmetry, deep focus static frame, austere grandeur'],
+['bon1','bong','Escalier social','Bong Joon-ho style: characters on a staircase, layered composition, muted green-grey palette, dark humor tension'],
+['nol1','nolan','Costume dans le vide','Nolan style: figure in a sharp suit in a vast corporate void, single cold window light, moral gravity'],
+['ref1','refn','Néon silence','Nicolas Winding Refn style: neon-soaked silence, geometric staging, hypnotic magenta and cyan, night'],
+['noi1','noir','Chiaroscuro bureau','American film noir, high contrast black and white, venetian blind shadows, 1940s detective office'],
+['ghia1','ghia','Rue néoréaliste','Italian neorealism: sun-bleached street, non-professional framing, honest grainy black and white, everyday dignity'],
+['tark1','tark','Méditation eau & lumière','Tarkovsky style: long meditative shot, water reflections, candlelight, painterly decay, spiritual stillness'],
+['parnat1','parnat','Nouvelle vague café','French New Wave: café terrace, natural light, candid pose, 1960s Paris, jump-cut energy frozen in frame'],
+['mali1','malick','Lumière nature mystique','Terrence Malick style: subject in tall grass at magic hour, backlight through leaves, whispered grace, natural poetry'],
+/* — GRANDS PHOTOGRAPHES — */
+['lei1','lei','Portrait studio construit','Annie Leibovitz style: elaborate staged portrait, theatrical single-source light, narrative props, composed gravity'],
+['lei2','lei','Portrait narratif','Annie Leibovitz style: cinematic character portrait, dramatic directional light, half in shadow, storytelling wardrobe'],
+['mcc1','mcc','Regard droit documentaire','Steve McCurry style: direct gaze into lens, sharp catchlight, saturated honest color, 35mm photojournalism'],
+['mcc2','mcc','Poussière et lumière','Steve McCurry style: figure in a shaft of light or dust haze, deep saturated color, documentary weight'],
+['ave1','avedon','Fond blanc frontal','Richard Avedon style: bare white seamless backdrop, subject alone, sharp raking daylight, unposed honesty'],
+['ave2','avedon','Entre deux poses','Richard Avedon style: the instant between poses, flicker of true expression, white void, honest light'],
+['new1','newton','Nuit élégante','Helmut Newton style: 1970s city night, single hard flash, provocative monochrome elegance, commanding posture'],
+['new2','newton','Couloir d\'hôtel','Helmut Newton style: opulent hotel corridor, poised figure, cold artificial light, voyeuristic monochrome distance'],
+['lin1','lindb','Noir et blanc honnête','Peter Lindbergh style: black and white portrait, natural light, no retouch, raw skin and soul, close crop'],
+['lin2','lindb','Groupe urbain','Peter Lindbergh style: characters in loose tailoring, black and white, urban industrial backdrop, candid energy'],
+['lei3','leiter','Parapluie rouge','Saul Leiter style: figure through rain-streaked glass, muted painterly color, abstract foreground, quietism'],
+['mai1','maier','Ombres longues','Vivian Maier style: long late-afternoon shadows, lone walker, black and white, geometric rhythm, square format'],
+['sal1','salgado','Gravité monumentale','Sebastião Salgado style: monumental black and white, dramatic sky, human figure in epic landscape, dignified gravity'],
+['cb1','cartier','Instant décisif','Henri Cartier-Bresson style: the decisive moment, candid geometry, black and white, 50mm natural light'],
+['ara1','araki','Intimité lumière soie','Nobuyoshi Araki style: intimate black and white portrait, soft window light, silk texture, melancholic closeness'],
+['parr1','parr','Couleur satirique','Martin Parr style: saturated flash color, everyday absurdity, social satire with warmth, slightly awkward candidness'],
+['she1','crawford','Autoportrait mise en scène','Cindy Sherman style: staged self-portrait fiction, cinematic disguise, constructed identity, film still aesthetic'],
+/* — HARCOURT — */
+['h1','harco','Portrait Harcourt signature','Studio Harcourt portrait: dramatic side lighting on face, deep black background, luminous skin, glamorous mystery, timeless elegance, silver halide grain'],
+['h2','harco2','Clair-obscur renforcé','Studio Harcourt portrait: extreme chiaroscuro, single sculpting light from upper left, half the face in velvety shadow, intense gaze, 1940s black and white'],
+['h3','harco3','Glamour années 40','Studio Harcourt portrait: 1940s glamour, soft focus glow, backlit hair halo, satin fabric, refined pose, black background'],
+['h4','harco4','Harcourt contemporain','Modern Harcourt-inspired portrait: crisp contemporary detail with classic side light, charcoal background, understated luxury'],
+/* — HAUTE COUTURE (sobre) — */
+['c1','chanel','Tailleur intemporel','Chanel haute couture: impeccable tweed tailleur, pearl detail, muted palette, Parisian interior, restrained luxury'],
+['c2','dior','Silhouette Bar','Dior New Look: sculpted bar jacket, cinched waist, long skirt, grey salon, elegant sobriety'],
+['c3','gaultier','Architecture couture','Jean Paul Gaultier couture: structured architectural garment, precise lines, studio lighting, monochrome backdrop, no excess'],
+['c4','yohji','Noir Yamamoto','Yohji Yamamoto: draped black garment, asymmetric silhouette, austere monochrome, sculptural fabric, contemplative'],
+['c5','margiela','Déconstruction blanche','Maison Margiela: deconstructed white garment, exposed seams, clinical white space, conceptual restraint'],
+['c6','balen','Sculpture monochrome','Balenciaga couture: sculptural monochrome volume, severe silhouette, grey seamless backdrop, museum stillness'],
+['c7','armani','Sobriété linéaire','Giorgio Armani: soft unstructured suit, palette within one tonal family, warm grey light, quiet authority'],
+['c8','watanabe','Comme des Garçons','Rei Kawakubo / Comme des Garçons: avant-garde volume, abstract black form, radical restraint, gallery light'],
+/* — BEAUX-ARTS & MATÉRIAUX — */
+['a1','pochoir','Pochoir portrait','Hand-cut stencil portrait: layered spray paint, limited duotone palette, crisp bridge cuts, urban gallery finish, subtle grit'],
+['a2','pochoir','Pochoir multimatrice','Multi-layer stencil portrait: 3-tone gradient cuts, misted edges, poster pigment, contemporary urban sophistication'],
+['a3','clay','Pâte à modeler','Claymation portrait: handmade plasticine character, visible fingerprints, stop-motion set, soft studio light, charming craft'],
+['a4','clay','Claymation scène','Claymation diorama: miniature clay figure on handcrafted set, tilt-shift feel, warm practical lights'],
+['a5','sculpt','Buste marbre','Classical marble bust portrait: white Carrara marble, chiseled drapery, museum lighting, translucent stone depth'],
+['a6','bronze','Bronze patine','Bronze sculpture portrait: dark patina, foundry surface, dramatic gallery spotlight, heroic yet calm'],
+['a7','fresco','Fresque renaissance','Renaissance fresco portrait: pigment on plaster, muted earth tones, gold leaf accent, linear perspective, serene'],
+['a8','oilport','Huile classique','Classical oil portrait: old master technique, glazing layers, dark ground, three-quarter pose, dignified'],
+['a9','carav','Caravage moderne','Caravaggio style: extreme chiaroscuro, single illumination source, deep black background, theatrical gravity'],
+['a10','vermeer','Lumière Vermeer','Vermeer style: soft window light from the left, quiet domestic interior, pearl tonality, camera obscura intimacy'],
+['a11','sumi','Sumi-e encre','Japanese sumi-e portrait: bold ink brushwork, negative space, single accent of red seal, zen minimalism'],
+['a12','aqua','Aquarelle','Watercolor portrait: translucent washes, controlled bleeding, paper grain, luminous restraint'],
+['a13','gouache','Gouache mate','Gouache illustration: flat matte pigment, poster-like tonal design, limited palette, mid-century elegance'],
+['a14','charc','Fusain sanguine','Charcoal and red chalk portrait: gestural strokes, tonal smudge, tactile paper, academic atelier'],
+['a15','mosaic','Mosaïque byzantine','Byzantine mosaic portrait: gold and smalti tesserae, hieratic composition, shimmering flat depth'],
+['a16','vitrail','Vitrail gothique','Gothic stained glass portrait: leaded contours, jewel tones, transmitted light, sacred geometry'],
+['a17','origami','Origami sculpté','Origami-inspired paper portrait: precise folded planes, single sheet logic, soft shadows, gallery white'],
+['a18','papercut','Papier découpé','Layered paper-cut portrait: silhouettes at depths, backlit translucency, delicate craft, warm glow'],
+['a19','woodcut','Gravure sur bois','Woodcut print portrait: bold gouge marks, black and one ink, expressionist grain, hand-printed'],
+['a20','etch','Eau-forte','Etching portrait: fine crosshatched lines, sepia ink on aged paper, Rembrandt intaglio intimacy'],
+['a21','ceramic','Raku céramique','Raku ceramic portrait relief: crackle glaze, smoke-blackened clay, wabi-sabi imperfection'],
+['a22','lowpoly','Low poly','Low-poly 3D portrait: faceted geometry, controlled gradient palette, clean studio render, modern minimalism'],
+['a23','glass','Verre soufflé','Sculptural glass portrait: blown glass form, internal refraction, luminous edges, dark backdrop'],
+/* — STREET ART — */
+['s1','banksy','Pochoir mural','Banksy-style stencil street art: single-layer black spray on concrete wall, satirical poise, urban authenticity, social subtext'],
+['s2','banksy','Pochoir bicolore','Banksy-style stencil: two-tone spray, rat or balloon motif interaction, raw wall texture, wry intelligence'],
+['s3','wildstyle','Wildstyle lettre','Wildstyle graffiti portrait: interlocking letterforms, chrome and flat colors, clean sharp contours, aerosol mastery'],
+['s4','wildstyle','Piece flamboyant sobre','Refined graffiti piece: restrained palette of three colors, calligraphic flow, subway wall, urban classicism'],
+['s5','poster','Wheatpaste','Wheatpaste poster art: layered ripped paper portraits on wall, urban patina, documentary honesty'],
+['s6','sticker','Sticker art','Sticker art composition: hand-drawn sticker cluster, bold flat colors, slapping energy, street gallery'],
+['s7','mosaicst','Mosaïque de rue','Street mosaic portrait: ceramic tesserae on wall, pixel perception, playful precision'],
+['s8','yarn','Yarn bombing','Yarn bombing: knitted textile covering urban object, soft intervention, pastel wool texture'],
+['s9','reverse','Graffiti inversé','Reverse graffiti: portrait cleaned into grimy wall, negative space drawing, ecological subtlety'],
+['s10','murals','Fresque monumentale','Monumental mural portrait: photorealistic spray, architectural scale, muted urban palette, civic dignity'],
+['s11','pasteup','Paste-up collage','Paste-up collage portrait: cut paper layers, torn edges, monochrome with one accent, quiet protest'],
+['s12','light','Projection lumineuse','Light projection art: portrait projected on stone facade, ephemeral tag, night city, conceptual restraint'],
+/* — AFFICHES — */
+['f1','punk','Punk créatif','Creative punk poster: deliberate visual accident, ransom-style typography as texture, black and one loud color used sparingly, xerox grain, intelligent provocation'],
+['f2','punk','Punk typographique','Punk-inspired graphic: fractured letterforms, staple and tape marks, stark negative space, art-school punk'],
+['f3','sov','Constructivisme','Soviet constructivist poster: red black white, diagonal composition, photomontage, heroic geometry'],
+['f4','swiss','Typo suisse','Swiss typographic poster: Helvetica grid, giant letters, generous whitespace, one accent color, intellectual clarity'],
+['f5','bauhaus','Bauhaus','Bauhaus poster: primary geometry, circle triangle square, functional composition, modernist rigor'],
+['f6','artdeco','Art déco','Art déco poster: gilded symmetry, streamlined type, 1920s luxury, restrained ornament'],
+['f7','muchap','Mucha','Mucha Art Nouveau poster: flowing hair ribbons, floral frame, muted pastel panel, Belle Époque elegance'],
+['f8','ukiyo','Ukiyo-e','Ukiyo-e woodblock portrait: flat colors, bold outlines, subtle gradation bokashi, Edo refinement'],
+['f9','vhs','VHS 80s','1980s VHS cover aesthetic: airbrush duotone, scanlines used sparingly, chrome type, nostalgic restraint'],
+['f10','dada','Dada','Dada photomontage portrait: absurd juxtaposition, 1920s anti-art, cut newspaper texture, intellectual wit'],
+['f11','psyche','Psychédélique sobre','1960s poster with psychedelic curves but muted two-color palette, flowing calligraphic line, optical elegance'],
+/* — ILLUSTRATION — */
+['i1','ligneclaire','Ligne claire','Ligne claire illustration: uniform ink outlines, flat colors, no hatching, precise detail, calm adventure'],
+['i2','goldage','Golden Age','Golden Age comic illustration: 1940s four-color process, halftone dots, classic heroic framing, vintage pulp'],
+['i3','penink','Plume & encre','Pen and ink portrait: crosshatching depth, confident quill line, ivory paper, editorial refinement'],
+['i4','woodengr','Gravure victorienne','Victorian wood engraving portrait: dense engraved texture, book plate framing, 19th century sobriety'],
+['i5','muchai','Mucha illustration','Art Nouveau illustration panel: organic line, muted sage and gold, decorative border, quiet elegance'],
+['i6','flatmod','Flat moderne','Modern flat illustration: geometric simplification, controlled palette of five colors, subtle texture, contemporary editorial'],
+/* — MANGA — */
+['m1','seinen','Seinen réaliste','Seinen manga portrait: detailed realistic crosshatch, restrained screentone, cinematic panel, adult gravity'],
+['m2','ghibli','Ghibli','Studio Ghibli portrait: hand-painted softness, warm nostalgic light, gentle wonder, gouache sky'],
+['m3','shinkai','Shinkai','Makoto Shinkai style: luminous sky, delicate lens flare, photoreal background, emotional quiet'],
+['m4','retro80','Anime rétro','1980s retro anime cel: film grain, dramatic shadows, vintage palette, VHS nostalgia'],
+/* — HYPERRÉALISME — */
+['r1','hyper','Photoréalisme pur','Hyperrealistic portrait: inspired closely by the reference photo, exact skin pores and hair strands, 85mm f1.4, natural window light, museum print quality'],
+['r2','hyper','Réalisme dramatique','Hyperrealistic cinematic portrait: inspired by reference, sculpting side light, deep tonal range, invisible retouch'],
+['r3','macro','Macro peaux','Extreme realistic close-up: inspired heavily by reference photo, visible skin texture micro-detail, single softbox, tactile realism'],
+['r4','dutch','Réalisme hollandais','Dutch Golden Age realism applied to photo: inspired by reference, window light stillness, velvet shadows, contemporary subject'],
+['r5','editorial','Éditorial magazine','Editorial magazine portrait: inspired by reference photo, restrained studio setup, Vogue-level retouch invisible, intellectual mood'],
+/* — HYPER-ILLUSTRATION — */
+['hi1','kruger','Kruger typographique','Barbara Kruger style: black white photograph with bold red typographic band, conceptual statement, gallery impact, restrained'],
+['hi2','hockney','Hockney','David Hockney style portrait: saturated but harmonized color, swimming pool geometry, flat depth, joyful precision'],
+['hi3','basquiat','Basquiat','Basquiat-inspired portrait: raw line, crown and anatomy fragments, used sparingly, primed canvas, art-world energy'],
+['hi4','kahlo','Kahlo','Frida Kahlo style self-portrait: symbolic botany, unibrow fidelity, folk color, votive intimacy'],
+['hi5','magritte','Magritte','Magritte surrealism: suited figure, floating paradox, clean sky gradient, deadpan enigma'],
+['hi6','escher','Escher','Escher-inspired portrait: impossible geometry tessellation around figure, ink precision, intellectual play'],
+['hi7','beardsley','Beardsley','Aubrey Beardsley illustration: art nouveau black ink, decadent line, flat pattern areas, fin de siècle'],
+['hi8','klimt','Klimt','Gustav Klimt portrait: gold leaf patterns, mosaic ornaments, muted flesh, Byzantine luxury'],
+/* — HOOK / ABONNEMENT — */
+['k1','tiktok','Abonnement élégant','Refined social media visual: subject with confident welcoming gesture toward camera, clean background, one accent color, premium feel, space reserved for text'],
+['k2','follow','Interaction invitation','Engagement visual: subject pointing gracefully toward empty space for caption, expressive warm look, studio simplicity, high readability'],
+['k3','promo','Promo sobre','Product promo: subject presenting with understated gesture, seamless backdrop, gradient light, luxury advertising restraint'],
+['k4','edito','Éditorial people','Editorial press portrait: subject mid-laughter or compelling gaze, magazine cover composition, sophisticated lighting']
+];
+
+var SETTINGS_LOC=[
+'in a quiet gallery with white walls','on a windswept cliff overlooking the ocean','in a baroque mirrored hall','on a rain-soaked old European street',
+'inside a monumental industrial nave','in a sunflower field at late golden hour','in a smoky 1940s jazz club','amid stone ruins overgrown with ivy',
+'in a brutalist concrete plaza under fog','in a dusty western main street','inside an endless library of spiral staircases','at a neon night market in Hong Kong',
+'on a rooftop helipad above the skyline','in a royal throne room of marble','inside a cozy bookshop in the rain','on a theater stage under a single spotlight',
+'in a meadow at dawn with mist','inside a vintage observatory with brass instruments','on a frozen lake under aurora','in a grand central station at rush hour',
+'inside a modernist glass house','in an atelier full of sculptures and canvases','on a Mediterranean terrace at dusk','in a private screening room'
+];
+var ANGLES=['dignified frontal portrait','intimate medium close-up','full body wide establishing shot','over-the-shoulder framing','quiet profile against light','epic symmetrical center composition','subtle low-angle portrait','through-a-doorway frame shot'];
+var MOODS=['contemplative','serene','dignified','mysterious','triumphant','pensive','warm','noble','melancholic','focused'];
+
+var DEF_ADM={
+prompts:{
+face:'CRITICAL ABSOLUTE RULE — FACE PRESERVATION: the person in the output MUST be the EXACT SAME PERSON as in the reference image. Identical facial features, identical bone structure, identical eyes, nose, mouth, skin tone. This rule overrides every other instruction. Never beautify, never age, never change the face.',
+cloneFull:'IDENTITY & STYLE PRESERVATION: reproduce from the reference image the EXACT SAME FACE, and also keep the SAME hairstyle or headwear, and the SAME clothing articles (silhouette, color and texture). Only the pose, the location, the lighting and the framing may change. The outfit must remain clearly recognizable as the same wardrobe.',
+expr:'The character faces the camera, head clearly visible, composed and intelligent expression: calm confidence rather than a forced smile.',
+change:'REFINED VARIATION: vary the pose, decor, lighting and era with intelligence. Prefer restrained palettes, elegant textures and sophisticated composition. NEVER produce garish, cluttered or low-brow imagery.',
+duo:'SECOND CHARACTER (exactly one): add ONE fictional character inspired by the universe of {{ARTIST}} — typical costume, hairstyle and persona. This second person is NOT the reference person and MUST have a different face. The two interact with narrative purpose.',
+cast:'CASTING SCENE — NO reference person: invent original fictional characters only (different faces), typical of the requested universe, theatrical personas, restrained staging.',
+space:'SETTING IN SPACE: deep space — nebula, stars, or a futuristic ship interior. Outfit adapted to the art style with sobriety.',
+text:'TEXT ON CLOTHING — STRICT RULES: print exactly and only the text "{{TEXT}}" on the front of the garment, centered on the chest, uppercase, plain bold sans-serif, perfectly readable, flat and undistorted. No other text, letters, numbers or watermark anywhere. If it cannot be rendered perfectly, leave the garment plain.',
+overlay:'TEXT OVERLAY: integrate the text "{{TEXT}}" into the composition as clean bold typography (one text only, perfectly readable, elegant placement, no watermark), inviting the viewer to subscribe, comment or like with sophistication.',
+decor:'ENVIRONMENT ONLY: no person, no face — pure set design, architecture, props and atmosphere of the requested universe. Cinematic scale, restrained palette.',
+qual:'Masterpiece quality: refined lighting, professional color grading, rich textures, high detail, intellectually composed. No watermark, no signature, no border, no garishness.'
+},
+texts:{shirt:'',overlay:'ABONNE-TOI',banner:'MON FILM'}
+};
+
+/* ════════════════════════════════════════════════════════════════
+   STATE
+════════════════════════════════════════════════════════════════ */
+var st={
+keys:[],img:null,imgName:null,
+db:[],adm:{},api:{endpoint:DEF_API,mtx:DEF_MTX,mimg:DEF_MIMG},
+running:false,paused:false,stop:false,workersOn:false,
+mode:'photo',fullClone:false,batch:40,size:'1K',ratioMode:'1:1',duo:'none',spaceP:0.1,txtMode:'sometimes',
+wPerKey:2,interval:3000,
+series:[],curSeries:-1,
+allItems:{},roots:{},children:{},
+usedStyles:{},usedSetting:{},
+recentTimes:[],selMode:false,sel:{}
+};
+/* blk part de l'heure : les ids 'itN' restent uniques d'une session à l'autre
+   (sinon après rechargement 'it1' écrasait l'image restaurée 'it1' dans IndexedDB) */
+var blk=Date.now(),dlSeq=0;
+var workers=[],queue=[];
+
+function loadLS(k,d){try{var r=localStorage.getItem(k);return r?JSON.parse(r):d}catch(e){return d}}
+function saveLS(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+function saveAdm(){saveLS(LS.adm,{prompts:st.adm.prompts,texts:st.adm.texts})}
+function saveCfg(){saveLS(LS.cfg,{mode:st.mode,fullClone:st.fullClone,batch:st.batch,size:st.size,ratio:st.ratioMode,duo:st.duo,spaceP:st.spaceP,txt:st.txtMode,wPerKey:st.wPerKey,interval:st.interval})}
+function saveApi(){saveLS(LS.api,st.api)}
+
+/* Plans : sf5_db ne garde que les plans propres à l'utilisatrice (importés ou modifiés).
+   Les plans par défaut viennent toujours du fichier : une nouvelle version apporte ses nouveaux plans,
+   et un plan importé de même id remplace le plan par défaut (fusion par id). */
+function baseDb(){return BASE.map(function(a){return{id:a[0],cat:a[1],name:a[2],prompt:a[3]}})}
+function customPlans(arr){
+  var byId={};baseDb().forEach(function(b){byId[b.id]=b});
+  return(Array.isArray(arr)?arr:[]).map(function(s){
+    return(s&&typeof s==='object'&&s.id&&s.prompt)?{id:String(s.id),cat:String(s.cat||''),name:String(s.name||s.id),prompt:String(s.prompt)}:null;
+  }).filter(function(s){
+    if(!s)return false;
+    var b=byId[s.id];
+    return!(b&&b.cat===s.cat&&b.name===s.name&&b.prompt===s.prompt);
+  });
+}
+function mergeDb(custom){
+  var own={};custom.forEach(function(s){own[s.id]=s});
+  var out=baseDb().map(function(b){return own[b.id]||b});
+  var seen={};out.forEach(function(s){seen[s.id]=1});
+  custom.forEach(function(s){if(!seen[s.id]){seen[s.id]=1;out.push(s)}});
+  return out;
+}
+function loadAll(){
+  var custom=customPlans(loadLS(LS.db,null));
+  st.db=mergeDb(custom);
+  saveLS(LS.db,custom);
+  var a=loadLS(LS.adm,{});
+  st.adm={
+    prompts:Object.assign({},DEF_ADM.prompts,a.prompts||{}),
+    texts:Object.assign({},DEF_ADM.texts,a.texts||{})
+  };
+  /* ancien texte par défaut : remplacé par « aucun texte » (une autre valeur choisie est conservée) */
+  if(st.adm.texts.shirt==='VOTEZ LFI')st.adm.texts.shirt='';
+  var ap=loadLS(LS.api,{});
+  st.api={endpoint:ap.endpoint||DEF_API,mtx:ap.mtx||DEF_MTX,mimg:ap.mimg||DEF_MIMG};
+  var c=loadLS(LS.cfg,{});
+  if(c.mode)st.mode=c.mode;
+  if(typeof c.fullClone==='boolean')st.fullClone=c.fullClone;
+  if(c.batch)st.batch=c.batch;
+  if(c.size)st.size=c.size;
+  if(c.ratio)st.ratioMode=c.ratio;
+  if(c.duo)st.duo=c.duo;
+  if(typeof c.spaceP==='number')st.spaceP=c.spaceP;
+  if(c.txt)st.txtMode=c.txt;
+  if(c.wPerKey)st.wPerKey=c.wPerKey;
+  if(c.interval)st.interval=c.interval;
+  var keys=loadLS(LS.keys,[]);
+  st.keys=keys.map(function(k){return{key:k,lastReq:0,cool:0,active:true,errors:0,count:0}});
+  if(st.keys.length)$('keysIn').value=keys.join('\n');
+  syncSettingsUI();
+}
+function syncSettingsUI(){
+  $('modeSel').value=st.mode;
+  $('cloneFull').checked=st.fullClone;
+  $('cloneChk').classList.toggle('on',st.fullClone);
+  document.querySelectorAll('#batchSeg button').forEach(function(b){b.classList.toggle('on',parseInt(b.dataset.v)===st.batch)});
+  $('ratio').value=st.ratioMode;
+  $('sizeSel').value=st.size;
+  $('duoSel').value=st.duo;
+  $('spaceSel').value=String(st.spaceP);
+  $('txtSel').value=st.txtMode;
+  $('wPerKey').value=st.wPerKey;
+  $('interval').value=st.interval;
+  updateModeHint();
+  updateCloneDesc();
+}
+function updateModeHint(){
+  var m=MODES[st.mode];
+  var count=m?st.db.filter(function(s){return catOk(s.cat)}).length:st.db.length;
+  $('modeHint').textContent=(m?(m.i+' '+m.n):'Tout mélanger')+' — '+count+' plans disponibles.';
+}
+function updateCloneDesc(){
+  $('cloneDesc').textContent=st.fullClone
+    ?'Clonage complet : visage + coiffe + vêtements reproduits. Seuls la pose, le lieu, la lumière et le cadrage changent.'
+    :'Visage uniquement : habits, coiffe et décor changent à chaque image. Coche pour cloner aussi chapeau et vêtements.';
+}
+function restoreSession(){
+  return idbGetAll('series').then(function(series){
+    if(!series.length)return;
+    series.sort(function(a,b){return a.id-b.id});
+    return idbGetAll('images').then(function(all){
+      var byId={};all.forEach(function(r){byId[r.id]=r});
+      series.forEach(function(sd){
+        var s={id:sd.id,items:[],done:sd.done,name:sd.name||('Série '+(sd.id+1))};
+        st.series[s.id]=s;
+        (sd.itemIds||[]).forEach(function(iid){
+          var rec=byId[iid];if(!rec)return;
+          var it={
+            id:iid,parent:rec.meta.parent||null,cat:rec.meta.cat,style:rec.meta.style,ratio:rec.meta.ratio,
+            seriesId:rec.meta.seriesId,fname:rec.meta.fname,time:rec.meta.time,
+            badges:rec.meta.badges||[],prompt:rec.meta.prompt,open:!!rec.meta.open,
+            state:'done',saved:true,blob:rec.blob,url:rec.url||(rec.blob?URL.createObjectURL(rec.blob):null)
+          };
+          if(!it.url){it.state='error';it.err='Image perdue'}
+          st.allItems[it.id]=it;
+          if(it.parent&&st.allItems[it.parent]){
+            (st.children[it.parent]=st.children[it.parent]||[]).push(it.id);
+          }else{
+            (st.roots[s.id]=st.roots[s.id]||[]).push(it.id);
+          }
+        });
+      });
+      st.series=st.series.filter(Boolean);
+      st.series.forEach(function(s){s.items=Object.keys(st.allItems).filter(function(i){return st.allItems[i].seriesId===s.id})});
+      if(!st.series.length)return;
+      st.curSeries=st.series[st.series.length-1].id;
+      $('seriesBar').style.display='';
+      renderTabs();renderSeries();
+      $('empty').style.display=Object.keys(st.allItems).length?'none':'block';
+      log('Session restaurée : '+Object.keys(st.allItems).length+' image(s)','s');
+    });
+  }).catch(function(e){log('Restauration impossible : '+(e.message||e),'w')});
+}
+
+/* ════════════════════════════════════════════════════════════════
+   CLÉS
+════════════════════════════════════════════════════════════════ */
+function keysFromInput(){
+  var lines=($('keysIn').value||'').split(/\r?\n/).map(function(l){return l.trim()}).filter(function(l){return l.length});
+  var valid=[],dup=0,seen={};
+  lines.forEach(function(k){
+    if(k.indexOf('sk-')!==0)return;
+    if(seen[k]){dup++;return}
+    seen[k]=1;valid.push(k);
+  });
+  return{keys:valid,dup:dup,invalid:lines.length-valid.length};
+}
+function autoSaveKeys(silent){
+  var r=keysFromInput();
+  var prev={};st.keys.forEach(function(k){prev[k.key]=k});
+  st.keys=r.keys.map(function(k){return prev[k]||{key:k,lastReq:0,cool:0,active:true,errors:0,count:0}});
+  saveLS(LS.keys,r.keys);
+  renderKeys();updateStart();
+  $('saveOk').textContent=r.keys.length?('✓ '+r.keys.length+' clé(s) sauvegardée(s)'+(r.dup?' · '+r.dup+' doublon(s)':'')+(r.invalid?' · '+r.invalid+' invalide(s)':'')):'';
+  if(!silent&&r.keys.length)toast(r.keys.length+' clé(s) enregistrée(s)');
+}
+function renderKeys(){
+  var el=$('keysList'),badge=$('keyBadge'),cap=$('capBox');
+  if(!st.keys.length){el.style.display='none';badge.textContent='0';cap.style.display='none';$('wHint').textContent='';return}
+  el.style.display='';
+  var now=Date.now(),ready=0,html='';
+  st.keys.forEach(function(k){
+    var cls='ok',tx='OK';
+    if(!k.active){cls='dead';tx='Morte'}
+    else if(k.cool>now){cls='cool';tx='Cool '+Math.ceil((k.cool-now)/1000)+'s'}
+    else ready++;
+    html+='<div class="kitem"><span class="id">'+esc(k.key.slice(0,8))+'…'+esc(k.key.slice(-4))+'</span><span style="font-family:var(--mono);color:var(--faint);font-size:11px">'+k.count+'</span><span class="kst '+cls+'">'+tx+'</span></div>';
+  });
+  el.innerHTML=html;
+  badge.textContent=ready+'/'+st.keys.length;
+  var w=st.wPerKey||2;
+  var capMin=Math.round(ready*w*60/Math.max(3,st.interval/1000));
+  cap.style.display='';
+  cap.textContent='⚡ '+ready+' clé(s) × '+w+' workers = '+(ready*w)+' générations en parallèle → ~'+capMin+' images/min. Série de '+st.batch+' ≈ '+Math.max(1,Math.round(st.batch/Math.max(1,capMin)))+' min.';
+  $('wHint').textContent='Auto : '+(ready*w)+' générations simultanées.';
+}
+
+/* ════════════════════════════════════════════════════════════════
+   POOL / FETCH
+════════════════════════════════════════════════════════════════ */
+function anyKey(){for(var i=0;i<st.keys.length;i++)if(st.keys[i].active)return true;return false}
+function availKey(iv){
+  var now=Date.now(),av=[];
+  st.keys.forEach(function(k){if(k.active&&k.cool<=now&&(!k.lastReq||now-k.lastReq>=iv))av.push(k)});
+  if(!av.length)return null;
+  av.sort(function(a,b){return(a.count-b.count)||((a.lastReq||0)-(b.lastReq||0))});
+  return av[0];
+}
+function acquire(iv){
+  var t0=Date.now();
+  return new Promise(function(res,rej){
+    (function loop(){
+      if(st.stop)return rej(new Error('Arrêt'));
+      var k=availKey(iv);
+      if(k){k.count++;k.lastReq=Date.now();return res(k)}
+      if(!anyKey())return rej(new Error('Aucune clé active'));
+      if(Date.now()-t0>90000)return rej(new Error('Timeout clés'));
+      setTimeout(loop,250);
+    })();
+  });
+}
+function apiFetch(url,opts,iv,tries){
+  tries=tries||5;iv=iv||st.interval;
+  var lastErr=null,att=0;
+  function next(){
+    if(att>=tries)return Promise.reject(lastErr||new Error('Échec API'));
+    if(st.stop)return Promise.reject(new Error('Arrêt'));
+    var cur=att++;
+    return acquire(iv).then(function(k){
+      var headers=Object.assign({},opts.headers||{},{'Authorization':'Bearer '+k.key});
+      return fetch(url,Object.assign({},opts,{headers:headers})).then(function(r){
+        if(r.ok){k.errors=0;return r}
+        return r.clone().text().then(function(tx){
+          tx=(tx||'').slice(0,300);
+          if(r.status===401||r.status===403){
+            k.errors=(k.errors||0)+1;
+            if(k.errors>=3){k.active=false;renderKeys();log('Clé …'+k.key.slice(-4)+' morte (401/403)','e')}
+            var authErr={status:r.status,message:'HTTP '+r.status+' — '+tx.slice(0,100)};
+            /* clé refusée : on écarte cette clé un moment et on réessaie avec une autre clé active */
+            if(st.keys.some(function(o){return o!==k&&o.active})){
+              if(k.active)k.cool=Date.now()+65000;
+              lastErr=authErr;renderKeys();log('Clé …'+k.key.slice(-4)+' refusée ('+r.status+') → autre clé','w');
+              return next();
+            }
+            throw authErr;
+          }
+          if(r.status===400||r.status===404)throw{status:r.status,message:'HTTP '+r.status+' — '+tx.slice(0,100)};
+          if(r.status===429){k.cool=Date.now()+65000;log('429 clé …'+k.key.slice(-4)+' → cool 65s','w');renderKeys();return sleep(500).then(next)}
+          if([500,502,503,504].indexOf(r.status)>=0)return sleep(Math.min(6000,2000+cur*1500)).then(next);
+          return sleep(Math.min(4000,1500+cur*1000)).then(next);
+        });
+      }).catch(function(e){
+        if(e&&e.status)throw e;
+        lastErr=e;return sleep(Math.min(3000,1000+cur*800)).then(next);
+      });
+    });
+  }
+  return next();
+}
+function genImage(prompt,size,ratio,src){
+  var body={model:st.api.mimg,prompt:String(prompt).slice(0,1900),n:1,size:size,ratio:ratio,extra_body:{response_format:'url'}};
+  if(src)body.extra_body.image=[src];
+  return apiFetch(st.api.endpoint+'/images/generations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)},st.interval,5).then(function(r){return r.json()}).then(function(d){
+    var it=d.data&&d.data[0];
+    if(!it)throw new Error('Pas d\'image');
+    if(it.url)return it.url;
+    if(it.b64_json)return'data:image/png;base64,'+it.b64_json;
+    throw new Error('Format inconnu');
+  });
+}
+function callText(msgs,iv,maxTok){
+  var body={model:st.api.mtx,messages:msgs,temperature:0.9,max_tokens:maxTok||1600,reasoning_effort:'none',chat_template_kwargs:{enable_thinking:false}};
+  return apiFetch(st.api.endpoint+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)},iv||6000,3).then(function(r){return r.json()}).then(function(d){
+    var c=d.choices&&d.choices[0]&&d.choices[0].message;
+    return(c&&c.content)||(c&&c.reasoning_content)||null;
+  });
+}
+
+/* ════════════════════════════════════════════════════════════════
+   PROMPTS — sobriété intellectuelle par défaut
+════════════════════════════════════════════════════════════════ */
+function catOk(cat){return st.mode==='all'||(CATS[cat]&&CATS[cat].mode===st.mode)}
+function pickStyle(){
+  var pool=st.db.filter(function(s){return!st.usedStyles[s.id]&&catOk(s.cat)});
+  if(!pool.length){
+    st.db.forEach(function(s){if(catOk(s.cat))delete st.usedStyles[s.id]});
+    pool=st.db.filter(function(s){return catOk(s.cat)});
+    if(!pool.length)pool=st.db.slice();
+  }
+  var pick=pool[Math.floor(Math.random()*pool.length)];
+  st.usedStyles[pick.id]=1;
+  return pick;
+}
+function fresh(arr,used){
+  var pool=arr.filter(function(x){return!used[x]});
+  if(!pool.length){arr.forEach(function(x){used[x]=0});pool=arr.slice()}
+  var p=rnd(pool);used[p]=1;return p;
+}
+function buildPrompt(styleP,cat,opt){
+  var P=st.adm.prompts;
+  var parts=[P.face];
+  if(st.fullClone)parts.push(P.cloneFull);
+  parts.push(P.expr);
+  if(!st.fullClone)parts.push(P.change);
+  if(opt.duo)parts.push(P.duo.replace('{{ARTIST}}',CATS[cat]?CATS[cat].n:'this universe'));
+  if(opt.space)parts.push(P.space);
+  parts.push('LOCATION: '+(opt.setting||fresh(SETTINGS_LOC,st.usedSetting))+'.');
+  parts.push('CAMERA: '+rnd(ANGLES)+'. MOOD: '+rnd(MOODS)+'.');
+  parts.push('ART STYLE: '+styleP+'.');
+  if(opt.text&&st.adm.texts.shirt)parts.push(P.text.replace('{{TEXT}}',st.adm.texts.shirt));
+  if(opt.overlay)parts.push(P.overlay.replace('{{TEXT}}',st.adm.texts.overlay));
+  parts.push(P.qual);
+  return parts.join(' ');
+}
+function pickRatio(){
+  if(st.ratioMode==='mixed')return rnd(['1:1','1:1','9:16','16:9']);
+  return st.ratioMode;
+}
+function ratioForSeries(){
+  if(st.mode==='hook'&&st.ratioMode==='1:1')return '9:16';
+  return pickRatio();
+}
+function stylePromptOf(name){
+  for(var i=0;i<st.db.length;i++)if(st.db[i].name===name)return st.db[i].prompt;
+  return name;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SÉRIES
+════════════════════════════════════════════════════════════════ */
+function curSeriesObj(){return st.series.find(function(s){return s&&s.id===st.curSeries})}
+function seriesById(id){return st.series.find(function(s){return s&&s.id===id})}
+function seriesRoots(sid){return st.roots[sid]||[]}
+function persistSeries(s){
+  var ids=[];
+  (function walkRoots(sid){seriesRoots(sid).forEach(function(id){ids.push(id);(function walk(iid){(st.children[iid]||[]).forEach(function(c){ids.push(c);walk(c)})})(id)})})(s.id);
+  return idbPut('series',{id:s.id,done:s.done,name:s.name,itemIds:ids});
+}
+function newSeries(){
+  var id=0;
+  st.series.forEach(function(s){if(s&&s.id>=id)id=s.id+1});
+  var mn=st.mode==='all'?'Tout mélangé':(MODES[st.mode]?MODES[st.mode].n:st.mode);
+  var s={id:id,items:[],done:false,name:mn+' · '+new Date().toLocaleDateString('fr-FR')+' '+nowT()};
+  st.series.push(s);
+  st.curSeries=id;st.roots[id]=[];
+  persistSeries(s);
+  renderTabs();
+  $('empty').style.display='none';
+  $('seriesBar').style.display='';
+  return s;
+}
+function renderTabs(){
+  var b=$('seriesBar');
+  b.innerHTML=st.series.map(function(s){
+    if(!s)return'';
+    return'<button class="stab'+(s.id===st.curSeries?' on':'')+'" data-i="'+s.id+'">'+esc(s.name.slice(0,26))+'<span class="n">'+s.items.length+'</span></button>';
+  }).join('');
+  b.querySelectorAll('.stab').forEach(function(t){
+    t.onclick=function(){st.curSeries=parseInt(t.dataset.i);renderTabs();renderSeries()};
+  });
+  b.scrollLeft=b.scrollWidth;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ARBRE — rendu
+════════════════════════════════════════════════════════════════ */
+function itemById(id){return st.allItems[id]}
+function kidsOf(id){return st.children[id]||[]}
+function descCount(id){var n=0;kidsOf(id).forEach(function(k){n+=1+descCount(k)});return n}
+
+function registerItem(item){
+  st.allItems[item.id]=item;
+  var s=seriesById(item.seriesId);
+  if(s)s.items.push(item.id);
+  if(item.parent&&st.allItems[item.parent]){
+    (st.children[item.parent]=st.children[item.parent]||[]).push(item.id);
+    var par=st.allItems[item.parent];
+    par.open=true;
+    saveImage(par);
+  }else{
+    (st.roots[item.seriesId]=st.roots[item.seriesId]||[]).push(item.id);
+  }
+}
+function makeNodeHTML(item,isChild){
+  var ci=CATS[item.cat]||{n:item.cat,i:'✨'};
+  var badges=(item.badges||[]).map(function(x){return'<i>'+esc(x)+'</i>'}).join('');
+  return'<div class="node'+(isChild?' child':'')+'" data-id="'+item.id+'">'+
+  '<div class="blk'+(item.state==='error'?' err':'')+(st.sel[item.id]?' sel':'')+'">'+
+    '<div class="bhead">'+
+      (st.selMode?'<button class="bsel'+(st.sel[item.id]?' on':'')+'" data-sel="'+item.id+'">✓</button>':'')+
+      '<span class="bcat">'+ci.i+' '+esc(ci.n)+'</span>'+
+      '<span class="bname">'+esc(item.style)+'</span>'+
+      '<span class="bbadges">'+badges+'</span>'+
+      '<span class="btime">'+esc(item.time||nowT())+'</span>'+
+    '</div>'+
+    '<div class="bimg" id="bi-'+item.id+'">'+(item.state==='done'?'':'<div class="load"></div>')+'</div>'+
+    '<div class="bacts" id="ba-'+item.id+'"></div>'+
+    '<div class="bmore" id="bm-'+item.id+'" style="display:none"></div>'+
+    '<div class="bmsg" id="bmsg-'+item.id+'"></div>'+
+  '</div>'+
+  '<button class="ktoggle" id="kt-'+item.id+'" style="display:none"></button>'+
+  '<div class="kids hidden" id="ks-'+item.id+'"></div>';
+}
+function bindNode(item,node){
+  if(st.selMode){
+    var sb=node.querySelector('.bsel');
+    if(sb)sb.onclick=function(ev){ev.stopPropagation();toggleSel(item.id)};
+  }
+  if(item.state==='done'){
+    var w=node.querySelector('.bimg');
+    w.innerHTML='';
+    var img=document.createElement('img');
+    img.src=item.url;img.alt=item.style;
+    img.onclick=function(){openZoom(item)};
+    w.appendChild(img);
+    renderActions(item);
+  }else if(item.state==='error'){
+    node.querySelector('.bimg').innerHTML='<div class="errmsg">✕ '+esc((item.err||'Erreur').slice(0,140))+' — <a href="#">réessayer</a></div>';
+    var rt=node.querySelector('.errmsg a');
+    if(rt)rt.onclick=function(ev){ev.preventDefault();item.state='loading';$('bi-'+item.id).innerHTML='<div class="load"></div>';queue.push(function(){return genOne(item)});ensureWorkers()};
+  }
+  renderKidsToggle(item,node);
+  if(item.open&&kidsOf(item.id).length){
+    renderKids(item,node);
+    node.querySelector('.kids').classList.remove('hidden');
+  }
+  return node;
+}
+function buildNode(item){
+  var isChild=!!(item.parent&&st.allItems[item.parent]);
+  var tmp=document.createElement('div');
+  tmp.innerHTML=makeNodeHTML(item,isChild);
+  return bindNode(item,tmp.firstElementChild);
+}
+function renderKidsToggle(item,node){
+  var t=(node&&node.querySelector('#kt-'+item.id))||$('kt-'+item.id);
+  if(!t)return;
+  var n=descCount(item.id);
+  if(!n){t.style.display='none';return}
+  t.style.display='';
+  t.innerHTML=(item.open?'▾':'▸')+' <span class="n">'+n+'</span> descendant'+(n>1?'s':'')+' — '+(item.open?'replier':'déplier');
+  t.onclick=function(){
+    item.open=!item.open;
+    saveImage(item);
+    var ks=$('ks-'+item.id);
+    if(item.open){if(ks.children.length===0)renderKids(item);ks.classList.remove('hidden')}
+    else ks.classList.add('hidden');
+    renderKidsToggle(item);
+  };
+}
+function renderKids(item,node){
+  var ks=(node?node.querySelector('#ks-'+item.id):null)||$('ks-'+item.id);
+  if(!ks)return;
+  ks.innerHTML='';
+  kidsOf(item.id).forEach(function(cid){ks.appendChild(buildNode(itemById(cid)))});
+}
+function renderSeries(){
+  var s=curSeriesObj();
+  $('stream').innerHTML='';
+  if(!s||!seriesRoots(s.id).length){$('empty').style.display='block';return}
+  $('empty').style.display='none';
+  seriesRoots(s.id).forEach(function(id){$('stream').appendChild(buildNode(itemById(id)))});
+  $('batchDone').style.display=(s.done&&s.items.length)?'block':'none';
+  if(s.done){
+    var ok=s.items.filter(function(i){return st.allItems[i]&&st.allItems[i].state==='done'}).length;
+    $('batchDoneSub').textContent=ok+' images — sauvegardées. Développe tes branches favorites.';
+  }
+}
+function insertNode(item){
+  registerItem(item);
+  var s=curSeriesObj();
+  if(item.parent&&st.allItems[item.parent]&&document.querySelector('.node[data-id="'+item.parent+'"]')){
+    var par=itemById(item.parent);
+    par.open=true;
+    var ks=$('ks-'+item.parent);
+    /* renderKids dessine déjà le nouvel enfant (déjà enregistré) : ne pas l'ajouter une 2e fois */
+    if(ks.children.length===0)renderKids(par);
+    else ks.appendChild(buildNode(item));
+    ks.classList.remove('hidden');
+    renderKidsToggle(par);
+    saveImage(par);
+    try{ks.lastChild.scrollIntoView({behavior:'smooth',block:'center'})}catch(e){}
+  }else if(s&&item.seriesId===st.curSeries){
+    $('stream').appendChild(buildNode(item));
+    $('empty').style.display='none';
+  }
+  var own=seriesById(item.seriesId);
+  if(own)persistSeries(own);
+  renderTabs();
+  updateBar();
+}
+function msg(item,m,err){
+  var el=$('bmsg-'+item.id);if(!el)return;
+  el.textContent=m;el.className='bmsg on '+(err?'err':'ok');
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ACTIONS — source = l'image cliquée, jamais la photo d'origine
+════════════════════════════════════════════════════════════════ */
+function renderActions(item){
+  var el=$('ba-'+item.id);if(!el)return;
+  if(item.state!=='done'){el.innerHTML='';return}
+  el.innerHTML=
+  '<button class="bact gold" data-a="dl"><span class="i">📥</span>Télécharger</button>'+
+  '<button class="bact" data-a="share"><span class="i">📤</span>Partager</button>'+
+  '<button class="bact" data-a="zoom"><span class="i">🔍</span>Zoom</button>'+
+  '<button class="bact" data-a="var"><span class="i">🎨</span>Variantes</button>'+
+  '<button class="bact" data-a="duo"><span class="i">👥</span>+ Personnage</button>'+
+  '<button class="bact" data-a="cast"><span class="i">🎭</span>Personnages seuls</button>'+
+  '<button class="bact" data-a="solo"><span class="i">🚶</span>Solo</button>'+
+  '<button class="bact" data-a="decor"><span class="i">🏛️</span>Décor seul</button>'+
+  '<button class="bact" data-a="cine"><span class="i">🎬</span>Cinéma IA</button>'+
+  '<button class="bact" data-a="hook"><span class="i">📱</span>Abonnement / Promo</button>'+
+  '<button class="bact" data-a="prompt"><span class="i">✏️</span>Prompt libre</button>'+
+  '<button class="bact" data-a="del"><span class="i">🗑</span>Suppr.</button>';
+  el.querySelectorAll('.bact').forEach(function(btn){
+    btn.onclick=function(){
+      var a=btn.dataset.a;
+      if(a==='dl')dlImage(item);
+      else if(a==='share')shareImage(item);
+      else if(a==='zoom')openZoom(item);
+      else if(a==='var')runVariants(item);
+      else if(a==='duo')runDuo(item);
+      else if(a==='cast')runCast(item);
+      else if(a==='solo')runSolo(item);
+      else if(a==='decor')runDecor(item);
+      else if(a==='cine')runCineInline(item);
+      else if(a==='hook')runHook(item);
+      else if(a==='prompt')togglePromptZone(item);
+      else if(a==='del')deleteBranch(item);
+    };
+  });
+}
+function toDataURL(url){
+  if(!url)return Promise.resolve(null);
+  if(url.slice(0,5)==='data:')return Promise.resolve(url);
+  return fetch(url,{mode:'cors'}).then(function(r){return r.blob()}).then(function(b){
+    return new Promise(function(res){
+      var fr=new FileReader();
+      fr.onload=function(){res(fr.result)};
+      fr.onerror=function(){res(null)};
+      fr.readAsDataURL(b);
+    });
+  }).catch(function(){return null});
+}
+function spawnChild(parent,opts){
+  var item={
+    id:'it'+(++blk),parent:parent.id,cat:opts.cat||parent.cat,
+    style:opts.style,ratio:opts.ratio||parent.ratio,seriesId:parent.seriesId,
+    prompt:opts.prompt,badges:opts.badges||[],
+    state:'loading',url:null,time:nowT()
+  };
+  insertNode(item);
+  queue.push(function(){return genOne(item)});
+  ensureWorkers();
+  return item;
+}
+function cloneLine(){return st.fullClone?(' '+st.adm.prompts.cloneFull):''}
+function runVariants(it){
+  var P=st.adm.prompts,sp=stylePromptOf(it.style);
+  for(var i=0;i<3;i++){
+    (function(n){
+      var pr=[P.face,'Take THIS image as the new reference.','Regenerate the SAME person, SAME art style ('+sp+') but a TOTALLY DIFFERENT pose, decor, lighting and era. Variation '+n+'.',cloneLine(),P.expr,P.change,'CAMERA: '+rnd(ANGLES),'MOOD: '+rnd(MOODS)+'.',P.qual].join(' ');
+      spawnChild(it,{style:it.style+' · var '+n,badges:['VAR'],prompt:pr});
+    })(i+1);
+  }
+  msg(it,'3 variantes en branche — source : cette image');
+}
+function runDuo(it){
+  var P=st.adm.prompts;
+  var univ=CATS[it.cat]?CATS[it.cat].n:'this universe';
+  var pr=[P.face,'Take THIS image as the new reference.',P.duo.replace('{{ARTIST}}',univ),cloneLine(),'Keep the same art style: '+stylePromptOf(it.style)+'.',P.qual].join(' ');
+  spawnChild(it,{style:'Duo · '+it.style.slice(0,22),badges:['👥'],prompt:pr});
+  msg(it,'Duo en branche');
+}
+function runCast(it){
+  var P=st.adm.prompts;
+  var pr=[P.cast,'Art style: '+stylePromptOf(it.style)+'. Two or three original characters in a restrained, theatrical scene of this universe. No reference face anywhere.',P.qual].join(' ');
+  spawnChild(it,{style:'Casting · '+it.style.slice(0,22),badges:['🎭'],prompt:pr});
+  msg(it,'Personnages originaux (sans ton visage)');
+}
+function runSolo(it){
+  var P=st.adm.prompts;
+  var pr=[P.face,'Take THIS image as the new reference. Same person, SOLO portrait (remove any second person), same art style: '+stylePromptOf(it.style)+', new pose and decor.',cloneLine(),P.expr,P.qual].join(' ');
+  spawnChild(it,{style:'Solo · '+it.style.slice(0,22),badges:['SOLO'],prompt:pr});
+  msg(it,'Solo en branche');
+}
+function runDecor(it){
+  var P=st.adm.prompts;
+  var pr=[P.decor,'Art style: '+stylePromptOf(it.style)+'. Wide cinematic composition.',P.qual].join(' ');
+  spawnChild(it,{style:'Décor · '+it.style.slice(0,22),badges:['DECOR'],prompt:pr,ratio:'16:9'});
+  msg(it,'Décor seul en branche');
+}
+function runHook(it){
+  var P=st.adm.prompts;
+  var pr=[P.face,'Take THIS image as the new reference. Turn it into a refined, elegant engagement visual for social media: confident welcoming gesture, clean uncluttered background, one accent color, generous empty space for typography.',P.overlay.replace('{{TEXT}}',st.adm.texts.overlay),cloneLine(),'Vertical 9:16 framing, premium sobriety, no garishness.',P.qual].join(' ');
+  spawnChild(it,{style:'📱 '+st.adm.texts.overlay,badges:['📱'],prompt:pr,ratio:'9:16'});
+  msg(it,'Visuel d\'abonnement en branche — texte : « '+st.adm.texts.overlay+' » (paramétrable dans Admin → Textes)');
+}
+function runCustom(it,p){
+  var P=st.adm.prompts;
+  var pr=[P.face,'Take THIS image as the new reference. Then apply this direction: '+p+'.',cloneLine(),'Art style: '+stylePromptOf(it.style)+'.',P.expr,P.qual].join(' ');
+  spawnChild(it,{style:'Perso · '+p.slice(0,26),badges:['PERSO'],prompt:pr});
+  msg(it,'Modification en branche — source : cette image');
+}
+function deleteBranch(item){
+  var ids=[item.id];
+  (function walk(iid){kidsOf(iid).forEach(function(c){ids.push(c);walk(c)})})(item.id);
+  if(!confirm('Supprimer cette image et ses '+(ids.length-1)+' descendant(s) ?'))return;
+  ids.forEach(function(iid){
+    delete st.allItems[iid];delete st.children[iid];delete st.sel[iid];
+    var s=curSeriesObj();
+    if(s){var ix=s.items.indexOf(iid);if(ix>=0)s.items.splice(ix,1)}
+    Object.keys(st.roots).forEach(function(k){var r=st.roots[k];var i2=r.indexOf(iid);if(i2>=0)r.splice(i2,1)});
+    Object.keys(st.children).forEach(function(k){var arr=st.children[k];var i3=arr.indexOf(iid);if(i3>=0)arr.splice(i3,1)});
+    idbDel('images',iid);
+  });
+  if(item.parent){
+    var ks=$('ks-'+item.parent);
+    if(ks){var el=ks.querySelector('.node[data-id="'+item.id+'"]');if(el)el.remove();renderKidsToggle(itemById(item.parent))}
+  }else{
+    var el2=document.querySelector('.node[data-id="'+item.id+'"]');if(el2)el2.remove();
+  }
+  persistSeries(curSeriesObj());renderTabs();updateBar();updateSelBar();
+  toast(ids.length+' image(s) supprimée(s)','warn');
+  if(curSeriesObj()&&!seriesRoots(st.curSeries).length)$('empty').style.display='block';
+}
+function togglePromptZone(item){
+  var z=$('bm-'+item.id);
+  if(z.style.display==='none'){
+    z.innerHTML='<textarea id="ta-'+item.id+'" placeholder="Ex: même personnage, galerie d\'art au crépuscule, tenue sombre, regard pensif…"></textarea><button class="btn gold" id="go-'+item.id+'">Forger cette branche (à partir de CETTE image)</button>';
+    z.style.display='block';
+    $('go-'+item.id).onclick=function(){
+      var p=$('ta-'+item.id).value.trim();
+      if(!p)return toast('Écris un prompt','warn');
+      runCustom(item,p);z.style.display='none';
+    };
+  }else z.style.display='none';
+}
+function runCineInline(it){
+  var z=$('bm-'+it.id);
+  z.innerHTML='<p style="font-size:12.5px;color:var(--mut);line-height:1.5;margin-bottom:10px">L\'IA propose des concepts de plans intellectuels pour cette image. Coche, génère — chaque plan part de cette image en branche.</p>'+
+  '<div id="pl-'+it.id+'"><p style="font-size:12px;color:var(--faint)">Écriture des propositions…</p></div>'+
+  '<button class="btn gold" id="gc-'+it.id+'" style="margin-top:6px" disabled>🎬 Générer les plans sélectionnés</button>';
+  z.style.display='block';
+  var sp=stylePromptOf(it.style);
+  callText([
+    {role:'system',content:'You are an intellectual film director. Return ONLY valid JSON, no markdown, single-line strings.'},
+    {role:'user',content:'For a portrait photo of a person, art style "'+it.style+'" ('+sp+'), propose 12 DISTINCT cinematic SHOT CONCEPTS useful for building a refined film universe around this character. Each different in genre, era, location, action and mood. AVOID anything garish, flashy or low-brow: prefer restrained palettes, elegant composition, intellectual depth. Return JSON: {"pitches":[{"t":"max 6 words","p":"ONE English image prompt 40-80 words describing scene, framing, lighting, action, featuring the SAME PERSON from reference"}]} exactly 12 items.'}
+  ],8000,2200).then(function(c){
+    var j=parseJson(c);
+    if(!j||!Array.isArray(j.pitches)||!j.pitches.length)throw new Error('JSON invalide');
+    var list=$('pl-'+it.id);list.innerHTML='';
+    var sel={};
+    j.pitches.forEach(function(p,i){
+      if(!p||!p.t||!p.p)return;
+      var el=document.createElement('div');el.className='pitch';
+      el.innerHTML='<div class="pt"><span>'+esc(p.t)+'</span><span class="mk">○</span></div><div class="pd">'+esc(p.p.slice(0,200))+'</div>';
+      el.onclick=function(){
+        sel[i]=!sel[i];
+        el.classList.toggle('on',!!sel[i]);
+        el.querySelector('.mk').textContent=sel[i]?'●':'○';
+        var n=Object.keys(sel).filter(function(k){return sel[k]}).length;
+        $('gc-'+it.id).disabled=!n;
+        $('gc-'+it.id).textContent='🎬 Générer '+n+' plan'+(n>1?'s':'');
+      };
+      list.appendChild(el);
+    });
+    msg(it,j.pitches.length+' propositions prêtes');
+    $('gc-'+it.id).onclick=function(){
+      var P=st.adm.prompts,n=0;
+      Object.keys(sel).forEach(function(i){
+        if(!sel[i])return;n++;
+        var pr=['Take THIS image as the new reference. CINEMATIC FILM STILL: '+j.pitches[i].p+'.','ART STYLE: '+sp+'.',P.face,P.expr,P.qual].join(' ');
+        spawnChild(it,{style:'🎬 '+j.pitches[i].t,badges:['CINÉ'],prompt:pr});
+      });
+      z.style.display='none';
+      msg(it,n+' plan(s) en branche');
+    };
+  }).catch(function(e){msg(it,'Erreur cinéma : '+(e.message||e),true)});
+}
+
+/* ════════════════════════════════════════════════════════════════
+   TÉLÉCHARGEMENT — nom unique, direct
+════════════════════════════════════════════════════════════════ */
+function uniqueName(item){
+  dlSeq++;
+  var d=new Date(),ms=String(d.getMilliseconds()).padStart(3,'0');
+  return safe(item.cat)+'_'+safe(item.style)+'_'+stamp()+'_'+dlSeq+'_'+ms+'.jpg';
+}
+function blobDownload(blob,name){
+  var u=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=u;a.download=name;a.rel='noopener';
+  a.style.display='none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){a.remove();URL.revokeObjectURL(u)},10000);
+}
+function getBlob(item){
+  if(item.blob)return Promise.resolve(item.blob);
+  return fetch(item.url,{mode:'cors'}).then(function(r){
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    return r.blob();
+  }).then(function(b){item.blob=b;return b});
+}
+function dlImage(item){
+  var name=uniqueName(item);
+  getBlob(item).then(function(b){
+    blobDownload(b,name);
+    toast('Téléchargé');
+  }).catch(function(){
+    var a=document.createElement('a');
+    a.href=item.url;a.download=name;a.rel='noopener';a.target='_blank';
+    document.body.appendChild(a);a.click();a.remove();
+    toast('Téléchargement lancé (nom imposé par le navigateur)','warn');
+  });
+}
+function shareImage(item){
+  if(!navigator.share){
+    if(navigator.clipboard)navigator.clipboard.writeText(item.url).then(function(){toast('URL copiée')});
+    else toast('Partage non supporté','warn');
+    return;
+  }
+  var doShare=function(){return navigator.share({title:item.style,url:item.url}).catch(function(){})};
+  if(item.blob&&navigator.canShare){
+    try{
+      var f=new File([item.blob],'image.jpg',{type:item.blob.type});
+      if(navigator.canShare({files:[f]}))return navigator.share({files:[f],title:item.style}).catch(function(){});
+    }catch(e){}
+  }
+  doShare();
+}
+function toggleSel(id){
+  st.sel[id]=!st.sel[id];
+  var node=document.querySelector('.node[data-id="'+id+'"]');
+  if(node){
+    node.querySelector('.blk').classList.toggle('sel',!!st.sel[id]);
+    var sb=node.querySelector('.bsel');if(sb)sb.classList.toggle('on',!!st.sel[id]);
+  }
+  updateSelBar();
+}
+function updateSelBar(){
+  var n=Object.keys(st.sel).filter(function(k){return st.sel[k]&&st.allItems[k]}).length;
+  $('selN').textContent=n;
+  $('selBar').classList.toggle('on',st.selMode&&n>0);
+}
+async function downloadSelected(){
+  var ids=Object.keys(st.sel).filter(function(k){return st.sel[k]&&st.allItems[k]&&st.allItems[k].state==='done'});
+  if(!ids.length)return toast('Rien à télécharger','warn');
+  toast('Téléchargement de '+ids.length+' image(s)…');
+  for(var i=0;i<ids.length;i++){
+    var it=st.allItems[ids[i]];
+    try{
+      var b=await getBlob(it);
+      blobDownload(b,uniqueName(it));
+      await sleep(450);
+    }catch(e){log('DL échoué '+it.id+' : '+e.message,'w')}
+  }
+  toast(ids.length+' image(s) téléchargée(s)');
+}
+
+/* LIGHTBOX */
+function openZoom(item){
+  $('lbTi').textContent=item.style;
+  $('lbImg').src=item.url;
+  $('lbPrompt').textContent=item.prompt||'—';
+  var lineage=[],p=item.parent;
+  while(p&&st.allItems[p]){lineage.unshift(st.allItems[p].style);p=st.allItems[p].parent}
+  $('lbLine').textContent=lineage.length?('Branche : '+lineage.join(' → ')+' → '+item.style):'Image racine (photo de référence d\'origine)';
+  $('lbActs').innerHTML=
+    '<button class="bact gold" id="lbDl">📥 Télécharger</button>'+
+    '<button class="bact" id="lbSh">📤 Partager</button>'+
+    '<button class="bact" id="lbVar">🎨 Variantes</button>'+
+    '<button class="bact" id="lbSel">☑️ Sélectionner</button>'+
+    '<button class="bact" id="lbCopy">📋 Copier prompt</button>';
+  $('lbDl').onclick=function(){dlImage(item)};
+  $('lbSh').onclick=function(){shareImage(item)};
+  $('lbVar').onclick=function(){$('lb').classList.remove('on');runVariants(item)};
+  $('lbSel').onclick=function(){st.selMode=true;toggleSel(item.id);renderSeries();toast('Mode sélection activé')};
+  $('lbCopy').onclick=function(){if(navigator.clipboard){navigator.clipboard.writeText(item.prompt||'');toast('Prompt copié')}};
+  $('lb').classList.add('on');
+}
+
+/* ════════════════════════════════════════════════════════════════
+   WORKERS / GÉNÉRATION
+════════════════════════════════════════════════════════════════ */
+/* nombre de workers recalculé à chaque lancement (série, branche, réessai) : clés actives × workers par clé */
+var wLive=0,wTarget=0;
+function ensureWorkers(){
+  wTarget=Math.min(16,Math.max(2,st.keys.filter(function(k){return k.active}).length*(st.wPerKey||2)));
+  st.workersOn=true;
+  var add=wTarget-wLive;
+  for(var i=0;i<add;i++)worker();
+  if(add>0)log(wTarget+' workers actifs','s');
+}
+async function worker(){
+  wLive++;
+  try{
+    while(!st.stop){
+      if(wLive>wTarget)return; /* réglage réduit : ce worker s'arrête (jamais au milieu d'une image) */
+      if(st.paused||!queue.length){await sleep(300);continue}
+      var job=queue.shift();
+      try{await job()}
+      catch(e){if(e&&e.message==='Arrêt')return;log('Worker : '+(e.message||e),'e');await sleep(800)}
+    }
+  }finally{wLive--}
+}
+function allPending(){
+  return queue.length+Object.keys(st.allItems).filter(function(i){return st.allItems[i].state==='loading'}).length;
+}
+function updateBar(){
+  var total=0,done=0;
+  Object.keys(st.allItems).forEach(function(i){total++;if(st.allItems[i].state==='done')done++});
+  $('bCount').textContent=done;
+  $('bProg').style.width=allPending()>0?Math.round(100*done/Math.max(1,total))+'%':'0';
+  $('playBtn').style.display=st.running?'none':'';
+  $('pauseBtn').style.display=st.running?'':'none';
+  $('pauseBtn').textContent=st.paused?'▶':'⏸';
+  var chip=$('chip');
+  if(st.running&&!st.paused){chip.className='statchip run';$('chipTx').textContent='En cours'}
+  else if(st.running){chip.className='statchip';$('chipTx').textContent='Pause'}
+  else{chip.className='statchip';$('chipTx').textContent='Prêt'}
+  if(st.recentTimes.length>2&&allPending()>0){
+    var arr=st.recentTimes.slice(-8),d=[];
+    for(var i=1;i<arr.length;i++)d.push(arr[i]-arr[i-1]);
+    var avg=d.reduce(function(a,b){return a+b},0)/d.length;
+    var par=Math.max(1,st.keys.filter(function(k){return k.active}).length*(st.wPerKey||2));
+    $('bEta').textContent='~'+Math.max(1,Math.round(avg*allPending()/1000/par))+'s restants';
+  }else $('bEta').textContent='';
+}
+function setStatus(t){$('bStat').textContent=t}
+
+async function genOne(item){
+  try{
+    var src=null;
+    if(item.parent){
+      var par=itemById(item.parent);
+      if(par&&par.url)src=await toDataURL(par.url);
+      if(!src&&st.img)src=st.img;
+    }else{
+      src=st.img;
+    }
+    var url=await genImage(item.prompt,st.size,item.ratio,src);
+    item.url=url;item.state='done';item.time=nowT();
+    item.fname=stamp();
+    st.recentTimes.push(Date.now());
+    saveImage(item);
+    var w=$('bi-'+item.id);
+    if(w){
+      w.innerHTML='';
+      var img=document.createElement('img');
+      img.src=url;img.alt=item.style;
+      img.onclick=function(){openZoom(item)};
+      w.appendChild(img);
+    }
+    renderActions(item);
+    log('✓ '+item.style.slice(0,48),'s');
+  }catch(e){
+    if(e&&e.message==='Arrêt')return;
+    item.state='error';item.err=e.message||'Erreur';
+    log('✕ '+item.style.slice(0,40)+' : '+item.err,'e');
+    var node=document.querySelector('.node[data-id="'+item.id+'"]');
+    if(node)node.querySelector('.blk').classList.add('err');
+    var w=$('bi-'+item.id);
+    if(w)w.innerHTML='<div class="errmsg">✕ '+esc((item.err||'').slice(0,140))+' — <a href="#">réessayer</a></div>';
+    var rt=w?w.querySelector('.errmsg a'):null;
+    if(rt)rt.onclick=function(ev){ev.preventDefault();item.state='loading';$('bi-'+item.id).innerHTML='<div class="load"></div>';queue.push(function(){return genOne(item)});ensureWorkers()};
+  }
+  renderTabs();updateBar();
+}
+/* sid = série lancée : les images restent dans cette série même si l'on consulte un autre onglet pendant la production */
+function makeJob(sid){
+  return function(){
+    var space=st.spaceP>0&&Math.random()<st.spaceP;
+    var textOn=st.txtMode==='yes'||(st.txtMode==='sometimes'&&Math.random()<0.5);
+    var duoOn=st.duo==='always'||(st.duo==='sometimes'&&Math.random()<0.4);
+    var overlayOn=st.mode==='hook';
+    var sy=pickStyle();
+    var badges=[];
+    if(duoOn)badges.push('👥');
+    if(space)badges.push('🚀');
+    if(overlayOn)badges.push('TXT');
+    var prompt=buildPrompt(sy.prompt,sy.cat,{duo:duoOn,space:space,text:textOn,overlay:overlayOn});
+    var item={id:'it'+(++blk),parent:null,cat:sy.cat,style:sy.name,ratio:ratioForSeries(),seriesId:sid,prompt:prompt,badges:badges,state:'loading',url:null,time:nowT()};
+    insertNode(item);
+    setStatus(sy.name.slice(0,42));
+    return genOne(item);
+  };
+}
+function launchSeries(){
+  if(st.running)return toast('Une série est déjà en cours','warn');
+  if(!st.img)return toast('Charge une image de référence','err');
+  if(!anyKey())return toast('Ajoute au moins une clé','err');
+  $('batchDone').style.display='none';
+  var ns=newSeries();
+  st.runSid=ns.id;
+  $('stream').innerHTML='';
+  st.running=true;st.paused=false;st.stop=false;
+  updateBar();updateStart();
+  setStatus('Génération…');
+  log('▶ Série : '+st.batch+' images, mode '+st.mode+(st.fullClone?' · clonage complet':''),'s');
+  for(var i=0;i<st.batch;i++)queue.push(makeJob(ns.id));
+  ensureWorkers();
+}
+setInterval(function(){
+  if(st.running&&allPending()===0){
+    var s=seriesById(st.runSid);
+    if(s&&!s.done){
+      st.running=false;
+      s.done=true;persistSeries(s);
+      var ok=s.items.filter(function(i){return st.allItems[i]&&st.allItems[i].state==='done'}).length;
+      $('batchDoneSub').textContent=ok+' images — sauvegardées. Développe tes branches favorites, ou forge une nouvelle série.';
+      $('batchDone').style.display='block';
+      renderTabs();updateBar();updateStart();
+      setStatus('Série terminée');
+      toast('✨ Série terminée : '+ok+' images');
+    }
+  }
+  updateBar();
+},800);
+
+/* ════════════════════════════════════════════════════════════════
+   PHOTO
+════════════════════════════════════════════════════════════════ */
+function fileToUri(f){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(e){res(e.target.result)};r.onerror=rej;r.readAsDataURL(f)})}
+function compress(uri,max){
+  return new Promise(function(res){
+    var im=new Image();
+    im.onload=function(){
+      var s=Math.min(1,max/Math.max(im.width,im.height));
+      var c=document.createElement('canvas');
+      c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);
+      c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+      res(c.toDataURL('image/jpeg',0.88));
+    };
+    im.onerror=function(){res(uri)};
+    im.src=uri;
+  });
+}
+async function handleFile(f){
+  if(!f)return;
+  if(f.type.indexOf('image/')!==0)return toast('Fichier non image','err');
+  if(f.size>15*1024*1024)return toast('Image trop lourde (max 15 Mo)','err');
+  try{
+    var raw=await fileToUri(f);
+    st.img=await compress(raw,1280);
+    st.imgName=f.name;
+    renderDrop();updateStart();
+    idbPut('kv',st.img,'photo');
+    toast('Image chargée ✓ — appuie sur FORGER');
+  }catch(e){toast('Erreur de lecture','err')}
+}
+function renderDrop(){
+  var d=$('drop');
+  if(st.img){
+    d.classList.add('has');
+    d.innerHTML='<div class="prev"><img src="'+st.img+'" alt=""><button class="rm" id="dpRm">✕</button></div>';
+    $('dpRm').onclick=function(e){e.stopPropagation();st.img=null;st.imgName=null;idbDel('kv','photo');renderDrop();updateStart();toast('Image retirée','warn')};
+    $('phBadge').textContent='OK';
+  }else{
+    d.classList.remove('has');
+    d.innerHTML='<input type="file" accept="image/*" id="fileIn">'+
+      '<div class="ic">🎬</div><div class="ti">Charger l\'image de référence</div>'+
+      '<div class="de">Visage bien visible, face caméra. Valide et tu obtiens immédiatement une série complète de scènes.</div>';
+    $('fileIn').addEventListener('change',function(e){
+      if(e.target.files&&e.target.files[0]){handleFile(e.target.files[0]);e.target.value=''}
+    });
+    $('phBadge').textContent='—';
+  }
+}
+function updateStart(){
+  $('startBtn').disabled=!st.img||!anyKey()||st.running;
+  $('playBtn').disabled=!st.img||!anyKey()||st.running;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   JSON PARSER
+════════════════════════════════════════════════════════════════ */
+function parseJson(text){
+  if(!text)return null;
+  var c=String(text).trim();
+  var fm=c.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if(fm)c=fm[1].trim();
+  var fb=c.indexOf('{');if(fb<0)return null;
+  c=c.slice(fb);
+  var lb=c.lastIndexOf('}');if(lb>0)c=c.slice(0,lb+1);
+  var out='',inS=false,escF=false;
+  for(var i=0;i<c.length;i++){
+    var ch=c[i];
+    if(escF){out+=ch;escF=false;continue}
+    if(ch==='\\'){out+=ch;escF=true;continue}
+    if(ch==='"'){inS=!inS;out+=ch;continue}
+    if(inS){
+      if(ch==='\n'){out+='\\n';continue}
+      if(ch==='\r'){out+='\\r';continue}
+      if(ch==='\t'){out+='\\t';continue}
+      var code=ch.charCodeAt(0);
+      if(code<32){out+='\\u'+code.toString(16).padStart(4,'0');continue}
+    }
+    out+=ch;
+  }
+  if(escF)out+='\\';if(inS)out+='"';
+  out=out.replace(/,\s*([}\]])/g,'$1');
+  try{return JSON.parse(out)}catch(e){
+    var ob=0,ok=0,inS2=false,esc2=false;
+    for(var j=0;j<out.length;j++){
+      var ch2=out[j];
+      if(esc2){esc2=false;continue}
+      if(ch2==='\\'){esc2=true;continue}
+      if(ch2==='"'){inS2=!inS2;continue}
+      if(inS2)continue;
+      if(ch2==='{')ob++;else if(ch2==='}')ob--;
+      else if(ch2==='[')ok++;else if(ch2===']')ok--;
+    }
+    var r=out;if(inS2)r+='"';
+    while(ok>0){r+=']';ok--}while(ob>0){r+='}';ob--}
+    try{return JSON.parse(r)}catch(e2){return null}
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   MODALES
+════════════════════════════════════════════════════════════════ */
+function openHist(){
+  var items=Object.keys(st.allItems).map(function(i){return st.allItems[i]}).filter(function(i){return i.state==='done'}).reverse();
+  $('hGrid').innerHTML=items.map(function(i){
+    var ci=CATS[i.cat]||{i:'✨'};
+    return'<div class="hcell" data-id="'+i.id+'"><img src="'+i.url+'" loading="lazy" alt=""><div class="l">'+ci.i+' '+esc(i.style.slice(0,20))+'</div></div>';
+  }).join('');
+  $('hGrid').querySelectorAll('.hcell').forEach(function(el){
+    el.onclick=function(){
+      $('histM').classList.remove('on');
+      var it=itemById(el.dataset.id);
+      if(it&&it.seriesId!==st.curSeries){st.curSeries=it.seriesId;renderTabs();renderSeries()}
+      if(it)setTimeout(function(){openZoom(it)},120);
+    };
+  });
+  $('histCnt').textContent=items.length;
+  $('histM').classList.add('on');
+}
+function openSess(){
+  var body=$('sessBody');
+  body.innerHTML=st.series.slice().reverse().map(function(s){
+    if(!s)return'';
+    var done=s.items.filter(function(i){return st.allItems[i]&&st.allItems[i].state==='done'}).length;
+    return'<div class="arow"><label>'+esc(s.name)+' — '+done+'/'+s.items.length+'</label><button class="bact gold" data-i="'+s.id+'">Ouvrir</button></div>';
+  }).join('');
+  body.querySelectorAll('[data-i]').forEach(function(b){
+    b.onclick=function(){st.curSeries=parseInt(b.dataset.i);renderTabs();renderSeries();$('sessM').classList.remove('on')};
+  });
+  $('sessM').classList.add('on');
+}
+var admTab='prompts';
+function field(label,key,val){
+  return'<label style="display:block;font-size:11px;font-weight:700;color:var(--fg2);text-transform:uppercase;margin:12px 0 6px">'+esc(label)+'</label><textarea data-k="'+key+'" style="width:100%">'+esc(val)+'</textarea>';
+}
+function renderAdm(){
+  var c=$('admBody');
+  if(admTab==='prompts'){
+    var P=st.adm.prompts;
+    c.innerHTML=field('Règle visage (critique)','face',P.face)+field('Clonage complet (coche)','cloneFull',P.cloneFull)+field('Expression','expr',P.expr)+field('Variation raffinée','change',P.change)+field('Duo ({{ARTIST}})','duo',P.duo)+field('Personnages originaux','cast',P.cast)+field('Saut spatial','space',P.space)+field('Texte vêtement ({{TEXT}})','text',P.text)+field('Overlay abonnement ({{TEXT}})','overlay',P.overlay)+field('Décor seul','decor',P.decor)+field('Qualité & sobriété','qual',P.qual)+'<button class="btn gold" id="saveP">💾 Sauvegarder</button>';
+    c.querySelectorAll('textarea[data-k]').forEach(function(t){t.oninput=function(){P[t.dataset.k]=t.value}});
+    $('saveP').onclick=function(){saveAdm();toast('Prompts sauvegardés')};
+  }else if(admTab==='texts'){
+    var T=st.adm.texts;
+    c.innerHTML='<div class="arow"><label>Texte sur t-shirt</label></div><input type="text" id="tShirt" value="'+esc(T.shirt)+'" placeholder="Vide = aucun texte sur les vêtements">'+
+    '<div class="arow" style="margin-top:10px"><label>Texte overlay abonnement / TikTok</label></div><input type="text" id="tOverlay" value="'+esc(T.overlay)+'">'+
+    '<div class="arow" style="margin-top:10px"><label>Texte bannière</label></div><input type="text" id="tBanner" value="'+esc(T.banner)+'">'+
+    '<button class="btn gold" id="saveT" style="margin-top:12px">💾 Sauvegarder</button>';
+    $('saveT').onclick=function(){T.shirt=$('tShirt').value.trim();T.overlay=$('tOverlay').value.trim();T.banner=$('tBanner').value.trim();saveAdm();toast('Textes sauvegardés')};
+  }else if(admTab==='api'){
+    var A=st.api;
+    c.innerHTML='<div class="arow"><label>Endpoint API</label></div><input type="text" id="aEp" value="'+esc(A.endpoint)+'">'+
+    '<div class="arow" style="margin-top:10px"><label>Modèle image</label></div><input type="text" id="aMi" value="'+esc(A.mimg)+'">'+
+    '<div class="arow" style="margin-top:10px"><label>Modèle texte</label></div><input type="text" id="aMt" value="'+esc(A.mtx)+'">'+
+    '<button class="btn gold" id="saveA" style="margin-top:12px">💾 Sauvegarder</button>';
+    $('saveA').onclick=function(){A.endpoint=$('aEp').value.trim()||DEF_API;A.mimg=$('aMi').value.trim()||DEF_MIMG;A.mtx=$('aMt').value.trim()||DEF_MTX;saveApi();toast('API sauvegardée')};
+  }else if(admTab==='plans'){
+    var counts={};
+    st.db.forEach(function(s){counts[s.cat]=(counts[s.cat]||0)+1});
+    var html='<p style="font-size:12px;color:var(--mut);margin-bottom:10px">'+st.db.length+' plans · '+Object.keys(MODES).length+' modes</p>';
+    Object.keys(MODES).forEach(function(m){
+      html+='<div class="arow"><label>'+MODES[m].i+' '+esc(MODES[m].n)+'</label><span style="font-family:var(--mono);color:var(--mut)">'+Object.keys(MODES[m].cats).reduce(function(a,k){return a+(counts[k]||0)},0)+'</span></div>';
+    });
+    html+='<div style="display:flex;gap:8px;margin-top:12px"><button class="btn" id="expDb" style="flex:1">📤 Exporter</button><button class="btn" id="impDb" style="flex:1">📥 Importer</button></div>';
+    c.innerHTML=html;
+    $('expDb').onclick=function(){blobDownload(new Blob([JSON.stringify(st.db,null,2)],{type:'application/json'}),'styleforge-db-'+stamp()+'.json')};
+    $('impDb').onclick=function(){
+      var i=document.createElement('input');i.type='file';i.accept='.json';
+      i.onchange=function(e){
+        var f=e.target.files[0];if(!f)return;
+        f.text().then(function(tx){
+          try{
+            var arr=JSON.parse(tx);
+            if(Array.isArray(arr)&&arr.length){var cu=customPlans(arr);st.db=mergeDb(cu);saveLS(LS.db,cu);updateModeHint();toast(arr.length+' plans importés');renderAdm()}
+          }catch(err){toast('Fichier invalide','err')}
+        });
+      };
+      i.click();
+    };
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   INIT
+════════════════════════════════════════════════════════════════ */
+(function init(){
+  loadAll();
+  renderDrop();renderKeys();updateStart();updateBar();
+
+  $('keysIn').addEventListener('input',function(){autoSaveKeys(true)});
+  $('keysIn').addEventListener('change',function(){autoSaveKeys()});
+
+  $('cloneFull').onchange=function(){
+    st.fullClone=this.checked;
+    $('cloneChk').classList.toggle('on',st.fullClone);
+    updateCloneDesc();saveCfg();
+    toast(st.fullClone?'Clonage complet : visage + coiffe + vêtements':'Clonage visage uniquement');
+  };
+  $('cloneChk').onclick=function(ev){
+    if(ev.target.id!=='cloneFull'){st.fullClone=!st.fullClone;syncSettingsUI();saveCfg()}
+  };
+  $('modeSel').onchange=function(){st.mode=this.value;saveCfg();st.usedStyles={};updateModeHint();toast('Mode : '+this.options[this.selectedIndex].text)};
+  document.querySelectorAll('#batchSeg button').forEach(function(b){
+    b.onclick=function(){
+      document.querySelectorAll('#batchSeg button').forEach(function(x){x.classList.remove('on')});
+      b.classList.add('on');st.batch=parseInt(b.dataset.v);saveCfg();renderKeys();
+    };
+  });
+  $('ratio').onchange=function(){st.ratioMode=this.value;saveCfg()};
+  $('sizeSel').onchange=function(){st.size=this.value;saveCfg()};
+  $('duoSel').onchange=function(){st.duo=this.value;saveCfg()};
+  $('spaceSel').onchange=function(){st.spaceP=parseFloat(this.value);saveCfg()};
+  $('txtSel').onchange=function(){st.txtMode=this.value;saveCfg()};
+  $('wPerKey').onchange=function(){st.wPerKey=parseInt(this.value)||2;saveCfg();renderKeys()};
+  $('interval').onchange=function(){st.interval=parseInt(this.value)||3000;saveCfg();renderKeys()};
+
+  $('startBtn').onclick=launchSeries;
+  $('nextBatchBtn').onclick=launchSeries;
+  $('playBtn').onclick=launchSeries;
+  $('pauseBtn').onclick=function(){
+    st.paused=!st.paused;
+    setStatus(st.paused?'⏸ Pause':'▶ Génération…');
+    updateBar();toast(st.paused?'Pause':'Reprise','warn');
+  };
+  $('selModeBtn').onclick=function(){
+    st.selMode=!st.selMode;
+    if(!st.selMode){st.sel={};$('selBar').classList.remove('on')}
+    renderSeries();
+    toast(st.selMode?'Mode sélection : coche des images puis télécharge-les en lot':'Mode sélection désactivé');
+  };
+  $('selAll').onclick=function(){
+    Object.keys(st.allItems).forEach(function(i){if(st.allItems[i].state==='done')st.sel[i]=true});
+    renderSeries();updateSelBar();
+  };
+  $('selNone').onclick=function(){st.sel={};renderSeries();updateSelBar()};
+  $('selDl').onclick=downloadSelected;
+
+  $('histBtn').onclick=openHist;
+  $('histX').onclick=function(){$('histM').classList.remove('on')};
+  $('sessBtn').onclick=openSess;
+  $('sessX').onclick=function(){$('sessM').classList.remove('on')};
+  $('adminBtn').onclick=function(){renderAdm();$('admM').classList.add('on')};
+  $('admX').onclick=function(){$('admM').classList.remove('on')};
+  document.querySelectorAll('.mtab').forEach(function(b){
+    b.onclick=function(){
+      document.querySelectorAll('.mtab').forEach(function(x){x.classList.remove('on')});
+      b.classList.add('on');admTab=b.dataset.t;renderAdm();
+    };
+  });
+  $('lbX').onclick=function(){$('lb').classList.remove('on')};
+  $('lbImg').onclick=function(){$('lb').classList.remove('on')};
+
+  setInterval(renderKeys,3000);
+  idbGet('kv','photo').then(function(v){if(v){st.img=v;renderDrop();updateStart();log('Image de référence restaurée','s')}}).catch(function(){});
+  restoreSession();
+  log('Style Forge v5 prêt — '+st.db.length+' plans, '+Object.keys(MODES).length+' modes','s');
+})();
+</script>
+</body>
+</html>
